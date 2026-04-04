@@ -1,0 +1,56 @@
+# Nix build artifacts
+result
+result-*
+*.gcno
+*.gcda
+*.gcov
+
+# Nix store symlinks
+/nix/store/*
+
+# Temporary files
+*.swp
+*.swo
+*~
+.*.swp
+.*.swo
+.*~
+\#*#
+.#*
+.DS_Store
+
+# Editor files
+.vscode/
+.idea/
+*.iml
+
+# Environment files
+.env
+.env.local
+.env.*.local
+.secrets/
+secrets.nix
+
+# Nix specific
+shell.nix
+test-env
+.direnv/
+.envrc
+
+# Hardware specific (generated)
+hardware-configuration.nix
+
+# Install scripts (temporary)
+install-*.sh
+
+# Logs
+*.log
+logs/
+
+# Backup files
+*.bak
+*.backup
+
+# System specific
+/configuration-*.nix
+/hardware-configuration.nix
