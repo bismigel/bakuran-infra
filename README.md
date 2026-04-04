@@ -45,6 +45,18 @@ See `colmena.nix` example for multi-node deployment.
 - Change passwords and use SSH keys in production
 - Review firewall and service exposure
 
+### Generating Password Hashes
+
+To generate a SHA-512 password hash for NixOS configuration:
+
+```bash
+mkpasswd -m sha-512
+# or using openssl:
+openssl passwd -6 -salt $(openssl rand -hex 4)
+```
+
+Replace the `hashedPassword` field in `configuration.nix` with the generated hash.
+
 ## Development
 
 Use `nix-shell` for development environment (if `shell.nix` exists).
