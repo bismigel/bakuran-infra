@@ -49,8 +49,9 @@ data:
     - kubernetes:
         showNodes: true
         showPods: true
-    - openweathermap:
-        apiKey: ""
-        city: ""
-        units: metric
+  bookmarks.yaml: "[]"
+  docker.yaml: ""
+  custom.css: ""
+  custom.js: ""
+  proxmox.yaml: ""
   bookmarks.yaml: "[]"
