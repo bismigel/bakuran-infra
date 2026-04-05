@@ -6,19 +6,6 @@ metadata:
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: downloads-pvc
-  namespace: downloads
-spec:
-  accessModes:
-    - ReadWriteOnce
-  storageClassName: local-path
-  resources:
-    requests:
-      storage: 220Gi
----
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
   name: config-pvc
   namespace: downloads
 spec:
@@ -101,25 +88,6 @@ spec:
           persistentVolumeClaim:
             claimName: config-pvc
         - name: downloads
-          persistentVolumeClaim:
-            claimName: downloads-pvc
-          ports:
-            - containerPort: 8080
-              name: webui
-          volumeMounts:
-            - name: config
-              mountPath: /config
-            - name: downloads
-              mountPath: /downloads
-          resources:
-            requests:
-              memory: "256Mi"
-            limits:
-              memory: "1Gi"
-      volumes:
-        - name: config
-          persistentVolumeClaim:
-            claimName: config-pvc
-        - name: downloads
-          persistentVolumeClaim:
-            claimName: downloads-pvc
+          hostPath:
+            path: /mnt/downloads
+            type: Directory
