@@ -9,10 +9,20 @@
     wireguard-tools
   ];
 
-  # ProtonVPN setup via WireGuard:
-  # 1. Get WireGuard config from protonvpn.com -> Downloads
-  # 2. Save as /etc/wireguard/proton.conf
-  # 3. Connect: wg-quick up proton
-  # 4. Auto-start: systemctl enable wg-quick@proton
-  # 5. Disconnect: wg-quick down proton
+  # WireGuard VPN configuration
+  # ProtonVPN CH-CA#2 - routes all traffic through VPN
+  networking.wg-quick.interfaces = {
+    proton0 = {
+      privateKey = "REDACTED";
+      address = [ "10.2.0.2/32" ];
+      dns = [ "10.2.0.1" ];
+      autostart = true;
+      peers = [{
+        publicKey = "b5Wy36VwywSceq7wfLAe/QxcQ/UQC11txwkGes/CEWc=";
+        allowedIPs = [ "0.0.0.0/0" "::/0" ];
+        endpoint = "62.169.136.231:51820";
+        persistentKeepalive = 25;
+      }];
+    };
+  };
 }
