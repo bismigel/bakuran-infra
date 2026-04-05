@@ -46,7 +46,7 @@ spec:
               name: https
           env:
             - name: JELLYFIN_PublishedServerUrl
-              value: "http://192.168.2.81:8096"
+              value: "http://192.168.2.81:30096"
           resources:
             requests:
               memory: 512Mi

@@ -9,6 +9,10 @@
 | Grafana | http://192.168.2.81:30300 | ✅ | admin/admin |
 | Jellyfin | http://192.168.2.81:30096 | ✅ | QSV transcoding |
 | qBittorrent | http://192.168.2.81:30081 | ✅ | admin/jRIJqfxHS |
+| Prowlarr | http://192.168.2.81:30069 | ✅ | Indexer manager |
+| Sonarr | http://192.168.2.81:30089 | ✅ | TV show management |
+| Radarr | http://192.168.2.81:30078 | ✅ | Movie management |
+| Bazarr | http://192.168.2.81:30067 | ✅ | Subtitle management |
 | OTel Collector | 10.43.2.34:4317 | ✅ | observability namespace |
 
 ## Cluster Info
@@ -26,7 +30,8 @@
 ## TODO
 
 - [ ] Set up SOPS for secrets management
-- [ ] Configure proper Jellyfin media library
-- [ ] Add arrstack (Sonarr, Radarr, Prowlarr)
+- [ ] Configure Jellyfin media library paths
+- [x] Add arrstack (Prowlarr, Sonarr, Radarr, Bazarr)
 - [ ] Set up GitOps (ArgoCD/Flux)
 - [ ] Add Ingress controller
+- [ ] Connect arr apps to qBittorrent download client

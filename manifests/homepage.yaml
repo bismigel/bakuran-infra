@@ -35,6 +35,18 @@ data:
             href: http://192.168.2.81:30096
             description: Media server with QSV transcoding
             icon: jellyfin
+        - Prowlarr:
+            href: http://192.168.2.81:30069
+            description: Indexer manager for Sonarr/Radarr
+        - Sonarr:
+            href: http://192.168.2.81:30089
+            description: TV show management
+        - Radarr:
+            href: http://192.168.2.81:30078
+            description: Movie management
+        - Bazarr:
+            href: http://192.168.2.81:30067
+            description: Subtitle management
     - Observability:
         - OTel Collector:
             href: http://192.168.2.81:8889/metrics
