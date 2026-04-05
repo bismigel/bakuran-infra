@@ -10,10 +10,14 @@ This repository contains NixOS configurations for setting up a k3s cluster using
 
 ### 1. Install Colmena
 ```bash
-# On Arch Linux
-yay -S colmena
-# or with Nix
-nix-shell -p colmena
+# Install Nix package manager first
+curl -L https://nixos.org/nix/install | sh
+
+# Install colmena
+nix-env -iA nixpkgs.colmena
+
+# Alternative: Use project shell (if Nix is installed)
+nix-shell shell.nix
 ```
 
 ### 2. Configure Your Node

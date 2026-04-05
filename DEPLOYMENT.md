@@ -6,21 +6,49 @@ This guide explains how to deploy NixOS configurations to your servers using Col
 
 ### 1. Install Colmena
 
-On your local machine (Arch Linux):
+#### Option A: Install Nix package manager (Recommended)
+Colmena is easiest to install via Nix:
 
 ```bash
-# Install from AUR or using your preferred method
-yay -S colmena
-# or
-paru -S colmena
-# or build from source
-nix-env -iA nixos.colmena
+# Install Nix package manager
+curl -L https://nixos.org/nix/install | sh
+# Restart shell or source ~/.nix-profile/etc/profile.d/nix.sh
+
+# Install colmena
+nix-env -iA nixpkgs.colmena
 ```
 
-On NixOS or with Nix installed:
+#### Option B: Use project shell (with Nix installed)
+If you have Nix installed, use the project development shell:
+
 ```bash
-nix-shell -p colmena
-# or add to environment.systemPackages in configuration.nix
+# Enter development environment with colmena available
+nix-shell shell.nix
+# Then run colmena commands inside the shell
+```
+
+#### Option C: Build from source
+Colmena is a Rust application:
+
+```bash
+# Clone and build
+git clone https://github.com/zhaofengli/colmena
+cd colmena
+cargo build --release
+# Binary will be in target/release/colmena
+```
+
+#### Option D: Use binary release
+Check GitHub releases for pre-built binaries:
+
+```bash
+# Check latest release at: https://github.com/zhaofengli/colmena/releases
+# Download and extract binary
+```
+
+#### Verify Installation
+```bash
+colmena --version
 ```
 
 ### 2. SSH Access to Target Nodes
