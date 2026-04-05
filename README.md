@@ -105,8 +105,9 @@ bakuran-sosyal/
 
   networking.hostName = "calamansi";
 
-  fileSystems."/" = { device = "/dev/sda1"; fsType = "ext4"; };
-  fileSystems."/boot" = { device = "/dev/sda2"; fsType = "vfat"; };
+  fileSystems."/" = { device = "/dev/disk/by-uuid/3f6c1944-2b68-4426-bfcd-8888f6e4aa9c"; fsType = "ext4"; };
+  fileSystems."/boot" = { device = "/dev/disk/by-uuid/4A61-5E74"; fsType = "vfat"; };
+  fileSystems."/mnt/downloads" = { device = "/dev/disk/by-uuid/de9ae680-7261-4e86-8daa-54cf0c9d374b"; fsType = "ext4"; };
 
   services.k3s = {
     enable = true;
@@ -429,26 +430,18 @@ HOST="${1:-calamansi}"
 TARGET="root@192.168.2.81"
 SSH_OPTS="-o StrictHostKeyChecking=no -i ~/.ssh/id_ed25519"
 
-CLOSURE_PATH="/tmp/nixos-build-$HOST/result"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Step 1: Build the NixOS configuration locally
+# Step 1: Sync config files to server
+echo "==> Syncing configuration files to $TARGET..."
+ssh $SSH_OPTS "$TARGET" "mkdir -p /etc/nixos/hosts/calamansi /etc/nixos/modules"
+scp $SSH_OPTS "$SCRIPT_DIR"/flake.nix "$SCRIPT_DIR"/flake.lock "$TARGET:/etc/nixos/"
+scp $SSH_OPTS "$SCRIPT_DIR"/hosts/"$HOST"/*.nix "$TARGET:/etc/nixos/hosts/$HOST/"
+scp $SSH_OPTS "$SCRIPT_DIR"/modules/*.nix "$TARGET:/etc/nixos/modules/"
+
+# Step 2: Build and switch on server
 echo "==> Building configuration for $HOST..."
-nix build ".#nixosConfigurations.$HOST.config.system.build.toplevel" \
-  --out-link "$CLOSURE_PATH"
-
-PROFILE_TARGET=$(readlink "$CLOSURE_PATH")
-
-# Step 2: Copy the closure to the server
-echo "==> Copying to $TARGET..."
-nix copy --to "ssh://$TARGET" "$CLOSURE_PATH"
-
-# Step 3: Activate the new configuration
-echo "==> Activating on $TARGET..."
-ssh $SSH_OPTS "$TARGET" "
-  rm -f /nix/var/nix/profiles/system
-  ln -s $PROFILE_TARGET /nix/var/nix/profiles/system
-  $PROFILE_TARGET/bin/switch-to-configuration switch
-"
+ssh $SSH_OPTS "$TARGET" "cd /etc/nixos && nixos-rebuild switch --flake .#$HOST"
 
 echo "==> Done!"
 ```

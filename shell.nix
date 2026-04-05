@@ -2,14 +2,12 @@
 
 pkgs.mkShell {
   buildInputs = with pkgs; [
-    k9s
-    helm
     kubectl
+    helm
+    k9s
     sops
     age
     vim
-    curl
     git
-    nixos-rebuild
   ];
 }
