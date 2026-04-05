@@ -10,12 +10,12 @@
   networking.hostName = "calamansi";
 
   fileSystems."/" = {
-    device = "/dev/sda1";
+    device = "/dev/disk/by-uuid/3f6c1944-2b68-4426-bfcd-8888f6e4aa9c";
     fsType = "ext4";
   };
 
   fileSystems."/boot" = {
-    device = "/dev/sda2";
+    device = "/dev/disk/by-uuid/4A61-5E74";
     fsType = "vfat";
   };
 
