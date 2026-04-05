@@ -1,0 +1,56 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: homepage
+  namespace: homepage
+  labels:
+    app.kubernetes.io/name: homepage
+data:
+  settings.yaml: |
+    demo: false
+    title: "Bakuran Sosyal Dashboard"
+  services.yaml: |
+    - Cluster Services:
+        - Prometheus:
+            href: http://192.168.2.81:30909
+            description: Metrics and monitoring
+            icon: prometheus
+        - Grafana:
+            href: http://192.168.2.81:30300
+            description: Dashboards
+            icon: grafana
+        - Kubernetes API:
+            href: https://192.168.2.81:6443
+            description: k3s API Server
+            icon: kubernetes
+        - Homepage:
+            href: http://192.168.2.81:30080
+            description: This dashboard
+    - Observability:
+        - OTel Collector:
+            href: http://192.168.2.81:8889/metrics
+            description: OpenTelemetry metrics
+            icon: otel
+  kubernetes.yaml: |
+    mode: cluster
+    ingress: true
+  resources.yaml: |
+    cpu: true
+    memory: true
+    disk: /
+  widgets.yaml: |
+    - resources:
+        cpu: true
+        memory: true
+        disk: /
+    - search:
+        provider: duckduckgo
+        target: _blank
+    - kubernetes:
+        showNodes: true
+        showPods: true
+    - openweathermap:
+        apiKey: ""
+        city: ""
+        units: metric
+  bookmarks.yaml: "[]"
