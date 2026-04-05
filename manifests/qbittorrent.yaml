@@ -17,6 +17,19 @@ spec:
       storage: 220Gi
 ---
 apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: config-pvc
+  namespace: downloads
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: v1
 kind: Service
 metadata:
   name: qbittorrent
@@ -28,15 +41,6 @@ spec:
       port: 8080
       targetPort: 8080
       nodePort: 30081
-    - name: tcp
-      port: 6881
-      targetPort: 6881
-      nodePort: 30681
-    - name: udp
-      port: 6881
-      targetPort: 6881
-      protocol: UDP
-      nodePort: 30681
   selector:
     app: qbittorrent
 ---
@@ -55,30 +59,33 @@ spec:
       labels:
         app: qbittorrent
     spec:
+      initContainers:
+        - name: init
+          image: busybox:latest
+          command:
+            - sh
+            - -c
+            - |
+              mkdir -p /config/qBittorrent
+              printf '[Preferences]\nWebUI\\LocalHostAuth=false\nWebUI\\HostHeaderValidation=false\n' > /config/qBittorrent/qBittorrent.conf
+          volumeMounts:
+            - name: config
+              mountPath: /config
       containers:
         - name: qbittorrent
-          image: fedora:latest
-          command: ["/bin/bash", "-c"]
-          args:
-            - dnf install -y qbittorrent-nox && qbittorrent-nox --webui-port=8080
+          image: lscr.io/linuxserver/qbittorrent:latest
           env:
             - name: PUID
               value: "1000"
             - name: PGID
               value: "1000"
             - name: TZ
-              value: "UTC"
+              value: "Asia/Manila"
             - name: WEBUI_PORT
               value: "8080"
           ports:
             - containerPort: 8080
               name: webui
-            - containerPort: 6881
-              name: bittorrent-tcp
-              protocol: TCP
-            - containerPort: 6881
-              name: bittorrent-udp
-              protocol: UDP
           volumeMounts:
             - name: config
               mountPath: /config
@@ -91,7 +98,28 @@ spec:
               memory: "1Gi"
       volumes:
         - name: config
-          emptyDir: {}
+          persistentVolumeClaim:
+            claimName: config-pvc
+        - name: downloads
+          persistentVolumeClaim:
+            claimName: downloads-pvc
+          ports:
+            - containerPort: 8080
+              name: webui
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            - name: downloads
+              mountPath: /downloads
+          resources:
+            requests:
+              memory: "256Mi"
+            limits:
+              memory: "1Gi"
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: config-pvc
         - name: downloads
           persistentVolumeClaim:
             claimName: downloads-pvc
