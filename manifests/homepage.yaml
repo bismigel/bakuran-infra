@@ -30,6 +30,11 @@ data:
         - qBittorrent:
             href: http://192.168.2.81:30081
             description: Torrent downloads (admin/jRIJqfxHS)
+    - Media:
+        - Jellyfin:
+            href: http://192.168.2.81:30096
+            description: Media server with QSV transcoding
+            icon: jellyfin
     - Observability:
         - OTel Collector:
             href: http://192.168.2.81:8889/metrics
