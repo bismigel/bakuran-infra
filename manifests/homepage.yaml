@@ -34,6 +34,8 @@ data:
   kubernetes.yaml: |
     mode: cluster
     ingress: true
+    showNodes: true
+    showPods: true
   resources.yaml: |
     cpu: true
     memory: true
@@ -46,9 +48,6 @@ data:
     - search:
         provider: duckduckgo
         target: _blank
-    - kubernetes:
-        showNodes: true
-        showPods: true
   bookmarks.yaml: "[]"
   docker.yaml: ""
   custom.css: ""
