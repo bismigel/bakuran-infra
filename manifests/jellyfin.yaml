@@ -31,6 +31,11 @@ spec:
         prometheus.io/port: "8096"
         prometheus.io/path: "/metrics"
     spec:
+      securityContext:
+        runAsUser: 0
+        runAsGroup: 0
+        supplementalGroups:
+          - 303
       containers:
         - name: jellyfin
           image: jellyfin/jellyfin:10.9.10
@@ -54,6 +59,8 @@ spec:
               mountPath: /cache
             - name: media
               mountPath: /media
+            - name: dri
+              mountPath: /dev/dri
       volumes:
         - name: config
           persistentVolumeClaim:
