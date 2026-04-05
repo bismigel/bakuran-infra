@@ -4,6 +4,7 @@
   imports = [
     ../../modules/base.nix
     ../../modules/k3s.nix
+    # ../../modules/otel.nix  # OTel is applied via kubectl manifests
   ];
 
   networking.hostName = "calamansi";
