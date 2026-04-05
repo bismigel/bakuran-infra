@@ -4,7 +4,6 @@
   imports = [
     ../../modules/base.nix
     ../../modules/k3s.nix
-    # ../../modules/otel.nix  # OTel is applied via kubectl manifests
   ];
 
   networking.hostName = "calamansi";
@@ -17,6 +16,11 @@
   fileSystems."/boot" = {
     device = "/dev/disk/by-uuid/4A61-5E74";
     fsType = "vfat";
+  };
+
+  fileSystems."/mnt/downloads" = {
+    device = "/dev/disk/by-uuid/de9ae680-7261-4e86-8daa-54cf0c9d374b";
+    fsType = "ext4";
   };
 
   services.k3s = {
