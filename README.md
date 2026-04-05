@@ -6,6 +6,38 @@ NixOS configuration for a Kubernetes (k3s) server cluster managed with Colmena.
 
 This repository contains NixOS configurations for setting up a k3s cluster using Colmena for deployment management. The configuration is designed for a clean NixOS installation with essential packages and services.
 
+## Quick Start
+
+### 1. Install Colmena
+```bash
+# On Arch Linux
+yay -S colmena
+# or with Nix
+nix-shell -p colmena
+```
+
+### 2. Configure Your Node
+Edit `colmena.nix`:
+- Set `targetHost` to your server IP (192.168.2.81 for calamansi)
+- Configure passwords and SSH keys in `configuration.nix`
+
+### 3. Deploy
+```bash
+# Test configuration
+colmena eval
+
+# Deploy to calamansi
+colmena apply --on calamansi
+```
+
+### 4. Access k3s Cluster
+```bash
+# Get kubeconfig from server
+colmena exec-on calamansi -- cat /etc/rancher/k3s/k3s.yaml
+```
+
+For detailed instructions, see [DEPLOYMENT.md](DEPLOYMENT.md).
+
 ## Configuration
 
 The main configuration file is `configuration.nix` which includes:
@@ -16,28 +48,9 @@ The main configuration file is `configuration.nix` which includes:
 - k3s and colmena packages
 - Basic development tools (vim, curl, git)
 
-## Usage
+## Deployment with Colmena
 
-### Initial Setup
-
-1. Generate hardware configuration on target system:
-   ```bash
-   sudo nixos-generate-config --root /mnt
-   ```
-
-2. Copy `configuration.nix` to `/mnt/etc/nixos/` and customize:
-   - Set hostname
-   - Configure users and passwords
-   - Adjust package list
-
-3. Install NixOS:
-   ```bash
-   sudo nixos-install
-   ```
-
-### Cluster Deployment with Colmena
-
-See `colmena.nix` example for multi-node deployment.
+See `colmena.nix` for node definitions and `DEPLOYMENT.md` for comprehensive deployment guide.
 
 ## Security Notes
 
