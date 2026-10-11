@@ -1,7 +1,14 @@
-# Homelab Migration Plan — Proxmox → Single-Node NixOS + ArgoCD
+# Homelab Migration Plan — Proxmox → NixOS + ArgoCD
 
-> Status: **proposal / for review**. Nothing here has been applied yet.
-> Author: prepared for review. Target host: `calamansi`.
+> **STATUS (current):** largely executed.
+> - `bakuran-homelab` (Proxmox/Flux) — **archived/retired**.
+> - `bakuran-infra` (this repo) — NixOS machines (`calamansi` .81 media, `sitaw` .82 hosting) + `deploy-rs`.
+> - `bakuran-gitops` — ArgoCD desired state (app-of-apps, sealed-secrets, ciceley-site).
+> - `homelab-app-template` — new-app scaffold; `Ciceley/ciceleywebsite` — app repo.
+> - `sitaw` (.82, Ryzen) installed via `nixos-anywhere`; hosts `ciceley.cc` via ArgoCD + ingress-nginx + cloudflared.
+> - Still open: redeploy `miguelarbis.dev`/`discord-bot`; secrets via `sops-nix`; adopt ingress-nginx under ArgoCD.
+>
+> The original plan text below is kept for history.
 
 ---
 
@@ -33,7 +40,7 @@ There are effectively two parallel homelabs today.
 | Exposure | Cloudflare tunnel (`config/cloudflare/config.yml`) `miguelarbis.dev` → `http://192.168.2.247:31914` (ingress NodePort) |
 | Secret | `ghcr-secret` (docker-registry, `fish-vendor-1731`) |
 
-### 2.2 NixOS path — `bakuran-sosyal` (in progress)
+### 2.2 NixOS path — `bakuran-infra` (in progress)
 
 | Item | Value |
 | --- | --- |
@@ -108,15 +115,15 @@ calamansi (NixOS, single node) ────────────────�
 
 | Repo | Role after migration |
 | --- | --- |
-| `bakuran-sosyal` | **NixOS host config + ArgoCD bootstrap + ArgoCD `Application`s** |
+| `bakuran-infra` | **NixOS host config + ArgoCD bootstrap + ArgoCD `Application`s** |
 | `bakuran-homelab` | Archived/retired (Flux path). Keep for reference. |
 | `Ciceley/ciceleywebsite` | Website app; keeps its own k8s manifests under `deploy/` |
 
-Recommended: keep GitOps manifests **in `bakuran-sosyal`** under `gitops/`
+Recommended: keep GitOps manifests **in `bakuran-infra`** under `gitops/`
 (one repo to rule the cluster). The website manifests can either live here in
-`bakuran-sosyal/gitops/apps/ciceley-site/`, or stay in `ciceleywebsite/deploy/`
+`bakuran-infra/gitops/apps/ciceley-site/`, or stay in `ciceleywebsite/deploy/`
 and be referenced by a second ArgoCD `Application`. This doc assumes **apps live in
-`bakuran-sosyal/gitops/`**, with the website image built by `ciceleywebsite` CI.
+`bakuran-infra/gitops/`**, with the website image built by `ciceleywebsite` CI.
 
 ---
 
@@ -130,7 +137,7 @@ and be referenced by a second ArgoCD `Application`. This doc assumes **apps live
 - [ ] Inventory Cloudflare: zone(s), tunnel id `8dcc83bd-…`, DNS records.
 
 ### Phase 1 — NixOS host
-- [ ] Adopt `bakuran-sosyal` as source of truth; commit any drift from the live box.
+- [ ] Adopt `bakuran-infra` as source of truth; commit any drift from the live box.
 - [ ] Harden SSH (`base.nix` currently allows root + password login — restrict it).
 - [ ] Set `system.stateVersion` intentionally; pin `nixpkgs` (25.11) for reproducibility.
 - [ ] `nixos-rebuild switch --flake .#calamansi` (or `./deploy.sh calamansi`).
@@ -147,7 +154,7 @@ and be referenced by a second ArgoCD `Application`. This doc assumes **apps live
     (declarable from Nix), or
   - one-time `kubectl apply -n argocd -f .../install.yaml`, then self-manage.
 - [ ] Expose ArgoCD UI via ingress-nginx (`argocd.<domain>`), TLS via Cloudflare.
-- [ ] Create an `Application` of `Application`s pointing at `bakuran-sosyal/gitops`
+- [ ] Create an `Application` of `Application`s pointing at `bakuran-infra/gitops`
       (app-of-apps pattern) so the cluster is fully declared.
 
 ### Phase 4 — Secrets
@@ -202,11 +209,11 @@ Flux-specific objects must change:
 CI keeps bumping the image tag in the `Deployment`.
 
 ### 7.3 Where the manifests live
-Option A (recommended): move them to `bakuran-sosyal/gitops/apps/ciceley-site/`
+Option A (recommended): move them to `bakuran-infra/gitops/apps/ciceley-site/`
 and open a small PR in `ciceleywebsite` that only bumps the tag there (cross-repo
 token needed) — more moving parts.
 Option B: keep them in `ciceleywebsite/deploy/k8s/` and add an ArgoCD `Application`
-in `bakuran-sosyal` pointing at
+in `bakuran-infra` pointing at
 `repoURL: https://github.com/Ciceley/ciceleywebsite`, `path: deploy/k8s`,
 `targetRevision: main`. **Simplest; recommended.**
 

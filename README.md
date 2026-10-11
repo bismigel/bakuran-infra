@@ -54,7 +54,7 @@ Key concepts:
 ### Your Configuration Structure
 
 ```
-bakuran-sosyal/
+bakuran-infra/
 ├── flake.nix                    # Flake definition (inputs, outputs)
 ├── hosts/
 │   └── calamansi/
@@ -699,7 +699,7 @@ kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/cont
 ## Project Structure Reference
 
 ```
-bakuran-sosyal/
+bakuran-infra/
 ├── flake.nix              # ← Edit this to add more hosts or inputs
 ├── flake.lock             # Auto-generated, commit this
 ├── deploy.sh              # ← Run this to deploy
