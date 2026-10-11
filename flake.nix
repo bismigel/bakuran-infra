@@ -5,10 +5,13 @@
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
     disko.url = "github:nix-community/disko";
     disko.inputs.nixpkgs.follows = "nixpkgs";
+    deploy-rs.url = "github:serokell/deploy-rs";
+    deploy-rs.inputs.nixpkgs.follows = "nixpkgs";
   };
 
-  outputs = { self, nixpkgs, disko }: {
+  outputs = { self, nixpkgs, disko, deploy-rs }: {
     nixosConfigurations = {
+      # .81 (Intel i5) — media / arr stack
       calamansi = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
         specialArgs = {
@@ -19,7 +22,7 @@
         ];
       };
 
-      # .82 (Ryzen 5 4600G) — replaces Proxmox; hosts websites + ArgoCD.
+      # .82 (Ryzen 5 4600G) — hosting + ArgoCD
       sitaw = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
         specialArgs = {
@@ -31,5 +34,32 @@
         ];
       };
     };
+
+    # Push-based OS deploys:  nix run github:serokell/deploy-rs -- .#sitaw
+    deploy = {
+      sshUser = "root";
+      user = "root";
+      nodes = {
+        calamansi = {
+          hostname = "192.168.2.81";
+          profiles.system = {
+            user = "root";
+            path = deploy-rs.lib.x86_64-linux.activate.nixos self.nixosConfigurations.calamansi;
+          };
+        };
+        sitaw = {
+          hostname = "192.168.2.82";
+          profiles.system = {
+            user = "root";
+            path = deploy-rs.lib.x86_64-linux.activate.nixos self.nixosConfigurations.sitaw;
+          };
+        };
+      };
+    };
+
+    # `nix flake check` validates deploy-rs config
+    checks = builtins.mapAttrs
+      (system: deployLib: deployLib.deployChecks self.deploy)
+      deploy-rs.lib;
   };
 }
