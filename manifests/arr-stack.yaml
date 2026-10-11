@@ -73,6 +73,7 @@ spec:
       containers:
         - name: prowlarr
           image: linuxserver/prowlarr:develop
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 9696
           env:
@@ -127,6 +128,7 @@ spec:
       containers:
         - name: sonarr
           image: linuxserver/sonarr:latest
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8989
           env:
@@ -193,6 +195,7 @@ spec:
       containers:
         - name: radarr
           image: linuxserver/radarr:latest
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 7878
           env:
@@ -259,6 +262,7 @@ spec:
       containers:
         - name: bazarr
           image: linuxserver/bazarr:latest
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 6767
           env:
