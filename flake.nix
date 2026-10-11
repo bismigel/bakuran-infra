@@ -7,9 +7,11 @@
     disko.inputs.nixpkgs.follows = "nixpkgs";
     deploy-rs.url = "github:serokell/deploy-rs";
     deploy-rs.inputs.nixpkgs.follows = "nixpkgs";
+    sops-nix.url = "github:Mic92/sops-nix";
+    sops-nix.inputs.nixpkgs.follows = "nixpkgs";
   };
 
-  outputs = { self, nixpkgs, disko, deploy-rs }: {
+  outputs = { self, nixpkgs, disko, deploy-rs, sops-nix }: {
     nixosConfigurations = {
       # .81 (Intel i5) — media / arr stack
       calamansi = nixpkgs.lib.nixosSystem {
@@ -18,6 +20,7 @@
           sshPubKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIH+soIiTQA3y96cqgaPluR9i9Z9qCdypdSfH/w0KiYrb labanos@bakuran";
         };
         modules = [
+          sops-nix.nixosModules.sops
           ./hosts/calamansi/default.nix
         ];
       };
@@ -29,6 +32,7 @@
           sshPubKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIH+soIiTQA3y96cqgaPluR9i9Z9qCdypdSfH/w0KiYrb labanos@bakuran";
         };
         modules = [
+          sops-nix.nixosModules.sops
           disko.nixosModules.disko
           ./hosts/sitaw/default.nix
         ];
@@ -57,7 +61,6 @@
       };
     };
 
-    # `nix flake check` validates deploy-rs config
     checks = builtins.mapAttrs
       (system: deployLib: deployLib.deployChecks self.deploy)
       deploy-rs.lib;

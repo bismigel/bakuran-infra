@@ -71,5 +71,15 @@
     };
   };
 
+  # --- SOPS-managed secrets (decrypted with the host SSH key) ---
+  sops.defaultSopsFile = ../../secrets/homelab.yaml;
+  sops.age.sshKeyPaths = [ "/etc/ssh/ssh_host_ed25519_key" ];
+  sops.secrets."cloudflared_credentials" = {
+    path = "/root/.cloudflared/8dcc83bd-eb95-4c0d-8f71-b92a27d37649.json";
+    owner = "root";
+    mode = "0400";
+  };
+  systemd.tmpfiles.rules = [ "d /root/.cloudflared 0700 root root -" ];
+
   system.stateVersion = lib.mkForce "25.11";
 }
