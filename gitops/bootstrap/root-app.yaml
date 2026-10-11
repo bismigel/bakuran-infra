@@ -8,7 +8,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/prawnfarmerdev/bakuran-sosyal
+    repoURL: git@github.com:prawnfarmerdev/bakuran-sosyal.git
     targetRevision: main
     path: gitops/apps
     directory:
