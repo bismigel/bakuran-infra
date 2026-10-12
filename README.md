@@ -66,7 +66,9 @@ kubeconfigs, and the Bitwarden access token to `r2:homelab-backups/credentials/`
 
 ## Known issues
 
-- `modules/k3s.nix` still contains a **plaintext WireGuard key** (should move to SOPS).
+- `modules/k3s.nix` still contains a **plaintext WireGuard key**. A replacement is
+  held in **Bitwarden** (to be rotated there); move it into `secrets/homelab.yaml`
+  (SOPS) and read from `/run/secrets/…` instead. See `homelab-context/NEXT-STEPS.md`.
 
 ## Related
 
