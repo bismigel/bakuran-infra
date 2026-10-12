@@ -14,14 +14,15 @@ here. This repo only defines the machines.
 flake.nix                 # inputs (nixpkgs, disko, deploy-rs) + hosts + deploy nodes
 hosts/<host>/default.nix  # per-host config (imports modules/, disko.nix)
 hosts/<host>/disko.nix    # disk layout (only where disko is used)
-modules/                  # shared config (base.nix, k3s.nix)
+modules/                  # shared config (base.nix, k3s.nix, backup.nix)
 deploy.sh                 # legacy: sync + nixos-rebuild over ssh
 ```
 
 ## Rules for agents
 
-1. **Never hardcode secrets.** Use `sops-nix` (planned) or keep them out of the
-   repo. Do not commit keys, tokens, or the cloudflared credentials JSON.
+1. **Never hardcode secrets.** Host secrets use `sops-nix` (SOPS/age; identity =
+   the host SSH key); cluster secrets live in Bitwarden + ESO. Do not commit keys,
+   tokens, or the cloudflared credentials JSON.
 2. **One host = one `hosts/<name>/default.nix`**, registered in `flake.nix`
    under both `nixosConfigurations` and `deploy.nodes`.
 3. Keep shared behaviour in `modules/`; host files override with `lib.mkForce`.

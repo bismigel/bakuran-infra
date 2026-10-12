@@ -1,12 +1,13 @@
 # Homelab Migration Plan — Proxmox → NixOS + ArgoCD
 
-> **STATUS (current):** largely executed.
+> **STATUS (current):** executed.
 > - `bakuran-homelab` (Proxmox/Flux) — **archived/retired**.
-> - `bakuran-infra` (this repo) — NixOS machines (`calamansi-intel` .81 media, `sitaw-amd` .82 hosting) + `deploy-rs`.
-> - `bakuran-gitops` — ArgoCD desired state (app-of-apps, sealed-secrets, ciceley-site).
+> - `bakuran-infra` (this repo) — NixOS machines (`calamansi-intel` .81 media, `sitaw-amd` .82 hosting) + `deploy-rs` + SOPS/age.
+> - `bakuran-gitops` — ArgoCD desired state for **both** clusters (app-of-apps under `applications/{sitaw,calamansi-intel}` + `manifests/`).
+> - **One ArgoCD control plane on sitaw-amd**; `calamansi-intel` is a registered external cluster.
 > - `homelab-app-template` — new-app scaffold; `Ciceley/ciceleywebsite` — app repo.
-> - `sitaw-amd` (.82, Ryzen) installed via `nixos-anywhere`; hosts `ciceley.cc` via ArgoCD + ingress-nginx + cloudflared.
-> - Still open: redeploy `miguelarbis.dev`/`discord-bot`; secrets via `sops-nix`; adopt ingress-nginx under ArgoCD.
+> - Secrets: **Bitwarden Secrets Manager + ESO** (cluster) and **SOPS/age** (host). Sealed Secrets retired.
+> - Cloudflare Tunnel + Access serving `*.bismigel.dev`; ingress-nginx adopted under ArgoCD; `miguelarbis.dev` deployed.
 >
 > The original plan text below is kept for history.
 

@@ -6,24 +6,39 @@
 |---------|-----|--------|-------|
 | Homepage | http://192.168.2.82:30080 | ✅ | AMD · dashboard |
 | Prometheus | http://192.168.2.82:30909 | ✅ | AMD · metrics (1GB retention) |
-| Grafana | http://192.168.2.82:30300 | ✅ | AMD · user `admin` |
+| Grafana | https://grafana.bismigel.dev | ✅ | AMD · user `admin` · Access-gated |
 | OTel Collector | 192.168.2.82 (observability) | ✅ | AMD |
-| Jellyfin | http://192.168.2.81:30096 | ✅ | Intel · QSV; user `root`; lib `/media/tv` |
+| Jellyfin | https://jellyfin.bismigel.dev | ✅ | Intel · QSV; user `root`; lib `/media/tv` · Access-gated |
 | qBittorrent | http://192.168.2.81:30081 | ✅ | Intel · user `admin`; save path `/downloads` |
 | Prowlarr | http://192.168.2.81:30069 | ✅ | Intel · indexer manager (syncs to Sonarr/Radarr) |
 | Sonarr | http://192.168.2.81:30089 | ✅ | Intel · root `/tv` + qBittorrent client (cat `tv`) |
 | Radarr | http://192.168.2.81:30078 | ✅ | Intel · root `/movies` + qBittorrent client (cat `movies`) |
-| Bazarr | http://192.168.2.81:30067 | ✅ | Intel · subtitle management (auth: form) |
+| Bazarr | http://192.168.2.81:30067 | ✅ | Intel · subtitle management |
+| ZeroClaw | https://agent.bismigel.dev | ✅ | AMD · homelab agent (DeepSeek + local LLM) · Access-gated · Telegram |
+
+**Auth:** Jellyfin/Grafana/qBittorrent use the standard homelab password. The
+*arr apps (Sonarr/Radarr/Prowlarr/Bazarr) are set to **no authentication** and are
+LAN-only. Public hosts are gated by **Cloudflare Access** (see below).
 
 ## Cluster placement
 
-- **Intel `calamansi-intel` (192.168.2.81)** — media stack only: Jellyfin, arr
-  (Sonarr/Radarr/Prowlarr/Bazarr), qBittorrent, plus the per-node node-exporter.
-  ArgoCD app set: `applications-calamansi-intel/` → `manifests/media`, `manifests/node-exporter`.
-- **AMD `sitaw-amd` (192.168.2.82)** — everything else: sites (ciceley, miguelarbis),
-  APIs (private-api, status-api), homepage, monitoring (prometheus/grafana/ksm),
-  observability (OTel collector + operator), cert-manager, node-exporter.
-  ArgoCD app set: `applications/`.
+- **Intel `calamansi-intel` (192.168.2.81)** — media only: Jellyfin, arr
+  (Sonarr/Radarr/Prowlarr/Bazarr), qBittorrent, node-exporter.
+  ArgoCD apps: `applications/calamansi-intel/` → `manifests/media`, `manifests/node-exporter`.
+- **AMD `sitaw-amd` (192.168.2.82)** — everything else **and the single ArgoCD
+  control plane**: sites (ciceley, miguelarbis), APIs (private-api, status-api),
+  homepage, monitoring (prometheus/grafana/ksm), observability (OTel collector +
+  operator), cert-manager, external-secrets, ingress-nginx, zeroclaw.
+  ArgoCD apps: `applications/sitaw/`.
+
+## Secrets & exposure
+
+- **Cluster secrets:** Bitwarden Secrets Manager + External Secrets Operator
+  (`ClusterSecretStore/bitwarden`). **Host secrets:** SOPS/age (`sops-nix`).
+- **Ingress:** `ingress-nginx` (NodePort 32080/32443) reached by a single
+  **Cloudflare Tunnel** on sitaw-amd. Public hostnames live under `*.bismigel.dev`;
+  `grafana`/`jellyfin`/`status`/`private`/`agent` are gated by **Cloudflare Access**
+  (Zero Trust).
 
 ## Cluster Info
 
@@ -40,8 +55,8 @@
 ## Media stack
 
 Deployments are **GitOps-managed**: the manifests live in `bakuran-gitops`
-(`manifests/media/`, app set `applications-calamansi-intel/`) and are reconciled by
-ArgoCD on calamansi-intel (.81). `.81` is media-only; the sites run on sitaw-amd (.82).
+(`manifests/media/`, apps under `applications/calamansi-intel/`) and are reconciled
+by ArgoCD on **sitaw-amd** (.82). `.81` is media-only; the sites run on `.82`.
 
 The *arr apps keep their config in SQLite, so the wiring (root folders,
 download clients, Prowlarr apps) is applied with an idempotent script rather
@@ -63,11 +78,12 @@ secrets are committed. Re-running is safe.
 
 ## TODO
 
-- [ ] Set up SOPS for secrets management
+- [x] Secrets management (Bitwarden + ESO; host SOPS/age)
 - [x] Configure Jellyfin media library paths
 - [x] Add arrstack (Prowlarr, Sonarr, Radarr, Bazarr)
 - [x] Set up GitOps for the media stack (manifests in bakuran-gitops)
 - [x] Split placement: media on Intel (.81), everything else on AMD (.82)
-- [ ] Add Ingress controller
+- [x] Add Ingress controller (ingress-nginx + Cloudflare Tunnel/Access)
 - [x] Connect arr apps to qBittorrent download client
 - [ ] Add more indexers (most public trackers need FlareSolverr)
+- [ ] Move the WireGuard key in `modules/k3s.nix` into SOPS
