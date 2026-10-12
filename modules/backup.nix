@@ -18,7 +18,7 @@ let
     # ESO root of trust
     k3s kubectl -n external-secrets get secret bitwarden-access-token -o yaml \
       > "$w/bws-access-token.yaml" 2>/dev/null || true
-    out="/tmp/creds-$(hostname)-$(date -u +%Y%m%dT%H%M%SZ).tar.gz.age"
+    out="/tmp/creds-$(cat /proc/sys/kernel/hostname)-$(date -u +%Y%m%dT%H%M%SZ).tar.gz.age"
     tar czf - -C "$w" . | ${pkgs.age}/bin/age -r "$AGE_RECIPIENT" > "$out"
     ${pkgs.rclone}/bin/rclone copy "$out" "r2:$R2_BUCKET/credentials/"
     rm -f "$out"
