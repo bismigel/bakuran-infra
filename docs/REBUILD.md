@@ -29,6 +29,11 @@ nix run github:nix-community/nixos-anywhere -- --flake .#calamansi-intel --targe
 Restore the host SSH keys **before** booting sops-nix, or SOPS won't decrypt.
 
 ## 2. ArgoCD (sitaw-amd) — the one manual bootstrap
+Run the helper (does all of the below):
+```bash
+ARGO_REPO_SSH_KEY=/path/to/bakuran-gitops-deploy-key ./scripts/bootstrap-argocd.sh
+```
+Or by hand:
 ```bash
 kubectl create ns argocd
 kubectl -n argocd apply -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
