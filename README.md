@@ -18,7 +18,7 @@ A personal learning environment for Kubernetes and NixOS on a single-server k3s 
 
 ```bash
 # Deploy changes to server
-./deploy.sh calamansi
+./deploy.sh calamansi-intel
 
 # SSH to server
 ssh -i ~/.ssh/id_ed25519 root@192.168.2.81
@@ -57,7 +57,7 @@ Key concepts:
 bakuran-infra/
 ├── flake.nix                    # Flake definition (inputs, outputs)
 ├── hosts/
-│   └── calamansi/
+│   └── calamansi-intel/
 │       └── default.nix          # Host-specific config (disk, networking, k3s)
 ├── modules/
 │   ├── base.nix                 # Shared config (SSH, users, packages)
@@ -79,10 +79,10 @@ bakuran-infra/
 
   outputs = { self, nixpkgs }: {
     nixosConfigurations = {
-      calamansi = nixpkgs.lib.nixosSystem {
+      calamansi-intel = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
         modules = [
-          ./hosts/calamansi/default.nix
+          ./hosts/calamansi-intel/default.nix
         ];
       };
     };
@@ -93,7 +93,7 @@ bakuran-infra/
 - Defines the `nixosConfigurations` that can be built
 - Each host maps to a NixOS system configuration
 
-#### `hosts/calamansi/default.nix`
+#### `hosts/calamansi-intel/default.nix`
 ```nix
 { config, pkgs, lib, ... }:
 
@@ -103,7 +103,7 @@ bakuran-infra/
     ../../modules/k3s.nix
   ];
 
-  networking.hostName = "calamansi";
+  networking.hostName = "calamansi-intel";
 
   fileSystems."/" = { device = "/dev/disk/by-uuid/3f6c1944-2b68-4426-bfcd-8888f6e4aa9c"; fsType = "ext4"; };
   fileSystems."/boot" = { device = "/dev/disk/by-uuid/4A61-5E74"; fsType = "vfat"; };
@@ -165,16 +165,16 @@ bakuran-infra/
 
 ```bash
 # Build configuration (locally)
-nix build .#nixosConfigurations.calamansi.config.system.build.toplevel
+nix build .#nixosConfigurations.calamansi-intel.config.system.build.toplevel
 
 # Dry-run to check for errors
-nix build .#nixosConfigurations.calamansi.config.system.build.toplevel --dry-run
+nix build .#nixosConfigurations.calamansi-intel.config.system.build.toplevel --dry-run
 
 # Show what changed in configuration
-nix eval .#nixosConfigurations.calamansi.config.system.build.toplevel --json | jq
+nix eval .#nixosConfigurations.calamansi-intel.config.system.build.toplevel --json | jq
 
 # List available NixOS options
-nix eval .#nixosConfigurations.calamansi.config --json | jq 'keys' | head -50
+nix eval .#nixosConfigurations.calamansi-intel.config --json | jq 'keys' | head -50
 
 # Search for packages
 nix search nixpkgs kubernetes
@@ -426,7 +426,7 @@ spec:
 #!/bin/bash
 set -euo pipefail
 
-HOST="${1:-calamansi}"
+HOST="${1:-calamansi-intel}"
 TARGET="root@192.168.2.81"
 SSH_OPTS="-o StrictHostKeyChecking=no -i ~/.ssh/id_ed25519"
 
@@ -434,7 +434,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Step 1: Sync config files to server
 echo "==> Syncing configuration files to $TARGET..."
-ssh $SSH_OPTS "$TARGET" "mkdir -p /etc/nixos/hosts/calamansi /etc/nixos/modules"
+ssh $SSH_OPTS "$TARGET" "mkdir -p /etc/nixos/hosts/calamansi-intel /etc/nixos/modules"
 scp $SSH_OPTS "$SCRIPT_DIR"/flake.nix "$SCRIPT_DIR"/flake.lock "$TARGET:/etc/nixos/"
 scp $SSH_OPTS "$SCRIPT_DIR"/hosts/"$HOST"/*.nix "$TARGET:/etc/nixos/hosts/$HOST/"
 scp $SSH_OPTS "$SCRIPT_DIR"/modules/*.nix "$TARGET:/etc/nixos/modules/"
@@ -450,13 +450,13 @@ echo "==> Done!"
 
 ```bash
 # 1. Edit your configuration
-vim hosts/calamansi/default.nix
+vim hosts/calamansi-intel/default.nix
 
 # 2. Build locally (dry-run first to catch errors)
-nix build ".#nixosConfigurations.calamansi.config.system.build.toplevel" --dry-run
+nix build ".#nixosConfigurations.calamansi-intel.config.system.build.toplevel" --dry-run
 
 # 3. Deploy
-./deploy.sh calamansi
+./deploy.sh calamansi-intel
 
 # 4. Verify
 ssh root@192.168.2.81 "systemctl status k3s"
@@ -476,7 +476,7 @@ environment.systemPackages = with pkgs; [
 
 #### Open a firewall port
 ```nix
-# In hosts/calamansi/default.nix:
+# In hosts/calamansi-intel/default.nix:
 networking.firewall = {
   enable = true;
   allowedTCPPorts = [ 22 6443 80 443 30000 ];  # Add 30000
@@ -486,7 +486,7 @@ networking.firewall = {
 
 #### Change k3s settings
 ```nix
-# In hosts/calamansi/default.nix:
+# In hosts/calamansi-intel/default.nix:
 services.k3s = {
   enable = true;
   role = "server";
@@ -704,7 +704,7 @@ bakuran-infra/
 ├── flake.lock             # Auto-generated, commit this
 ├── deploy.sh              # ← Run this to deploy
 ├── hosts/
-│   └── calamansi/
+│   └── calamansi-intel/
 │       └── default.nix    # ← Main host config (disk, network, k3s)
 ├── modules/
 │   ├── base.nix           # ← Shared settings (users, SSH, packages)
@@ -728,7 +728,7 @@ specialArgs = {
 
 To update/add a new key:
 1. Add your public key to `flake.nix` in the `sshPubKey` attribute
-2. Deploy: `./deploy.sh calamansi`
+2. Deploy: `./deploy.sh calamansi-intel`
 
 ### Private Keys & Secrets
 
@@ -766,10 +766,10 @@ sops --encrypt secrets/db-passwords.yaml > secrets/db-passwords.yaml.age
 
 ```bash
 # === Deploy ===
-./deploy.sh calamansi                    # Deploy config changes
+./deploy.sh calamansi-intel                    # Deploy config changes
 
 # === NixOS ===
-nix build .#nixosConfigurations.calamansi.config.system.build.toplevel --dry-run  # Validate
+nix build .#nixosConfigurations.calamansi-intel.config.system.build.toplevel --dry-run  # Validate
 ssh -i ~/.ssh/id_ed25519 root@192.168.2.81  # SSH to server
 
 # === Kubernetes ===

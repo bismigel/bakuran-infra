@@ -7,7 +7,7 @@
     ./disko.nix
   ];
 
-  networking.hostName = "sitaw";
+  networking.hostName = "sitaw-amd";
 
   # Static IP on the wired NIC (was the Proxmox host address)
   networking.networkmanager.enable = lib.mkForce false;
@@ -20,7 +20,7 @@
   networking.nameservers = [ "1.1.1.1" "8.8.8.8" ];
 
   # The shared k3s module carries a ProtonVPN/WireGuard setup intended for the
-  # media box. sitaw is a hosting box — disable it (it was failing and blocking
+  # media box. sitaw-amd is a hosting box — disable it (it was failing and blocking
   # deploys). Re-enable deliberately if the host should egress via VPN.
   systemd.services.protonvpn.enable = lib.mkForce false;
   networking.wg-quick.interfaces = lib.mkForce { };

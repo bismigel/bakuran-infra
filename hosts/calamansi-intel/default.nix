@@ -6,7 +6,7 @@
     ../../modules/k3s.nix
   ];
 
-  networking.hostName = "calamansi";
+  networking.hostName = "calamansi-intel";
 
   fileSystems."/" = {
     device = "/dev/disk/by-uuid/3f6c1944-2b68-4426-bfcd-8888f6e4aa9c";

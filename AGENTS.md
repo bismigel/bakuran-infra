@@ -2,8 +2,8 @@
 
 This repo is the **NixOS machine configuration** for the Bakuran homelab.
 
-- `calamansi` (.81, Intel i5-7500T) — media / arr stack (k3s)
-- `sitaw` (.82, Ryzen 5 4600G) — hosting (k3s + ArgoCD + ingress-nginx + cloudflared)
+- `calamansi-intel` (.81, Intel i5-7500T) — media / arr stack (k3s)
+- `sitaw-amd` (.82, Ryzen 5 4600G) — hosting (k3s + ArgoCD + ingress-nginx + cloudflared)
 
 Cluster *content* (what runs on top of k3s) lives in **`bakuran-gitops`**, not
 here. This repo only defines the machines.
@@ -30,13 +30,13 @@ deploy.sh                 # legacy: sync + nixos-rebuild over ssh
    nix eval .#nixosConfigurations.<host>.config.system.build.toplevel.drvPath
    ```
 5. `hardware-configuration.nix` is **git-ignored** — inline hardware in the host
-   file (see `hosts/calamansi/default.nix`, `hosts/sitaw/default.nix`).
+   file (see `hosts/calamansi-intel/default.nix`, `hosts/sitaw-amd/default.nix`).
 
 ## Deploy an existing host
 
 ```bash
-nix run github:serokell/deploy-rs -- .#sitaw
-nix run github:serokell/deploy-rs -- .#calamansi
+nix run github:serokell/deploy-rs -- .#sitaw-amd
+nix run github:serokell/deploy-rs -- .#calamansi-intel
 ```
 
 ## Install a brand-new host (wipes the target)

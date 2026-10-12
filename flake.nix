@@ -14,19 +14,19 @@
   outputs = { self, nixpkgs, disko, deploy-rs, sops-nix }: {
     nixosConfigurations = {
       # .81 (Intel i5) — media / arr stack
-      calamansi = nixpkgs.lib.nixosSystem {
+      calamansi-intel = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
         specialArgs = {
           sshPubKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIH+soIiTQA3y96cqgaPluR9i9Z9qCdypdSfH/w0KiYrb labanos@bakuran";
         };
         modules = [
           sops-nix.nixosModules.sops
-          ./hosts/calamansi/default.nix
+          ./hosts/calamansi-intel/default.nix
         ];
       };
 
       # .82 (Ryzen 5 4600G) — hosting + ArgoCD
-      sitaw = nixpkgs.lib.nixosSystem {
+      sitaw-amd = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
         specialArgs = {
           sshPubKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIH+soIiTQA3y96cqgaPluR9i9Z9qCdypdSfH/w0KiYrb labanos@bakuran";
@@ -34,28 +34,28 @@
         modules = [
           sops-nix.nixosModules.sops
           disko.nixosModules.disko
-          ./hosts/sitaw/default.nix
+          ./hosts/sitaw-amd/default.nix
         ];
       };
     };
 
-    # Push-based OS deploys:  nix run github:serokell/deploy-rs -- .#sitaw
+    # Push-based OS deploys:  nix run github:serokell/deploy-rs -- .#sitaw-amd
     deploy = {
       sshUser = "root";
       user = "root";
       nodes = {
-        calamansi = {
+        calamansi-intel = {
           hostname = "192.168.2.81";
           profiles.system = {
             user = "root";
-            path = deploy-rs.lib.x86_64-linux.activate.nixos self.nixosConfigurations.calamansi;
+            path = deploy-rs.lib.x86_64-linux.activate.nixos self.nixosConfigurations.calamansi-intel;
           };
         };
-        sitaw = {
+        sitaw-amd = {
           hostname = "192.168.2.82";
           profiles.system = {
             user = "root";
-            path = deploy-rs.lib.x86_64-linux.activate.nixos self.nixosConfigurations.sitaw;
+            path = deploy-rs.lib.x86_64-linux.activate.nixos self.nixosConfigurations.sitaw-amd;
           };
         };
       };

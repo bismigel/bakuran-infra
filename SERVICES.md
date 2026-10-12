@@ -17,20 +17,20 @@
 
 ## Cluster placement
 
-- **Intel `calamansi` (192.168.2.81)** — media stack only: Jellyfin, arr
+- **Intel `calamansi-intel` (192.168.2.81)** — media stack only: Jellyfin, arr
   (Sonarr/Radarr/Prowlarr/Bazarr), qBittorrent, plus the per-node node-exporter.
-  ArgoCD app set: `applications-calamansi/` → `manifests/media`, `manifests/node-exporter`.
-- **AMD `sitaw` (192.168.2.82)** — everything else: sites (ciceley, miguelarbis),
+  ArgoCD app set: `applications-calamansi-intel/` → `manifests/media`, `manifests/node-exporter`.
+- **AMD `sitaw-amd` (192.168.2.82)** — everything else: sites (ciceley, miguelarbis),
   APIs (private-api, status-api), homepage, monitoring (prometheus/grafana/ksm),
   observability (OTel collector + operator), cert-manager, node-exporter.
   ArgoCD app set: `applications/`.
 
 ## Cluster Info
 
-- **Servers**: calamansi (192.168.2.81, Intel) · sitaw (192.168.2.82, AMD)
+- **Servers**: calamansi-intel (192.168.2.81, Intel) · sitaw-amd (192.168.2.82, AMD)
 - **k3s**: 1.34.5
 - **NixOS**: 25.11
-- **VPN**: WireGuard (ProtonVPN CH-CA#2) on calamansi
+- **VPN**: WireGuard (ProtonVPN CH-CA#2) on calamansi-intel
 
 ## Storage
 
@@ -40,8 +40,8 @@
 ## Media stack
 
 Deployments are **GitOps-managed**: the manifests live in `bakuran-gitops`
-(`manifests/media/`, app set `applications-calamansi/`) and are reconciled by
-ArgoCD on calamansi (.81). `.81` is media-only; the sites run on sitaw (.82).
+(`manifests/media/`, app set `applications-calamansi-intel/`) and are reconciled by
+ArgoCD on calamansi-intel (.81). `.81` is media-only; the sites run on sitaw-amd (.82).
 
 The *arr apps keep their config in SQLite, so the wiring (root folders,
 download clients, Prowlarr apps) is applied with an idempotent script rather

@@ -2,10 +2,10 @@
 
 > **STATUS (current):** largely executed.
 > - `bakuran-homelab` (Proxmox/Flux) — **archived/retired**.
-> - `bakuran-infra` (this repo) — NixOS machines (`calamansi` .81 media, `sitaw` .82 hosting) + `deploy-rs`.
+> - `bakuran-infra` (this repo) — NixOS machines (`calamansi-intel` .81 media, `sitaw-amd` .82 hosting) + `deploy-rs`.
 > - `bakuran-gitops` — ArgoCD desired state (app-of-apps, sealed-secrets, ciceley-site).
 > - `homelab-app-template` — new-app scaffold; `Ciceley/ciceleywebsite` — app repo.
-> - `sitaw` (.82, Ryzen) installed via `nixos-anywhere`; hosts `ciceley.cc` via ArgoCD + ingress-nginx + cloudflared.
+> - `sitaw-amd` (.82, Ryzen) installed via `nixos-anywhere`; hosts `ciceley.cc` via ArgoCD + ingress-nginx + cloudflared.
 > - Still open: redeploy `miguelarbis.dev`/`discord-bot`; secrets via `sops-nix`; adopt ingress-nginx under ArgoCD.
 >
 > The original plan text below is kept for history.
@@ -14,7 +14,7 @@
 
 ## 1. Goals
 
-1. **Retire Proxmox.** One physical node (`calamansi`, NixOS) runs everything.
+1. **Retire Proxmox.** One physical node (`calamansi-intel`, NixOS) runs everything.
 2. **Keep Kubernetes (k3s).** Reuse existing manifests and knowledge.
 3. **GitOps with ArgoCD** as the single source of truth for cluster state.
 4. **Ingress + tunnel:** `ingress-nginx` exposed to a Cloudflare tunnel serving
@@ -44,8 +44,8 @@ There are effectively two parallel homelabs today.
 
 | Item | Value |
 | --- | --- |
-| Host | `calamansi` `192.168.2.81`, bare-metal NixOS |
-| Declared | `flake.nix` → `hosts/calamansi/default.nix` + `modules/{base,k3s}.nix` |
+| Host | `calamansi-intel` `192.168.2.81`, bare-metal NixOS |
+| Declared | `flake.nix` → `hosts/calamansi-intel/default.nix` + `modules/{base,k3s}.nix` |
 | k3s | server, `--disable traefik`, `--disable servicelb` |
 | Firewall | `22 6443 80 443` TCP, `8472` UDP |
 | Storage | root ext4, `/boot` vfat, `/mnt/downloads` (238 GB media) |
@@ -56,7 +56,7 @@ There are effectively two parallel homelabs today.
 
 ### 2.3 Gap
 
-`calamansi` runs k3s but has **no GitOps, no ingress, no secrets management**.
+`calamansi-intel` runs k3s but has **no GitOps, no ingress, no secrets management**.
 The website currently has no path to it.
 
 ---
@@ -70,10 +70,10 @@ The website currently has no path to it.
                      (ciceley.cc, miguelarbis.dev)
                              │  CNAME → <tunnel>.cfargotunnel.com
                              ▼
-                     cloudflared (NixOS service on calamansi)
+                     cloudflared (NixOS service on calamansi-intel)
                              │  http → 127.0.0.1:<ingress NodePort>
                              ▼
-calamansi (NixOS, single node) ─────────────────────────────────────────────┐
+calamansi-intel (NixOS, single node) ─────────────────────────────────────────────┐
 │  k3s (traefik/servicelb disabled)                                          │
 │   ├── ingress-nginx            (NodePort, class "nginx")                   │
 │   ├── argocd                   (namespace argocd, self-managed)           │
@@ -90,7 +90,7 @@ calamansi (NixOS, single node) ────────────────�
 
 ## 4. Decisions & rationale
 
-1. **Single node (`calamansi`).** Simplest way to remove Proxmox; matches current
+1. **Single node (`calamansi-intel`).** Simplest way to remove Proxmox; matches current
    usage. Revisit 2-node only if resource pressure appears.
 2. **Keep k3s.** Existing app manifests are reusable; no rewrite to `oci-containers`.
 3. **ArgoCD over Flux.** Chosen for the UI. Trade-off: new install + we rewrite the
@@ -133,14 +133,14 @@ and be referenced by a second ArgoCD `Application`. This doc assumes **apps live
 
 ### Phase 0 — Prep
 - [ ] Full backup of `bakuran-homelab` repo + any data not in git.
-- [ ] Confirm `calamansi` hardware headroom (CPU/RAM/disk) for all apps.
+- [ ] Confirm `calamansi-intel` hardware headroom (CPU/RAM/disk) for all apps.
 - [ ] Inventory Cloudflare: zone(s), tunnel id `8dcc83bd-…`, DNS records.
 
 ### Phase 1 — NixOS host
 - [ ] Adopt `bakuran-infra` as source of truth; commit any drift from the live box.
 - [ ] Harden SSH (`base.nix` currently allows root + password login — restrict it).
 - [ ] Set `system.stateVersion` intentionally; pin `nixpkgs` (25.11) for reproducibility.
-- [ ] `nixos-rebuild switch --flake .#calamansi` (or `./deploy.sh calamansi`).
+- [ ] `nixos-rebuild switch --flake .#calamansi-intel` (or `./deploy.sh calamansi-intel`).
 
 ### Phase 2 — k3s + ingress
 - [ ] Keep k3s `--disable traefik --disable servicelb`.
@@ -158,7 +158,7 @@ and be referenced by a second ArgoCD `Application`. This doc assumes **apps live
       (app-of-apps pattern) so the cluster is fully declared.
 
 ### Phase 4 — Secrets
-- [ ] `sops-nix` on the host; store the **age** key on `calamansi`.
+- [ ] `sops-nix` on the host; store the **age** key on `calamansi-intel`.
 - [ ] Encrypt: cloudflared tunnel credentials, GHCR pull token (if private).
 - [ ] Install **Sealed Secrets** controller (via ArgoCD); seal the GHCR `ghcr-secret`
       for namespace `apps`.
@@ -167,7 +167,7 @@ and be referenced by a second ArgoCD `Application`. This doc assumes **apps live
 ### Phase 5 — Migrate apps to ArgoCD
 - [ ] Convert `manifests/*.yaml` into `gitops/apps/<name>/` with kustomize.
 - [ ] Move data concerns first: Jellyfin media paths (`/mnt/downloads`).
-- [ ] Verify each app on `calamansi` before touching Proxmox.
+- [ ] Verify each app on `calamansi-intel` before touching Proxmox.
 
 ### Phase 6 — Cloudflare tunnel + DNS
 - [ ] Run `cloudflared` as a **NixOS systemd service** (credentials via `sops-nix`).
@@ -228,7 +228,7 @@ in `bakuran-infra` pointing at
 ### 7.6 Flow
 ```
 merge PR → deploy.yml: hugo build → docker build → push GHCR → commit tag
-        → ArgoCD sees git change → sync → new pod on calamansi
+        → ArgoCD sees git change → sync → new pod on calamansi-intel
         → ingress-nginx → cloudflared → https://ciceley.cc
 ```
 
@@ -246,9 +246,9 @@ merge PR → deploy.yml: hugo build → docker build → push GHCR → commit ta
 - Each phase is git-revertible. Keep Proxmox powered and tunnel config backed up.
 
 **Open questions**
-- [ ] Is `calamansi` the *only* disk we trust, or will the ex-Proxmox box become node 2?
+- [ ] Is `calamansi-intel` the *only* disk we trust, or will the ex-Proxmox box become node 2?
 - [ ] One Cloudflare tunnel for all hostnames, or one per service?
-- [ ] Keep `miguelarbis.dev` on `calamansi`, or leave it on Proxmox during transition?
+- [ ] Keep `miguelarbis.dev` on `calamansi-intel`, or leave it on Proxmox during transition?
 - [ ] Fully Nix-managed k3s install of ArgoCD, or bootstrap-then-self-manage?
 - [ ] SOPS-only, or Sealed Secrets for in-cluster secrets?
 
@@ -257,7 +257,7 @@ merge PR → deploy.yml: hugo build → docker build → push GHCR → commit ta
 ## 9. Suggested order of work (short)
 
 1. Harden `base.nix` + commit drift.
-2. ingress-nginx (NodePort) on `calamansi`.
+2. ingress-nginx (NodePort) on `calamansi-intel`.
 3. ArgoCD bootstrap + app-of-apps.
 4. SOPS + sealed-secrets.
 5. Migrate media stack.
