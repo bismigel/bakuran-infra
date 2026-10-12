@@ -70,9 +70,17 @@
       credentialsFile = "/root/.cloudflared/8dcc83bd-eb95-4c0d-8f71-b92a27d37649.json";
       default = "http_status:404";
       ingress = {
+        # apps — served by ingress-nginx on this box
         "ciceley.cc" = "http://127.0.0.1:32080";
         "www.ciceley.cc" = "http://127.0.0.1:32080";
+        "bismigel.dev" = "http://127.0.0.1:32080";
+        "www.bismigel.dev" = "http://127.0.0.1:32080";
         "miguelarbis.dev" = "http://127.0.0.1:32080";
+        "www.miguelarbis.dev" = "http://127.0.0.1:32080";
+        "status.bismigel.dev" = "http://127.0.0.1:32080";
+        "private.bismigel.dev" = "http://127.0.0.1:32080";
+        # media box (.81) — one tunnel routes both boxes; no re-hosting
+        "jellyfin.bismigel.dev" = "http://192.168.2.81:30096";
       };
     };
   };
