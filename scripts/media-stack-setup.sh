@@ -1,0 +1,167 @@
+#!/usr/bin/env bash
+# media-stack-setup.sh — idempotently wire up the *arr media stack over APIs.
+#
+# Configures:
+#   qBittorrent : default save path /downloads + tv/movies categories
+#   Sonarr      : root folder /tv      + qBittorrent download client (category tv)
+#   Radarr      : root folder /movies  + qBittorrent download client (category movies)
+#   Prowlarr    : links Sonarr & Radarr (fullSync) and pushes indexers to them
+#
+# It reads the *arr API keys straight from the running pods (config.xml), so no
+# secrets live in this repo. Only the qBittorrent WebUI password is passed in.
+#
+# Usage (on a k3s node, or anywhere with the NodePorts reachable + kubectl):
+#   QBT_PASSWORD='<webui password>' ./scripts/media-stack-setup.sh
+#   # remote:
+#   HOST=192.168.2.81 QBT_PASSWORD='...' ./scripts/media-stack-setup.sh
+#
+# Requires: bash, curl, and jq (falls back to `nix run nixpkgs#jq`).
+set -euo pipefail
+
+HOST="${HOST:-127.0.0.1}"
+: "${QBT_PASSWORD:?set QBT_PASSWORD to the qBittorrent WebUI password}"
+QBT_USER="${QBT_USER:-admin}"
+
+PROWLARR="http://${HOST}:30069"
+SONARR="http://${HOST}:30089"
+RADARR="http://${HOST}:30078"
+QBIT="http://${HOST}:30081"
+
+# qBittorrent is reachable from the *arr pods by this in-cluster DNS name.
+QBT_INTERNAL="${QBT_INTERNAL:-qbittorrent.downloads.svc.cluster.local}"
+PROWLARR_INTERNAL="${PROWLARR_INTERNAL:-http://prowlarr.media.svc.cluster.local:9696}"
+SONARR_INTERNAL="${SONARR_INTERNAL:-http://sonarr.media.svc.cluster.local:8989}"
+RADARR_INTERNAL="${RADARR_INTERNAL:-http://radarr.media.svc.cluster.local:7878}"
+
+KUBECTL="${KUBECTL:-k3s kubectl}"
+log() { printf '\n\033[1m== %s ==\033[0m\n' "$*"; }
+
+resolve_jq() {
+  if command -v jq >/dev/null 2>&1; then command -v jq; return; fi
+  # NixOS nodes often have jq only in the nix store (not on PATH).
+  ls -1 /nix/store/*-jq-*/bin/jq 2>/dev/null | head -1
+}
+JQ="$(resolve_jq)"
+[ -n "$JQ" ] || { echo "error: jq not found (install jq or add it to PATH)" >&2; exit 1; }
+jqr() { "$JQ" "$@"; }
+
+# Read an app's API key from its config.xml inside the running pod.
+api_key() { # <deploy> [namespace]
+  $KUBECTL -n "${2:-media}" exec "deploy/$1" -- \
+    sh -c "grep -o '<ApiKey>[^<]*' /config/config.xml" 2>/dev/null | sed 's/<ApiKey>//'
+}
+
+SO_KEY="$(api_key sonarr)"
+RA_KEY="$(api_key radarr)"
+PW_KEY="$(api_key prowlarr)"
+[ -n "$SO_KEY" ] && [ -n "$RA_KEY" ] && [ -n "$PW_KEY" ] || {
+  echo "error: could not read API keys from pods (is kubectl wired up?)" >&2; exit 1; }
+
+qbt() { curl -sf -b "$QBT_COOKIE" "$@"; }
+
+# ---------------------------------------------------------------- qBittorrent
+log "qBittorrent"
+QBT_COOKIE="$(mktemp)"
+trap 'rm -f "$QBT_COOKIE"' EXIT
+
+curl -sf -c "$QBT_COOKIE" "$QBIT/api/v2/auth/login" \
+  --data "username=$QBT_USER&password=$QBT_PASSWORD" >/dev/null
+
+qbt -X POST "$QBIT/api/v2/app/setPreferences" \
+  --data-urlencode 'json={"save_path":"/downloads","temp_path_enabled":false}' >/dev/null
+echo "  default save path -> /downloads"
+
+for c in tv movies; do
+  if qbt -X POST "$QBIT/api/v2/torrents/createCategory" --data "category=$c" >/dev/null 2>&1; then
+    echo "  category '$c' created"
+  else
+    echo "  category '$c' already present"
+  fi
+done
+
+# --------------------------------------------------------------------- Sonarr
+# ensure_rootfolder <base> <key> <path>
+ensure_rootfolder() {
+  local base="$1" k="$2" path="$3"
+  if curl -sf -H "X-Api-Key: $k" "$base/api/v3/rootfolder" \
+       | jqr -e --arg p "$path" 'any(.[]; .path==$p)' >/dev/null 2>&1; then
+    echo "  root folder $path already present"
+  else
+    curl -sf -X POST "$base/api/v3/rootfolder" -H "X-Api-Key: $k" \
+      -H 'Content-Type: application/json' --data "{\"path\":\"$path\"}" >/dev/null
+    echo "  root folder $path added"
+  fi
+}
+
+# ensure_qbt_client <base> <key> <category>
+ensure_qbt_client() {
+  local base="$1" k="$2" cat="$3"
+  local payload
+  payload="$(curl -sf -H "X-Api-Key: $k" "$base/api/v3/downloadclient/schema" | jqr \
+    --arg cat "$cat" --arg pw "$QBT_PASSWORD" --arg user "$QBT_USER" --arg host "$QBT_INTERNAL" '
+      .[] | select(.implementation=="QBittorrent")
+      | .name="qBittorrent" | .enable=true | .priority=1 | .tags=[]
+      | (.fields[]|select(.name=="host").value)=$host
+      | (.fields[]|select(.name=="port").value)=8080
+      | (.fields[]|select(.name=="username").value)=$user
+      | (.fields[]|select(.name=="password").value)=$pw
+      | (.fields[]|select(.name=="tvCategory" or .name=="movieCategory").value)=$cat
+      | (.fields[]|select(.name=="contentLayout").value)=0')"
+  local id
+  id="$(curl -sf -H "X-Api-Key: $k" "$base/api/v3/downloadclient" \
+        | jqr -r '.[] | select(.implementation=="QBittorrent") | .id' | head -1)"
+  if [ -n "$id" ]; then
+    curl -sf -X PUT "$base/api/v3/downloadclient/$id" -H "X-Api-Key: $k" \
+      -H 'Content-Type: application/json' --data "$payload" >/dev/null
+    echo "  download client qBittorrent updated (category $cat)"
+  else
+    curl -sf -X POST "$base/api/v3/downloadclient" -H "X-Api-Key: $k" \
+      -H 'Content-Type: application/json' --data "$payload" >/dev/null
+    echo "  download client qBittorrent added (category $cat)"
+  fi
+}
+
+log "Sonarr"
+ensure_rootfolder "$SONARR" "$SO_KEY" /tv
+ensure_qbt_client "$SONARR" "$SO_KEY" tv
+
+log "Radarr"
+ensure_rootfolder "$RADARR" "$RA_KEY" /movies
+ensure_qbt_client "$RADARR" "$RA_KEY" movies
+
+# ------------------------------------------------------------------- Prowlarr
+# ensure_prowlarr_app <impl> <internal-base-url> <api-key>
+ensure_prowlarr_app() {
+  local impl="$1" base_url="$2" apikey="$3"
+  local payload
+  payload="$(curl -sf -H "X-Api-Key: $PW_KEY" "$PROWLARR/api/v1/applications/schema" | jqr \
+    --arg impl "$impl" --arg base "$base_url" --arg k "$apikey" --arg pwurl "$PROWLARR_INTERNAL" '
+      .[] | select(.implementation==$impl)
+      | .name=$impl | .syncLevel="fullSync" | .tags=[]
+      | (.fields[]|select(.name=="prowlarrUrl").value)=$pwurl
+      | (.fields[]|select(.name=="baseUrl").value)=$base
+      | (.fields[]|select(.name=="apiKey").value)=$k')"
+  local id
+  id="$(curl -sf -H "X-Api-Key: $PW_KEY" "$PROWLARR/api/v1/applications" \
+        | jqr -r --arg impl "$impl" '.[] | select(.implementation==$impl) | .id' | head -1)"
+  if [ -n "$id" ]; then
+    curl -sf -X PUT "$PROWLARR/api/v1/applications/$id" -H "X-Api-Key: $PW_KEY" \
+      -H 'Content-Type: application/json' --data "$payload" >/dev/null
+    echo "  app $impl updated"
+  else
+    curl -sf -X POST "$PROWLARR/api/v1/applications" -H "X-Api-Key: $PW_KEY" \
+      -H 'Content-Type: application/json' --data "$payload" >/dev/null
+    echo "  app $impl linked"
+  fi
+}
+
+log "Prowlarr"
+ensure_prowlarr_app Sonarr "$SONARR_INTERNAL" "$SO_KEY"
+ensure_prowlarr_app Radarr "$RADARR_INTERNAL" "$RA_KEY"
+
+echo "  pushing indexers to Sonarr/Radarr..."
+curl -sf -X POST "$PROWLARR/api/v1/command" -H "X-Api-Key: $PW_KEY" \
+  -H 'Content-Type: application/json' --data '{"name":"ApplicationIndexerSync"}' >/dev/null
+
+log "Done"
+echo "Indexers are managed in Prowlarr; add trackers there and they will sync."
