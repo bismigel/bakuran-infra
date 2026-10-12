@@ -28,6 +28,7 @@ in
 {
   systemd.services.homelab-backup = {
     description = "Back up recovery credentials (host keys, kubeconfig, BWS token) to R2";
+    path = with pkgs; [ coreutils gnutar gzip age rclone k3s ];
     serviceConfig = {
       Type = "oneshot";
       ExecStart = backup;
