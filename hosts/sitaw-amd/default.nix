@@ -4,6 +4,7 @@
   imports = [
     ../../modules/base.nix
     ../../modules/k3s.nix
+    ../../modules/backup.nix
     ./disko.nix
   ];
 
