@@ -64,7 +64,9 @@
     allowedUDPPorts = [ 8472 ];
   };
 
-  # Cloudflare tunnel (credentials copied post-install to /root/.cloudflared)
+  # Cloudflare tunnel. NOTE: this tunnel is **remote-managed** — routing is
+  # configured in the Cloudflare dashboard/API and cloudflared pulls it, so the
+  # `ingress` map below is only a reference fallback. Keep it roughly in sync.
   services.cloudflared = {
     enable = true;
     tunnels."8dcc83bd-eb95-4c0d-8f71-b92a27d37649" = {
@@ -80,6 +82,8 @@
         "www.miguelarbis.dev" = "http://127.0.0.1:32080";
         "status.bismigel.dev" = "http://127.0.0.1:32080";
         "private.bismigel.dev" = "http://127.0.0.1:32080";
+        "grafana.bismigel.dev" = "http://127.0.0.1:32080";
+        "agent.bismigel.dev" = "http://127.0.0.1:32080";
         # media box (.81) — one tunnel routes both boxes; no re-hosting
         "jellyfin.bismigel.dev" = "http://192.168.2.81:30096";
       };
