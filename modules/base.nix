@@ -27,6 +27,8 @@
     htop
     tree
     wget
+    age
+    rclone
   ];
 
   system.stateVersion = "24.05";
