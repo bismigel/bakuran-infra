@@ -92,13 +92,23 @@ then create the `cluster-calamansi-intel` Secret on `.82`'s argocd namespace:
 `.81` creates `/mnt/media/{tv,movies,downloads,temp}` via `systemd.tmpfiles`
 (hostPath mounts require them).
 
-## 6. Media stack wiring
+## 6. Media stack wiring (declarative)
+
+The media cluster has **no External Secrets operator**, so two Secrets are seeded
+out of band from Bitwarden, then one script wires everything:
 
 ```bash
-QBT_PASSWORD='<qbt webui password>' ./scripts/media-stack-setup.sh
+# from the admin box (has the BWS token):
+./scripts/media-usenet-secret.sh    # usenet-frugal  (Frugal provider creds)
+./scripts/media-setup-secret.sh     # media-setup    (qbt pass, NZBGeek key, jellyfin creds)
+# then on the media box (or over ssh):
+HOST=127.0.0.1 KUBECTL="k3s kubectl" ./scripts/media-stack-setup.sh
 ```
-The *arr configs are SQLite (not in git), so this re-creates root folders, the
-qBittorrent client, and Prowlarr→Sonarr/Radarr links after a rebuild.
+
+`media-stack-setup.sh` re-creates: qBittorrent save path + categories, Sonarr/Radarr
+root folders + download clients (**qBittorrent and SABnzbd**), Prowlarr apps,
+**indexers (Nyaa.si + NZBGeek)**, and **Jellyfin users** (anton/delfin/ciceley).
+All values come from the `media-setup` Secret (no hardcoded secrets).
 
 ## 7. Cloudflare
 
