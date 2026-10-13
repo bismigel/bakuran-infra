@@ -63,7 +63,6 @@
   sops.defaultSopsFile = ../../secrets/homelab.yaml;
   sops.age.sshKeyPaths = [ "/etc/ssh/ssh_host_ed25519_key" ];
   sops.secrets."wg_proton_private_key" = {
-    path = "/run/secrets/wg-proton-private-key";
     owner = "root";
     mode = "0400";
   };
@@ -78,6 +77,11 @@
       endpoint = "205.142.240.210:51820";
       persistentKeepalive = 25;
     }];
+  };
+  # Make sure the SOPS secret exists before wg-quick reads it.
+  systemd.services."wg-quick-proton0" = {
+    wants = [ "sops-nix.service" ];
+    after = [ "sops-nix.service" ];
   };
 
   services.k3s = {
