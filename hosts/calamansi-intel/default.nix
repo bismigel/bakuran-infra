@@ -59,6 +59,27 @@
     "d /mnt/media/temp 0777 root root -"
   ];
 
+  # ---- ProtonVPN WireGuard egress (key from SOPS) ----
+  sops.defaultSopsFile = ../../secrets/homelab.yaml;
+  sops.age.sshKeyPaths = [ "/etc/ssh/ssh_host_ed25519_key" ];
+  sops.secrets."wg_proton_private_key" = {
+    path = "/run/secrets/wg-proton-private-key";
+    owner = "root";
+    mode = "0400";
+  };
+
+  networking.wg-quick.interfaces.proton0 = {
+    privateKeyFile = config.sops.secrets."wg_proton_private_key".path;
+    address = [ "10.2.0.2/32" ];
+    autostart = true;
+    peers = [{
+      publicKey = "/HvEnSU5JaswyBC/YFs74eGLXqLdzsaFeVT8SD1KYAc=";
+      allowedIPs = [ "0.0.0.0/0" "::/0" ];
+      endpoint = "205.142.240.210:51820";
+      persistentKeepalive = 25;
+    }];
+  };
+
   services.k3s = {
     enable = true;
     role = "server";

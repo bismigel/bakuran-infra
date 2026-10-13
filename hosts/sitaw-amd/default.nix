@@ -20,12 +20,6 @@
   networking.defaultGateway = "192.168.2.1";
   networking.nameservers = [ "1.1.1.1" "8.8.8.8" ];
 
-  # The shared k3s module carries a ProtonVPN/WireGuard setup intended for the
-  # media box. sitaw-amd is a hosting box — disable it (it was failing and blocking
-  # deploys). Re-enable deliberately if the host should egress via VPN.
-  systemd.services.protonvpn.enable = lib.mkForce false;
-  networking.wg-quick.interfaces = lib.mkForce { };
-
   # Hardware (Ryzen 5 4600G / B450 / NVMe root). File systems come from disko.
   boot.initrd.availableKernelModules = [
     "nvme"
