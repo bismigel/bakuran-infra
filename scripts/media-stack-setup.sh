@@ -29,6 +29,7 @@ QBIT="http://${HOST}:30081"
 
 # qBittorrent is reachable from the *arr pods by this in-cluster DNS name.
 QBT_INTERNAL="${QBT_INTERNAL:-qbittorrent.downloads.svc.cluster.local}"
+SAB_INTERNAL="${SAB_INTERNAL:-sabnzbd.downloads.svc.cluster.local}"
 PROWLARR_INTERNAL="${PROWLARR_INTERNAL:-http://prowlarr.media.svc.cluster.local:9696}"
 SONARR_INTERNAL="${SONARR_INTERNAL:-http://sonarr.media.svc.cluster.local:8989}"
 RADARR_INTERNAL="${RADARR_INTERNAL:-http://radarr.media.svc.cluster.local:7878}"
@@ -49,6 +50,12 @@ jqr() { "$JQ" "$@"; }
 api_key() { # <deploy> [namespace]
   $KUBECTL -n "${2:-media}" exec "deploy/$1" -- \
     sh -c "grep -o '<ApiKey>[^<]*' /config/config.xml" 2>/dev/null | sed 's/<ApiKey>//'
+}
+
+# SABnzbd API key from its config (downloads ns).
+sab_key() {
+  $KUBECTL -n downloads exec deploy/sabnzbd -- \
+    sh -c "grep '^api_key' /config/sabnzbd.ini" 2>/dev/null | sed 's/.*= *//' | tr -d ' \r'
 }
 
 SO_KEY="$(api_key sonarr)"
@@ -121,13 +128,43 @@ ensure_qbt_client() {
   fi
 }
 
+# ensure_sab_client <base> <key> <api-version> <category>   (Usenet via SABnzbd)
+ensure_sab_client() {
+  local base="$1" k="$2" api="$3" cat="$4"
+  local sab; sab="$(sab_key)"
+  [ -n "$sab" ] || { echo "  (SABnzbd api key not found; skipping)"; return; }
+  local payload
+  payload="$(curl -sf -H "X-Api-Key: $k" "$base/api/$api/downloadclient/schema" | jqr \
+    --arg sab "$sab" --arg cat "$cat" --arg host "$SAB_INTERNAL" '
+      .[] | select(.implementation=="Sabnzbd")
+      | .name="SABnzbd" | .enable=true | .priority=1 | .tags=[]
+      | (.fields[]|select(.name=="host").value)=$host
+      | (.fields[]|select(.name=="port").value)=8080
+      | (.fields[]|select(.name=="apiKey").value)=$sab
+      | (.fields[]|select(.name=="tvCategory" or .name=="movieCategory" or .name=="category").value)=$cat')"
+  local id
+  id="$(curl -sf -H "X-Api-Key: $k" "$base/api/$api/downloadclient" \
+        | jqr -r '.[] | select(.implementation=="Sabnzbd") | .id' | head -1)"
+  if [ -n "$id" ]; then
+    curl -sf -X PUT "$base/api/$api/downloadclient/$id" -H "X-Api-Key: $k" \
+      -H 'Content-Type: application/json' --data "$payload" >/dev/null
+    echo "  download client SABnzbd updated (category $cat)"
+  else
+    curl -sf -X POST "$base/api/$api/downloadclient" -H "X-Api-Key: $k" \
+      -H 'Content-Type: application/json' --data "$payload" >/dev/null
+    echo "  download client SABnzbd added (category $cat)"
+  fi
+}
+
 log "Sonarr"
 ensure_rootfolder "$SONARR" "$SO_KEY" /tv
 ensure_qbt_client "$SONARR" "$SO_KEY" tv
+ensure_sab_client "$SONARR" "$SO_KEY" v3 tv
 
 log "Radarr"
 ensure_rootfolder "$RADARR" "$RA_KEY" /movies
 ensure_qbt_client "$RADARR" "$RA_KEY" movies
+ensure_sab_client "$RADARR" "$RA_KEY" v3 movies
 
 # ------------------------------------------------------------------- Prowlarr
 # ensure_prowlarr_app <impl> <internal-base-url> <api-key>
@@ -158,6 +195,7 @@ ensure_prowlarr_app() {
 log "Prowlarr"
 ensure_prowlarr_app Sonarr "$SONARR_INTERNAL" "$SO_KEY"
 ensure_prowlarr_app Radarr "$RADARR_INTERNAL" "$RA_KEY"
+ensure_sab_client "$PROWLARR" "$PW_KEY" v1 tv
 
 echo "  pushing indexers to Sonarr/Radarr..."
 curl -sf -X POST "$PROWLARR/api/v1/command" -H "X-Api-Key: $PW_KEY" \
