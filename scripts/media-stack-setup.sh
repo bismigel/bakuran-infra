@@ -17,15 +17,16 @@
 #
 # Requires: bash, curl, and jq (falls back to `nix run nixpkgs#jq`).
 set -euo pipefail
+export NIX_CONFIG="${NIX_CONFIG:-experimental-features = nix-command flakes}"
 
 HOST="${HOST:-127.0.0.1}"
-: "${QBT_PASSWORD:?set QBT_PASSWORD to the qBittorrent WebUI password}"
 QBT_USER="${QBT_USER:-admin}"
 
 PROWLARR="http://${HOST}:30069"
 SONARR="http://${HOST}:30089"
 RADARR="http://${HOST}:30078"
 QBIT="http://${HOST}:30081"
+JELLYFIN="${JELLYFIN:-http://${HOST}:30096}"
 
 # qBittorrent is reachable from the *arr pods by this in-cluster DNS name.
 QBT_INTERNAL="${QBT_INTERNAL:-qbittorrent.downloads.svc.cluster.local}"
@@ -45,6 +46,25 @@ resolve_jq() {
 JQ="$(resolve_jq)"
 [ -n "$JQ" ] || { echo "error: jq not found (install jq or add it to PATH)" >&2; exit 1; }
 jqr() { "$JQ" "$@"; }
+
+# --- secrets: read from the `media-setup` Secret (ns media) unless the env var is
+#     already set. The media cluster has no Bitwarden access, so this Secret is
+#     seeded from Bitwarden out of band (see scripts/media-usenet-secret.sh).
+secret_get() { # <secret-key>
+  $KUBECTL -n media get secret media-setup -o jsonpath="{.data.$1}" 2>/dev/null | base64 -d
+}
+load_secret() { # <ENV_VAR> <secret-key>
+  [ -n "${!1:-}" ] && return 0
+  printf -v "$1" '%s' "$(secret_get "$2")"
+}
+load_secret QBT_PASSWORD         qbt-password
+load_secret NZBGEEK_API          nzbgeek-api
+load_secret JELLYFIN_ADMIN_USER  jellyfin-admin-user
+load_secret JELLYFIN_ADMIN_PASS  jellyfin-admin-pass
+load_secret JELLYFIN_ANTON       jellyfin-anton
+load_secret JELLYFIN_DELFIN      jellyfin-delfin
+load_secret JELLYFIN_CICELEY     jellyfin-ciceley
+: "${QBT_PASSWORD:?set QBT_PASSWORD, or seed the 'media-setup' Secret (ns media)}"
 
 # Read an app's API key from its config.xml inside the running pod.
 api_key() { # <deploy> [namespace]
@@ -156,6 +176,51 @@ ensure_sab_client() {
   fi
 }
 
+# ensure_prowlarr_indexer <name> [api-key]   (name must match Prowlarr's definition)
+ensure_prowlarr_indexer() {
+  local name="$1" key="${2:-}"
+  local payload
+  payload="$(curl -sf -H "X-Api-Key: $PW_KEY" "$PROWLARR/api/v1/indexer/schema" | jqr \
+    --arg n "$name" --arg k "$key" '
+      .[] | select(.name==$n) | .enable=true | .appProfileId=1 | .priority=25 | .tags=[]
+      | (if $k != "" then (.fields[]|select(.name=="apiKey").value)=$k else . end)
+      | del(.id)')"
+  [ -n "$payload" ] || { echo "  indexer $name: definition not found"; return; }
+  local id
+  id="$(curl -sf -H "X-Api-Key: $PW_KEY" "$PROWLARR/api/v1/indexer" \
+        | jqr -r --arg n "$name" '.[]|select(.name==$n).id' | head -1)"
+  if [ -n "$id" ]; then
+    curl -sf -X PUT "$PROWLARR/api/v1/indexer/$id" -H "X-Api-Key: $PW_KEY" \
+      -H 'Content-Type: application/json' --data "$payload" >/dev/null
+    echo "  indexer $name updated"
+  else
+    curl -sf -X POST "$PROWLARR/api/v1/indexer" -H "X-Api-Key: $PW_KEY" \
+      -H 'Content-Type: application/json' --data "$payload" >/dev/null
+    echo "  indexer $name added"
+  fi
+}
+
+# ensure_jellyfin_user <name> <password>   (idempotent; needs the admin creds)
+ensure_jellyfin_user() {
+  local name="$1" pw="$2"
+  [ -n "$name" ] && [ -n "$pw" ] || { echo "  (skip jellyfin user: missing name/password)"; return; }
+  [ -n "${JELLYFIN_ADMIN_USER:-}" ] || { echo "  (no jellyfin admin creds; skipping)"; return; }
+  local tok
+  tok="$(curl -sf -X POST "$JELLYFIN/Users/AuthenticateByName" -H 'Content-Type: application/json' \
+    -H 'X-Emby-Authorization: MediaBrowser Client="setup", Device="setup", DeviceId="setup", Version="1.0"' \
+    -d "{\"Username\":\"$JELLYFIN_ADMIN_USER\",\"Pw\":\"$JELLYFIN_ADMIN_PASS\"}" | jqr -r '.AccessToken')"
+  [ -n "$tok" ] && [ "$tok" != "null" ] || { echo "  (jellyfin admin auth failed; skipping)"; return; }
+  if curl -sf "$JELLYFIN/Users" -H "Authorization: MediaBrowser Token=$tok" \
+       | jqr -e --arg n "$name" 'any(.[]; .Name==$n)' >/dev/null 2>&1; then
+    echo "  jellyfin user $name exists"
+  else
+    curl -sf -X POST "$JELLYFIN/Users/New" -H "Content-Type: application/json" \
+      -H "Authorization: MediaBrowser Token=$tok" \
+      -d "{\"Name\":\"$name\",\"Password\":\"$pw\"}" >/dev/null
+    echo "  jellyfin user $name created"
+  fi
+}
+
 log "Sonarr"
 ensure_rootfolder "$SONARR" "$SO_KEY" /tv
 ensure_qbt_client "$SONARR" "$SO_KEY" tv
@@ -197,9 +262,18 @@ ensure_prowlarr_app Sonarr "$SONARR_INTERNAL" "$SO_KEY"
 ensure_prowlarr_app Radarr "$RADARR_INTERNAL" "$RA_KEY"
 ensure_sab_client "$PROWLARR" "$PW_KEY" v1 tv
 
+log "Prowlarr indexers"
+ensure_prowlarr_indexer "Nyaa.si"
+[ -n "${NZBGEEK_API:-}" ] && ensure_prowlarr_indexer "NZBgeek" "$NZBGEEK_API"
+
 echo "  pushing indexers to Sonarr/Radarr..."
 curl -sf -X POST "$PROWLARR/api/v1/command" -H "X-Api-Key: $PW_KEY" \
   -H 'Content-Type: application/json' --data '{"name":"ApplicationIndexerSync"}' >/dev/null
+
+log "Jellyfin users"
+ensure_jellyfin_user anton   "${JELLYFIN_ANTON:-}"
+ensure_jellyfin_user delfin  "${JELLYFIN_DELFIN:-}"
+ensure_jellyfin_user ciceley "${JELLYFIN_CICELEY:-}"
 
 log "Done"
 echo "Indexers are managed in Prowlarr; add trackers there and they will sync."

@@ -8,6 +8,7 @@
 #
 # HOST can override the target (default 192.168.2.81).
 set -euo pipefail
+export NIXPKGS_ALLOW_UNFREE="${NIXPKGS_ALLOW_UNFREE:-1}"
 : "${BWS_ACCESS_TOKEN:?set BWS_ACCESS_TOKEN to the Bitwarden machine-account token}"
 HOST="${HOST:-192.168.2.81}"
 NS="${NS:-downloads}"
