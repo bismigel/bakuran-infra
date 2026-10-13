@@ -21,6 +21,7 @@
         };
         modules = [
           sops-nix.nixosModules.sops
+          disko.nixosModules.disko
           ./hosts/calamansi-intel/default.nix
         ];
       };
