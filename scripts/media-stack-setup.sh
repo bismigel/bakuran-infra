@@ -221,6 +221,26 @@ ensure_jellyfin_user() {
   fi
 }
 
+# ensure_jellyfin_library <display-name> <url-name> <collectionType> <path>
+ensure_jellyfin_library() {
+  local name="$1" urlname="$2" type="$3" path="$4"
+  [ -n "${JELLYFIN_ADMIN_USER:-}" ] || return 0
+  local tok
+  tok="$(curl -sf -X POST "$JELLYFIN/Users/AuthenticateByName" -H 'Content-Type: application/json' \
+    -H 'X-Emby-Authorization: MediaBrowser Client="setup", Device="setup", DeviceId="setup", Version="1.0"' \
+    -d "{\"Username\":\"$JELLYFIN_ADMIN_USER\",\"Pw\":\"$JELLYFIN_ADMIN_PASS\"}" | jqr -r '.AccessToken')"
+  [ -n "$tok" ] && [ "$tok" != "null" ] || return 0
+  if curl -sf "$JELLYFIN/Library/VirtualFolders" -H "Authorization: MediaBrowser Token=$tok" \
+       | jqr -e --arg n "$name" 'any(.[]; .Name==$n)' >/dev/null 2>&1; then
+    echo "  jellyfin library $name exists"
+  else
+    curl -sf -X POST "$JELLYFIN/Library/VirtualFolders?name=$urlname&collectionType=$type&refreshLibrary=true" \
+      -H "Authorization: MediaBrowser Token=$tok" -H 'Content-Type: application/json' \
+      -d "{\"LibraryOptions\":{\"PathInfos\":[{\"Path\":\"$path\"}]}}" >/dev/null
+    echo "  jellyfin library $name created"
+  fi
+}
+
 log "Sonarr"
 ensure_rootfolder "$SONARR" "$SO_KEY" /tv
 ensure_qbt_client "$SONARR" "$SO_KEY" tv
@@ -274,6 +294,10 @@ log "Jellyfin users"
 ensure_jellyfin_user anton   "${JELLYFIN_ANTON:-}"
 ensure_jellyfin_user delfin  "${JELLYFIN_DELFIN:-}"
 ensure_jellyfin_user ciceley "${JELLYFIN_CICELEY:-}"
+
+log "Jellyfin libraries"
+ensure_jellyfin_library "TV Shows" "TV%20Shows" tvshows /media/tv
+ensure_jellyfin_library "Movies"   "Movies"     movies  /media/movies
 
 log "Done"
 echo "Indexers are managed in Prowlarr; add trackers there and they will sync."
