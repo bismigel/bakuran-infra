@@ -307,6 +307,16 @@ log "Sonarr"
 ensure_rootfolder "$SONARR" "$SO_KEY" /tv
 ensure_qbt_client "$SONARR" "$SO_KEY" tv
 ensure_sab_client "$SONARR" "$SO_KEY" v3 tv
+# Prefer torrents (Nyaa) over Usenet for anime; live-action falls back when no
+# torrent exists. Idempotent: sets the default delay profile's preferred protocol.
+ensure_sonarr_delay_profile() {
+  local dp
+  dp="$(curl -sf -H "X-Api-Key: $SO_KEY" "$SONARR/api/v3/delayprofile/1" \
+        | jqr '.preferredProtocol="torrent"')" || return 0
+  curl -sf -o /dev/null -X PUT -H "X-Api-Key: $SO_KEY" -H 'Content-Type: application/json' \
+    "$SONARR/api/v3/delayprofile/1" -d "$dp" && echo "  delay profile: torrent-first"
+}
+ensure_sonarr_delay_profile
 
 log "Radarr"
 ensure_rootfolder "$RADARR" "$RA_KEY" /movies
