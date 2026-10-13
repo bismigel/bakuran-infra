@@ -32,5 +32,7 @@ data:
   jellyfin-anton: $(b64 "$(get jellyfin-anton)")
   jellyfin-delfin: $(b64 "$(get jellyfin-delfin)")
   jellyfin-ciceley: $(b64 "$(get jellyfin-ciceley)")
+  opensubtitles-user: $(b64 "$(get opensubtitles-user)")
+  opensubtitles-pass: $(b64 "$(get opensubtitles-pass)")
 EOF
 echo "media-setup secret applied on $HOST ($NS)"
