@@ -60,9 +60,17 @@
 
   networking.firewall = {
     enable = true;
-    allowedTCPPorts = [ 22 6443 80 443 32080 ];
-    allowedUDPPorts = [ 8472 ];
+    allowedTCPPorts = [ 22 6443 80 443 32080 2049 111 ];
+    allowedUDPPorts = [ 8472 2049 111 ];
   };
+
+  # ---- Media storage: export the data partitions to the media box (.81) ----
+  # .81 mounts these and mergerfs-unions them with its own local disks.
+  services.nfs.server.enable = true;
+  services.nfs.server.exports = ''
+    /mnt/media-nvme 192.168.2.81(rw,sync,no_subtree_check,no_root_squash)
+    /mnt/media-sda  192.168.2.81(rw,sync,no_subtree_check,no_root_squash)
+  '';
 
   # Cloudflare tunnel. NOTE: this tunnel is **remote-managed** — routing is
   # configured in the Cloudflare dashboard/API and cloudflared pulls it, so the

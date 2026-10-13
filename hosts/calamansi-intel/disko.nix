@@ -1,7 +1,9 @@
 {
-  # Full wipe of BOTH disks on calamansi-intel.
-  #   /dev/nvme0n1 — ESP (/boot) + root (/)
-  #   /dev/sda     — single ext4 at /mnt/downloads
+  # Wipe BOTH disks on calamansi-intel:
+  #   /dev/nvme0n1 — ESP (1G) + root (100G) + data (rest) at /mnt/media-nvme
+  #   /dev/sda     — single ext4 at /mnt/media-sda
+  # media-nvme + media-sda + .82's exported partitions are merged into /mnt/media
+  # by mergerfs (see hosts/calamansi-intel/default.nix).
   disko.devices = {
     disk = {
       main = {
@@ -21,17 +23,25 @@
               };
             };
             root = {
-              size = "100%";
+              size = "100G";
               content = {
                 type = "filesystem";
                 format = "ext4";
                 mountpoint = "/";
               };
             };
+            data = {
+              size = "100%";
+              content = {
+                type = "filesystem";
+                format = "ext4";
+                mountpoint = "/mnt/media-nvme";
+              };
+            };
           };
         };
       };
-      downloads = {
+      hdd = {
         type = "disk";
         device = "/dev/sda";
         content = {
@@ -42,7 +52,7 @@
               content = {
                 type = "filesystem";
                 format = "ext4";
-                mountpoint = "/mnt/downloads";
+                mountpoint = "/mnt/media-sda";
               };
             };
           };
