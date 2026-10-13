@@ -24,12 +24,12 @@
   fileSystems."/mnt/remote82-nvme" = {
     device = "192.168.2.82:/mnt/media-nvme";
     fsType = "nfs";
-    options = [ "nfsvers=4.2" "_netdev" "nofail" ];
+    options = [ "nfsvers=4.2" "_netdev" "nofail" "soft" "timeo=30" "retrans=3" ];
   };
   fileSystems."/mnt/remote82-sda" = {
     device = "192.168.2.82:/mnt/media-sda";
     fsType = "nfs";
-    options = [ "nfsvers=4.2" "_netdev" "nofail" ];
+    options = [ "nfsvers=4.2" "_netdev" "nofail" "soft" "timeo=30" "retrans=3" ];
   };
 
   fileSystems."/mnt/media" = {
@@ -41,7 +41,7 @@
       "nonempty"
       "cache.files=partial"
       "dropcacheonclose=true"
-      "category.create=mfs"
+      "category.create=epmfs"
       "x-systemd.requires-mounts-for=/mnt/media-nvme"
       "x-systemd.requires-mounts-for=/mnt/media-sda"
       "x-systemd.requires-mounts-for=/mnt/remote82-nvme"
@@ -50,14 +50,22 @@
     ];
   };
 
-  # Ensure the media subdirs exist in the pool (hostPath mounts require them;
-  # mergerfs places them on the branch with most free space).
-  systemd.tmpfiles.rules = [
-    "d /mnt/media/tv 0777 root root -"
-    "d /mnt/media/movies 0777 root root -"
-    "d /mnt/media/downloads 0777 root root -"
-    "d /mnt/media/temp 0777 root root -"
-  ];
+  # Pin the library/download dirs to the LOCAL branch (media-sda) so they don't
+  # depend on the NFS export from .82. With category.create=epmfs, files inside
+  # an existing path land on the branch that path lives on (local here).
+  # Runs after local filesystems are mounted.
+  systemd.services.media-dirs = {
+    description = "Create media library dirs on the local branch";
+    after = [ "local-fs.target" ];
+    wants = [ "local-fs.target" ];
+    wantedBy = [ "multi-user.target" ];
+    serviceConfig.Type = "oneshot";
+    serviceConfig.RemainAfterExit = true;
+    script = ''
+      mkdir -p /mnt/media-sda/tv /mnt/media-sda/movies /mnt/media-sda/downloads /mnt/media-sda/temp
+      chmod 0777 /mnt/media-sda/tv /mnt/media-sda/movies /mnt/media-sda/downloads /mnt/media-sda/temp
+    '';
+  };
 
   # ---- ProtonVPN WireGuard egress (key from SOPS) ----
   sops.defaultSopsFile = ../../secrets/homelab.yaml;
