@@ -8,7 +8,7 @@
 | Prometheus | http://192.168.2.82:30909 | ✅ | AMD · metrics (1GB retention) |
 | Grafana | https://grafana.bismigel.dev | ✅ | AMD · user `admin` · Access-gated |
 | OTel Collector | 192.168.2.82 (observability) | ✅ | AMD |
-| Jellyfin | https://jellyfin.bismigel.dev | ✅ | Intel · QSV; user `root`; lib `/media/tv` · Access-gated |
+| Jellyfin | https://jellyfin.bismigel.dev | ✅ | Intel · QSV (privileged); users anton/delfin/ciceley; lib `/media/tv` · Access-gated |
 | qBittorrent | http://192.168.2.81:30081 | ✅ | Intel · user `admin`; save path `/downloads` |
 | Prowlarr | http://192.168.2.81:30069 | ✅ | Intel · indexer manager (syncs to Sonarr/Radarr) |
 | Sonarr | http://192.168.2.81:30089 | ✅ | Intel · root `/tv` + qBittorrent client (cat `tv`) |
@@ -16,9 +16,11 @@
 | Bazarr | http://192.168.2.81:30067 | ✅ | Intel · subtitle management |
 | ZeroClaw | https://agent.bismigel.dev | ✅ | AMD · homelab agent (DeepSeek + local LLM) · Access-gated · Telegram |
 
-**Auth:** Jellyfin/Grafana/qBittorrent use the standard homelab password. The
-*arr apps (Sonarr/Radarr/Prowlarr/Bazarr) are set to **no authentication** and are
-LAN-only. Public hosts are gated by **Cloudflare Access** (see below).
+**Auth:** Grafana ships `admin`/`admin` (behind Cloudflare Access). Jellyfin and
+qBittorrent use the standard homelab password (qBittorrent's is set by
+`media-stack-setup.sh`). The *arr apps (Sonarr/Radarr/Prowlarr/Bazarr) use `Forms`
+auth **disabled for local addresses** — login-free on the LAN. Public hosts are
+gated by **Cloudflare Access** (see below).
 
 ## Cluster placement
 
@@ -35,8 +37,8 @@ LAN-only. Public hosts are gated by **Cloudflare Access** (see below).
 
 - **Cluster secrets:** Bitwarden Secrets Manager + External Secrets Operator
   (`ClusterSecretStore/bitwarden`). **Host secrets:** SOPS/age (`sops-nix`).
-- **Ingress:** `ingress-nginx` (NodePort 32080/32443) reached by a single
-  **Cloudflare Tunnel** on sitaw-amd. Public hostnames live under `*.bismigel.dev`;
+- **Ingress:** `ingress-nginx` (NodePort 32080/32443 on **both** boxes) reached by a
+  **Cloudflare Tunnel** with a connector on each host (edge HA). Public hostnames live under `*.bismigel.dev`;
   `grafana`/`jellyfin`/`status`/`private`/`agent` are gated by **Cloudflare Access**
   (Zero Trust).
 
@@ -45,7 +47,7 @@ LAN-only. Public hosts are gated by **Cloudflare Access** (see below).
 - **Servers**: calamansi-intel (192.168.2.81, Intel) · sitaw-amd (192.168.2.82, AMD)
 - **k3s**: 1.34.5
 - **NixOS**: 25.11
-- **VPN**: WireGuard (ProtonVPN CH-CA#2) on calamansi-intel
+- **VPN**: WireGuard (ProtonVPN, US-NJ endpoint) on calamansi-intel — key is a SOPS secret
 
 ## Storage
 

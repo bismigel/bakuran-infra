@@ -89,8 +89,8 @@ then create the `cluster-calamansi-intel` Secret on `.82`'s argocd namespace:
 
 ## 5. Media hostPath dirs
 
-`.81` creates `/mnt/media/{tv,movies,downloads,temp}` via `systemd.tmpfiles`
-(hostPath mounts require them).
+`.81` creates `/mnt/media-sda/{tv,movies,downloads,temp}` via the `media-dirs`
+systemd service (hostPath mounts surface these at `/mnt/media/{...}`).
 
 ## 6. Media stack wiring (declarative)
 

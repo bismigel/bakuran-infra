@@ -8,8 +8,8 @@
 
 | Host | Addr | Hardware | Role |
 | --- | --- | --- | --- |
-| `sitaw-amd` | 192.168.2.82 | Ryzen 5 4600G | Hosting + platform: k3s, the single ArgoCD control plane, ingress-nginx (NodePort 32080/32443), cloudflared |
-| `calamansi-intel` | 192.168.2.81 | Intel i5-7500T | Media only: Jellyfin (QSV), *arr stack, qBittorrent (registered as an external cluster in the one ArgoCD) |
+| `sitaw-amd` | 192.168.2.82 | Ryzen 5 4600G | Hosting + platform: k3s, the single ArgoCD control plane, ingress-nginx (NodePort 32080/32443), cloudflared connector #1 |
+| `calamansi-intel` | 192.168.2.81 | Intel i5-7500T | Media only: Jellyfin (QSV), *arr stack, qBittorrent, cloudflared connector #2 (registered as an external cluster in the one ArgoCD) |
 
 Both run NixOS 25.11 with single-node k3s (traefik + servicelb disabled).
 
@@ -21,7 +21,7 @@ hosts/<host>/default.nix     # per-host config (imports modules/, inlines hardwa
 hosts/<host>/disko.nix       # disk layout (only where disko is used)
 modules/
   base.nix                   # shared: SSH, users, packages, sops-nix, backup tooling
-  k3s.nix                    # k3s server config (⚠ contains a WireGuard key — see below)
+  k3s.nix                    # k3s server config (the ProtonVPN WireGuard key is a SOPS secret read on .81)
   backup.nix                 # daily R2 credential backup (systemd timer)
 scripts/
   bootstrap-argocd.sh        # one-time ArgoCD bootstrap + repo/cluster secrets
@@ -66,9 +66,10 @@ kubeconfigs, and the Bitwarden access token to `r2:homelab-backups/credentials/`
 
 ## Known issues
 
-- `modules/k3s.nix` still contains a **plaintext WireGuard key**. A replacement is
-  held in **Bitwarden** (to be rotated there); move it into `secrets/homelab.yaml`
-  (SOPS) and read from `/run/secrets/…` instead. See `homelab-context/NEXT-STEPS.md`.
+- SSH still allows `PermitRootLogin = yes` + `PasswordAuthentication = true`
+  (`modules/base.nix`); the Firewall does not restrict k3s NodePorts.
+- The live inventory/roadmap lives in `homelab-context/` (local-only);
+  `SERVICES.md` here is a summary and may lag.
 
 ## Related
 
