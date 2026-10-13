@@ -48,5 +48,16 @@ data:
   radarr-api-key: $(b64 "$radarr_key")
   prowlarr-api-key: $(b64 "$prowlarr_key")
   sabnzbd-api-key: $(b64 "$sab_key")
+---
+# Pull secret for private GHCR images (ghcr.io/bismigel/*) — the media cluster has
+# no ESO, so it is seeded here from Bitwarden alongside media-setup.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ghcr-secret
+  namespace: $NS
+type: kubernetes.io/dockerconfigjson
+data:
+  .dockerconfigjson: $(b64 "{\"auths\":{\"ghcr.io\":{\"username\":\"$(get ghcr-user)\",\"password\":\"$(get ghcr-token)\",\"auth\":\"$(printf %s "$(get ghcr-user):$(get ghcr-token)" | base64 -w0)\"}}}")
 EOF
 echo "media-setup secret applied on $HOST ($NS)"
