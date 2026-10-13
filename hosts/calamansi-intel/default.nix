@@ -92,6 +92,40 @@
     after = [ "sops-nix.service" ];
   };
 
+  # ---- Cloudflare tunnel (SECOND connector — edge HA) ----
+  # .82 runs one connector; this is the other. Cloudflare load-balances the
+  # tunnel across both, and each routes ingress-originated traffic to its LOCAL
+  # ingress (127.0.0.1:32080). So either box can serve the edge: if one node (or
+  # just its cloudflared) goes down, the tunnel stays up via the other.
+  # The tunnel is remote-managed, so this ingress map is a reference fallback.
+  sops.secrets."cloudflared_credentials" = {
+    path = "/root/.cloudflared/8dcc83bd-eb95-4c0d-8f71-b92a27d37649.json";
+    owner = "root";
+    mode = "0400";
+  };
+  systemd.tmpfiles.rules = [ "d /root/.cloudflared 0700 root root -" ];
+  services.cloudflared = {
+    enable = true;
+    tunnels."8dcc83bd-eb95-4c0d-8f71-b92a27d37649" = {
+      credentialsFile = "/root/.cloudflared/8dcc83bd-eb95-4c0d-8f71-b92a27d37649.json";
+      default = "http_status:404";
+      ingress = {
+        "ciceley.cc" = "http://127.0.0.1:32080";
+        "www.ciceley.cc" = "http://127.0.0.1:32080";
+        "bismigel.dev" = "http://127.0.0.1:32080";
+        "www.bismigel.dev" = "http://127.0.0.1:32080";
+        "miguelarbis.dev" = "http://127.0.0.1:32080";
+        "www.miguelarbis.dev" = "http://127.0.0.1:32080";
+        "status.bismigel.dev" = "http://127.0.0.1:32080";
+        "private.bismigel.dev" = "http://127.0.0.1:32080";
+        "grafana.bismigel.dev" = "http://127.0.0.1:32080";
+        "agent.bismigel.dev" = "http://127.0.0.1:32080";
+        # media box service — reachable from either connector
+        "jellyfin.bismigel.dev" = "http://192.168.2.81:30096";
+      };
+    };
+  };
+
   services.k3s = {
     enable = true;
     role = "server";
