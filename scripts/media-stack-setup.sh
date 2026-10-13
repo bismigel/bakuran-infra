@@ -250,14 +250,37 @@ ensure_jellyfin_hwaccel() {
     -d "{\"Username\":\"$JELLYFIN_ADMIN_USER\",\"Pw\":\"$JELLYFIN_ADMIN_PASS\"}" | jqr -r '.AccessToken')"
   [ -n "$tok" ] && [ "$tok" != "null" ] || { echo "  (jellyfin admin auth failed; skipping hw accel)"; return; }
   cfg="$(curl -sf "$JELLYFIN/System/Configuration/encoding" -H "Authorization: MediaBrowser Token=$tok")"
-  if [ "$(printf '%s' "$cfg" | jqr -r '.HardwareAccelerationType // ""')" = "qsv" ]; then
-    echo "  jellyfin hardware acceleration already qsv"
+  local want
+  want="$(printf '%s' "$cfg" | jqr -c '.HardwareAccelerationType="qsv" | .EnableHardwareEncoding=true | .EnableVppTonemapping=true | .EnableIntelLowPowerH264HwEncoder=true | .EnableIntelLowPowerHevcHwEncoder=true')"
+  if [ "$(printf '%s' "$cfg" | jqr -c '[.HardwareAccelerationType,.EnableVppTonemapping,.EnableIntelLowPowerH264HwEncoder,.EnableIntelLowPowerHevcHwEncoder]')" = '["qsv",true,true,true]' ]; then
+    echo "  jellyfin transcoding already qsv (+vpp/low-power)"
     return
   fi
-  printf '%s' "$cfg" | jqr '.HardwareAccelerationType="qsv" | .EnableHardwareEncoding=true' >/tmp/jfenc.json
+  printf '%s' "$want" >/tmp/jfenc.json
   curl -sf -o /dev/null -X POST "$JELLYFIN/System/Configuration/encoding" \
     -H "Authorization: MediaBrowser Token=$tok" -H 'Content-Type: application/json' --data @/tmp/jfenc.json
-  echo "  jellyfin hardware acceleration set to qsv"
+  echo "  jellyfin transcoding set to qsv (+vpp/low-power)"
+}
+
+# ensure_jellyfin_subtitle_mode   (idempotent; default subtitle mode "Only forced")
+# Prevents Jellyfin from auto-loading full subtitles, which forces a software
+# subtitle burn-in (overlay) transcode on clients that can't render them.
+ensure_jellyfin_subtitle_mode() {
+  [ -n "${JELLYFIN_ADMIN_USER:-}" ] || return 0
+  local tok
+  tok="$(curl -sf -X POST "$JELLYFIN/Users/AuthenticateByName" -H 'Content-Type: application/json' \
+    -H 'X-Emby-Authorization: MediaBrowser Client="setup", Device="setup", DeviceId="setup", Version="1.0"' \
+    -d "{\"Username\":\"$JELLYFIN_ADMIN_USER\",\"Pw\":\"$JELLYFIN_ADMIN_PASS\"}" | jqr -r '.AccessToken')"
+  [ -n "$tok" ] && [ "$tok" != "null" ] || return 0
+  curl -sf "$JELLYFIN/Users" -H "Authorization: MediaBrowser Token=$tok" \
+    | jqr -r '.[] | "\(.Name)\t\(.Id)"' | while IFS="$(printf '\t')" read -r name id; do
+      local conf
+      conf="$(curl -sf "$JELLYFIN/Users/$id" -H "Authorization: MediaBrowser Token=$tok" \
+        | jqr -c '.Configuration | .SubtitleMode="OnlyForced"')"
+      curl -sf -o /dev/null -X POST "$JELLYFIN/Users/$id/Configuration" \
+        -H "Authorization: MediaBrowser Token=$tok" -H 'Content-Type: application/json' --data "$conf"
+      echo "  subtitle mode OnlyForced: $name"
+    done
 }
 
 log "Sonarr"
@@ -320,6 +343,7 @@ ensure_jellyfin_library "Movies"   "Movies"     movies  /media/movies
 
 log "Jellyfin transcoding"
 ensure_jellyfin_hwaccel
+ensure_jellyfin_subtitle_mode
 
 log "Done"
 echo "Indexers are managed in Prowlarr; add trackers there and they will sync."
