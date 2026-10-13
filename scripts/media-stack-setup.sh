@@ -241,6 +241,25 @@ ensure_jellyfin_library() {
   fi
 }
 
+# ensure_jellyfin_hwaccel   (idempotent; enable Intel QuickSync hardware transcoding)
+ensure_jellyfin_hwaccel() {
+  [ -n "${JELLYFIN_ADMIN_USER:-}" ] || return 0
+  local tok cfg
+  tok="$(curl -sf -X POST "$JELLYFIN/Users/AuthenticateByName" -H 'Content-Type: application/json' \
+    -H 'X-Emby-Authorization: MediaBrowser Client="setup", Device="setup", DeviceId="setup", Version="1.0"' \
+    -d "{\"Username\":\"$JELLYFIN_ADMIN_USER\",\"Pw\":\"$JELLYFIN_ADMIN_PASS\"}" | jqr -r '.AccessToken')"
+  [ -n "$tok" ] && [ "$tok" != "null" ] || { echo "  (jellyfin admin auth failed; skipping hw accel)"; return; }
+  cfg="$(curl -sf "$JELLYFIN/System/Configuration/encoding" -H "Authorization: MediaBrowser Token=$tok")"
+  if [ "$(printf '%s' "$cfg" | jqr -r '.HardwareAccelerationType // ""')" = "qsv" ]; then
+    echo "  jellyfin hardware acceleration already qsv"
+    return
+  fi
+  printf '%s' "$cfg" | jqr '.HardwareAccelerationType="qsv" | .EnableHardwareEncoding=true' >/tmp/jfenc.json
+  curl -sf -o /dev/null -X POST "$JELLYFIN/System/Configuration/encoding" \
+    -H "Authorization: MediaBrowser Token=$tok" -H 'Content-Type: application/json' --data @/tmp/jfenc.json
+  echo "  jellyfin hardware acceleration set to qsv"
+}
+
 log "Sonarr"
 ensure_rootfolder "$SONARR" "$SO_KEY" /tv
 ensure_qbt_client "$SONARR" "$SO_KEY" tv
@@ -298,6 +317,9 @@ ensure_jellyfin_user ciceley "${JELLYFIN_CICELEY:-}"
 log "Jellyfin libraries"
 ensure_jellyfin_library "TV Shows" "TV%20Shows" tvshows /media/tv
 ensure_jellyfin_library "Movies"   "Movies"     movies  /media/movies
+
+log "Jellyfin transcoding"
+ensure_jellyfin_hwaccel
 
 log "Done"
 echo "Indexers are managed in Prowlarr; add trackers there and they will sync."
