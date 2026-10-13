@@ -111,3 +111,9 @@ tunnel ID changes, update `hosts/sitaw-amd/default.nix` + the cloudflared creds.
 3. The `bitwarden-access-token` Secret
 4. Host SSH keys (SOPS identity) + the backup age key
 5. Cloudflare tunnel creds
+
+## ⚠️ Do NOT seed Bitwarden with PushSecrets
+A leftover `PushSecret` (e.g. `seed-deepseek`, `seed-telegram`) keeps pushing its
+value on a timer and will **clobber the real secret** in Bitwarden — this actually
+happened (the DeepSeek key + Telegram token were reverted to dummies). Create/rotate
+secret values **directly in the vault**; never leave a seeding PushSecret running.
