@@ -283,6 +283,26 @@ ensure_jellyfin_subtitle_mode() {
     done
 }
 
+# ensure_jellyfin_scan_interval   (idempotent; make Jellyfin auto-import new media)
+# Jellyfin's live file-watching doesn't work across mergerfs (no inotify), so new
+# files are only picked up by the scheduled library scan. Default is 12h; drop it
+# to 15m so freshly imported media shows up on its own.
+ensure_jellyfin_scan_interval() {
+  [ -n "${JELLYFIN_ADMIN_USER:-}" ] || return 0
+  local tok tid
+  tok="$(curl -sf -X POST "$JELLYFIN/Users/AuthenticateByName" -H 'Content-Type: application/json' \
+    -H 'X-Emby-Authorization: MediaBrowser Client="setup", Device="setup", DeviceId="setup", Version="1.0"' \
+    -d "{\"Username\":\"$JELLYFIN_ADMIN_USER\",\"Pw\":\"$JELLYFIN_ADMIN_PASS\"}" | jqr -r '.AccessToken')"
+  [ -n "$tok" ] && [ "$tok" != "null" ] || return 0
+  tid="$(curl -sf "$JELLYFIN/ScheduledTasks" -H "Authorization: MediaBrowser Token=$tok" \
+    | jqr -r '.[]|select(.Name=="Scan Media Library")|.Id')"
+  [ -n "$tid" ] || { echo "  (scan task not found)"; return; }
+  curl -sf -o /dev/null -X POST "$JELLYFIN/ScheduledTasks/$tid/Triggers" \
+    -H "Authorization: MediaBrowser Token=$tok" -H 'Content-Type: application/json' \
+    -d '[{"Type":"IntervalTrigger","IntervalTicks":9000000000}]'
+  echo "  jellyfin library scan every 15m"
+}
+
 log "Sonarr"
 ensure_rootfolder "$SONARR" "$SO_KEY" /tv
 ensure_qbt_client "$SONARR" "$SO_KEY" tv
@@ -344,6 +364,7 @@ ensure_jellyfin_library "Movies"   "Movies"     movies  /media/movies
 log "Jellyfin transcoding"
 ensure_jellyfin_hwaccel
 ensure_jellyfin_subtitle_mode
+ensure_jellyfin_scan_interval
 
 log "Done"
 echo "Indexers are managed in Prowlarr; add trackers there and they will sync."
