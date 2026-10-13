@@ -34,8 +34,7 @@
 
   fileSystems."/mnt/media" = {
     device = "/mnt/media-nvme:/mnt/media-sda:/mnt/remote82-nvme:/mnt/remote82-sda";
-    fsType = "fuse.mergerfs";
-    options = [
+    fsType = "fuse.mergerfs";    options = [
       "defaults"
       "allow_other"
       "use_ino"
@@ -50,6 +49,15 @@
       "nofail"
     ];
   };
+
+  # Ensure the media subdirs exist in the pool (hostPath mounts require them;
+  # mergerfs places them on the branch with most free space).
+  systemd.tmpfiles.rules = [
+    "d /mnt/media/tv 0777 root root -"
+    "d /mnt/media/movies 0777 root root -"
+    "d /mnt/media/downloads 0777 root root -"
+    "d /mnt/media/temp 0777 root root -"
+  ];
 
   services.k3s = {
     enable = true;

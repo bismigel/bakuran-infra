@@ -13,7 +13,9 @@ ROOT_APP="${ROOT_APP:-bootstrap/root-app.yaml}"
 
 echo ">> install ArgoCD"
 $KUBECTL create namespace argocd --dry-run=client -o yaml | $KUBECTL apply -f -
-$KUBECTL -n argocd apply -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+# server-side apply: the ApplicationSet CRD exceeds the 262144-byte annotation
+# limit for client-side apply.
+$KUBECTL -n argocd apply --server-side -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
 
 echo ">> wait for argocd-server"
 $KUBECTL -n argocd rollout status deploy/argocd-server --timeout=300s
