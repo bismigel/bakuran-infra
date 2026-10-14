@@ -380,7 +380,7 @@ ensure_jellyfin_hwaccel
 ensure_jellyfin_subtitle_mode
 ensure_jellyfin_scan_interval
 
-log "App auth (login for remote; LAN stays local-bypass)"
+log "App auth (*arrs: login for remote, LAN bypass; Bazarr/SABnzbd: no auth)"
 # *arrs: Forms auth with a shared admin account (skipped for local/LAN).
 for spec in "sonarr $SONARR v3" "radarr $RADARR v3" "prowlarr $PROWLARR v1"; do
   set -- $spec; app=$1; base=$2; ver=$3
@@ -392,20 +392,22 @@ for spec in "sonarr $SONARR v3" "radarr $RADARR v3" "prowlarr $PROWLARR v1"; do
         -H "X-Api-Key: $k" -H 'Content-Type: application/json' --data-binary @-
   echo "  $app login -> admin"
 done
-# Bazarr: Form auth.
+# Bazarr: no auth. Bazarr has no per-IP bypass, so a login would prompt on LAN
+# *and* behind the tunnel (Sonarr/Radarr/Prowlarr use DisabledForLocalAddresses).
+# LAN is trusted and Cloudflare Access gates the public hostname, so drop it.
+# The settings API takes the literal "None" to clear auth.type.
 BAZ_KEY="$($KUBECTL -n media exec deploy/bazarr -- sh -c "grep -oE 'apikey: [a-f0-9]+' /config/config/config.yaml | head -1" 2>/dev/null | awk '{print $2}' | tr -d '\r')"
 if [ -n "$BAZ_KEY" ]; then
   curl -sf -o /dev/null -X POST "http://127.0.0.1:30067/api/system/settings" -H "X-API-KEY: $BAZ_KEY" \
-    --data "settings-auth-type=form" --data "settings-auth-username=admin" \
-    --data-urlencode "settings-auth-password=$QBT_PASSWORD"
-  echo "  bazarr login -> admin"
+    --data "settings-auth-type=None"
+  echo "  bazarr login disabled"
 fi
-# SABnzbd: WebUI credentials.
+# SABnzbd: no auth (same reasoning — no per-IP bypass). Clear username/password.
 SAB_KEY="$($KUBECTL -n downloads exec deploy/sabnzbd -- sh -c 'grep ^api_key /config/sabnzbd.ini' 2>/dev/null | sed 's/.*= *//' | tr -d '\r')"
 if [ -n "$SAB_KEY" ]; then
-  curl -sf -o /dev/null "http://127.0.0.1:30082/api?mode=set_config&section=misc&keyword=username&value=admin&apikey=$SAB_KEY"
-  curl -sf -o /dev/null --data-urlencode "value=$QBT_PASSWORD" "http://127.0.0.1:30082/api?mode=set_config&section=misc&keyword=password&apikey=$SAB_KEY"
-  echo "  sabnzbd login -> admin"
+  curl -sf -o /dev/null "http://127.0.0.1:30082/api?mode=set_config&section=misc&keyword=username&value=&apikey=$SAB_KEY"
+  curl -sf -o /dev/null "http://127.0.0.1:30082/api?mode=set_config&section=misc&keyword=password&value=&apikey=$SAB_KEY"
+  echo "  sabnzbd login disabled"
 fi
 
 log "Done"
