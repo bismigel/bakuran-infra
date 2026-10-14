@@ -43,6 +43,7 @@ in
   systemd.services.homelab-backup-apps = {
     description = "Back up stateful app data (config PVCs) to R2 (age-encrypted)";
     path = with pkgs; [ coreutils gnutar gzip age rclone k3s ];
+    unitConfig.OnFailure = [ "homelab-alert@%N.service" ];
     serviceConfig = {
       Type = "oneshot";
       ExecStart = script;
