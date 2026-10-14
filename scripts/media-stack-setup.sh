@@ -250,16 +250,19 @@ ensure_jellyfin_hwaccel() {
     -d "{\"Username\":\"$JELLYFIN_ADMIN_USER\",\"Pw\":\"$JELLYFIN_ADMIN_PASS\"}" | jqr -r '.AccessToken')"
   [ -n "$tok" ] && [ "$tok" != "null" ] || { echo "  (jellyfin admin auth failed; skipping hw accel)"; return; }
   cfg="$(curl -sf "$JELLYFIN/System/Configuration/encoding" -H "Authorization: MediaBrowser Token=$tok")"
+  # NOTE: low-power (VDENC) QSV encoding needs GuC/HuC loaded; on this Kaby Lake
+  # host i915 GuC isn't enabled, so low-power fails with "ratecontrol mode
+  # unsupported". Keep it OFF — standard QSV (PAK) encoding works fine.
   local want
-  want="$(printf '%s' "$cfg" | jqr -c '.HardwareAccelerationType="qsv" | .EnableHardwareEncoding=true | .EnableVppTonemapping=true | .EnableIntelLowPowerH264HwEncoder=true | .EnableIntelLowPowerHevcHwEncoder=true')"
-  if [ "$(printf '%s' "$cfg" | jqr -c '[.HardwareAccelerationType,.EnableVppTonemapping,.EnableIntelLowPowerH264HwEncoder,.EnableIntelLowPowerHevcHwEncoder]')" = '["qsv",true,true,true]' ]; then
-    echo "  jellyfin transcoding already qsv (+vpp/low-power)"
+  want="$(printf '%s' "$cfg" | jqr -c '.HardwareAccelerationType="qsv" | .EnableHardwareEncoding=true | .EnableVppTonemapping=true | .EnableIntelLowPowerH264HwEncoder=false | .EnableIntelLowPowerHevcHwEncoder=false')"
+  if [ "$(printf '%s' "$cfg" | jqr -c '[.HardwareAccelerationType,.EnableVppTonemapping,.EnableIntelLowPowerH264HwEncoder,.EnableIntelLowPowerHevcHwEncoder]')" = '["qsv",true,false,false]' ]; then
+    echo "  jellyfin transcoding already qsv (+vpp; low-power off)"
     return
   fi
   printf '%s' "$want" >/tmp/jfenc.json
   curl -sf -o /dev/null -X POST "$JELLYFIN/System/Configuration/encoding" \
     -H "Authorization: MediaBrowser Token=$tok" -H 'Content-Type: application/json' --data @/tmp/jfenc.json
-  echo "  jellyfin transcoding set to qsv (+vpp/low-power)"
+  echo "  jellyfin transcoding set to qsv (+vpp; low-power off)"
 }
 
 # ensure_jellyfin_subtitle_mode   (idempotent; default subtitle mode "Only forced")
