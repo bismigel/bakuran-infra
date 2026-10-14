@@ -48,4 +48,17 @@ for d in argocd-server argocd-repo-server; do
     "{\"spec\":{\"template\":{\"spec\":{\"affinity\":{\"podAntiAffinity\":{\"preferredDuringSchedulingIgnoredDuringExecution\":[{\"weight\":100,\"podAffinityTerm\":{\"labelSelector\":{\"matchLabels\":{\"app.kubernetes.io/name\":\"$d\"}},\"topologyKey\":\"kubernetes.io/hostname\"}}]}}}}}}" >/dev/null
 done
 
+# ---- ArgoCD admin password from Bitwarden (declarative, not a random default) ----
+if [ -n "${BWS_ACCESS_TOKEN:-}" ]; then
+  export NIX_CONFIG="experimental-features = nix-command flakes"
+  PW="$(nix run --impure nixpkgs#bws -- secret list --output json 2>/dev/null \
+        | nix run nixpkgs#jq -- -r '.[]|select(.key=="argocd-admin-password").value')"
+  if [ -n "$PW" ] && [ "$PW" != "null" ]; then
+    HASH="$(nix shell nixpkgs#apacheHttpd -c htpasswd -bnBC 10 "" "$PW" 2>/dev/null | tr -d ':\n')"
+    $KUBECTL -n argocd patch secret argocd-secret --type merge -p \
+      "{\"stringData\":{\"admin.password\":\"$HASH\",\"admin.passwordMtime\":\"$(date -u +%FT%TZ)\"}}"
+    echo ">> ArgoCD admin password set from Bitwarden (argocd-admin-password)"
+  fi
+fi
+
 echo ">> done. Next: create the BWS token Secret (REBUILD.md step 3)."
