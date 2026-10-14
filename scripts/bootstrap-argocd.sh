@@ -33,4 +33,19 @@ $KUBECTL -n argocd label secret repo-bakuran-gitops \
 echo ">> root app-of-apps"
 $KUBECTL -n argocd apply -f "$ROOT_APP"
 
-echo ">> done. Next: register the media cluster + create the BWS token (REBUILD.md steps 4-5)."
+# ---- ArgoCD HA: survive losing the node a component runs on ----
+# Stateless components scale to 2 with soft anti-affinity; the controller
+# StatefulSet runs active/standby via leader election. (Redis stays single and
+# is a known SPOF — see REBUILD.md.)
+echo ">> HA: scale stateless components + controller"
+$KUBECTL -n argocd scale deploy/argocd-server deploy/argocd-repo-server \
+  deploy/argocd-applicationset-controller --replicas=2
+$KUBECTL -n argocd scale statefulset/argocd-application-controller --replicas=2
+$KUBECTL -n argocd set env statefulset/argocd-application-controller \
+  ARGOCD_CONTROLLER_REPLICAS=2 >/dev/null
+for d in argocd-server argocd-repo-server; do
+  $KUBECTL -n argocd patch deploy/"$d" --type merge -p \
+    "{\"spec\":{\"template\":{\"spec\":{\"affinity\":{\"podAntiAffinity\":{\"preferredDuringSchedulingIgnoredDuringExecution\":[{\"weight\":100,\"podAffinityTerm\":{\"labelSelector\":{\"matchLabels\":{\"app.kubernetes.io/name\":\"$d\"}},\"topologyKey\":\"kubernetes.io/hostname\"}}]}}}}}}" >/dev/null
+done
+
+echo ">> done. Next: create the BWS token Secret (REBUILD.md step 3)."

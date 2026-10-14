@@ -78,14 +78,19 @@ ARGO_REPO_SSH_KEY=/path/to/key ./scripts/bootstrap-argocd.sh
   (live `bitwarden-tls-certs` ca.crt), so there is **no pinned caBundle** to fix
   after a reinstall.
 
-## 4. Register the media cluster (calamansi-intel)
+## 4. Additional server nodes (calamansi-intel, kamatis-mbp)
 
-On `.81`: create the `argocd-manager` SA + token (see `clusters/calamansi-intel.yaml`),
-then create the `cluster-calamansi-intel` Secret on `.82`'s argocd namespace:
-```json
-{"bearerToken":"<token>","tlsClientConfig":{"insecure":true}}
-```
-(note: **`tlsClientConfig`**, not `tlsConfig`).
+There is **one cluster**, not two. After the first server (`sitaw-amd`,
+`clusterInit`) is up, the other hosts join as servers using the **cluster token**
+(SOPS secret `k3s_cluster_token`) via `serverAddr`:
+- `.81`/`.83`: `services.k3s = { role = "server"; serverAddr = "https://192.168.2.82:6443";
+  tokenFile = config.sops.secrets."k3s_cluster_token".path; }`.
+- Open etcd ports **2379/2380** between nodes (firewall).
+- Install a fresh host with
+  `nixos-anywhere --flake .#<host> --target-host root@<ip>` (for the 2012 Mac:
+  GRUB `efiInstallAsRemovable`, lid/suspend disabled).
+No external-cluster registration — all workloads run in-cluster; the media stack
+is pinned to `.81` via `nodeSelector`.
 
 ## 5. Media hostPath dirs
 
@@ -116,11 +121,16 @@ Tunnel routes, DNS, and Access live **in Cloudflare** and survive a wipe. If the
 tunnel ID changes, update `hosts/sitaw-amd/default.nix` + the cloudflared creds.
 
 ## What is NOT automatic (keep these in Bitwarden / on the admin box)
-1. ArgoCD install + repo credentials
-2. The `calamansi-intel` cluster registration
-3. The `bitwarden-access-token` Secret
-4. Host SSH keys (SOPS identity) + the backup age key
-5. Cloudflare tunnel creds
+1. ArgoCD install + repo credentials (`bootstrap-argocd.sh`, incl. the HA scaling)
+2. The `bitwarden-access-token` Secret
+3. Host SSH keys (SOPS identity) + the backup age key + the SOPS **admin key**
+   (`~/.config/sops/age/homelab.txt`, also in Bitwarden)
+4. Cloudflare tunnel creds
+
+Note: **ArgoCD HA** (server/repo-server/appset ×2 + controller ×2) is applied by
+`bootstrap-argocd.sh`; **Redis is a single replica (SPOF)** — full HA needs
+redis-ha (3 nodes + tolerations). Stateful PVCs are `local-path` (node-pinned) —
+Longhorn would be needed for stateful rescheduling.
 
 ## ⚠️ Do NOT seed Bitwarden with PushSecrets
 A leftover `PushSecret` (e.g. `seed-deepseek`, `seed-telegram`) keeps pushing its
