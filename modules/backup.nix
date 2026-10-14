@@ -26,9 +26,25 @@ let
   '';
 in
 {
+  # Template unit: push a failed backup to Alertmanager (NodePort 30903, loopback).
+  systemd.services."homelab-alert@" = {
+    description = "Push a failed-unit alert to Alertmanager";
+    serviceConfig = {
+      Type = "oneshot";
+      ExecStart = "${pkgs.writeShellScript "homelab-alert" ''
+        unit="''${1:-unknown}"
+        host="$(cat /proc/sys/kernel/hostname)"
+        ${pkgs.curl}/bin/curl -fsS -m 10 -X POST -H 'Content-Type: application/json' \
+          -d "[{\"labels\":{\"alertname\":\"BackupFailed\",\"severity\":\"critical\",\"instance\":\"$host\",\"unit\":\"$unit\"},\"annotations\":{\"summary\":\"$unit failed on $host\"}}]" \
+          http://127.0.0.1:30903/api/v2/alerts || true
+      ''} %i";
+    };
+  };
+
   systemd.services.homelab-backup = {
     description = "Back up recovery credentials (host keys, kubeconfig, BWS token) to R2";
     path = with pkgs; [ coreutils gnutar gzip age rclone k3s ];
+    unitConfig.OnFailure = [ "homelab-alert@%N.service" ];
     serviceConfig = {
       Type = "oneshot";
       ExecStart = backup;
