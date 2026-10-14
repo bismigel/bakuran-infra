@@ -48,6 +48,32 @@ for d in argocd-server argocd-repo-server; do
     "{\"spec\":{\"template\":{\"spec\":{\"affinity\":{\"podAntiAffinity\":{\"preferredDuringSchedulingIgnoredDuringExecution\":[{\"weight\":100,\"podAffinityTerm\":{\"labelSelector\":{\"matchLabels\":{\"app.kubernetes.io/name\":\"$d\"}},\"topologyKey\":\"kubernetes.io/hostname\"}}]}}}}}}" >/dev/null
 done
 
+# ---- Edge exposure: HTTP behind ingress-nginx (TLS terminates at Cloudflare) ----
+echo ">> ArgoCD server.insecure + ingress"
+$KUBECTL -n argocd patch configmap argocd-cmd-params-cm --type merge \
+  -p '{"data":{"server.insecure":"true"}}'
+$KUBECTL -n argocd rollout restart deploy/argocd-server >/dev/null
+$KUBECTL apply -f - <<'EOF'
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: argocd-server
+  namespace: argocd
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: argocd.bismigel.dev
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: argocd-server
+                port:
+                  number: 80
+EOF
+
 # ---- ArgoCD admin password from Bitwarden (declarative, not a random default) ----
 if [ -n "${BWS_ACCESS_TOKEN:-}" ]; then
   export NIX_CONFIG="experimental-features = nix-command flakes"
