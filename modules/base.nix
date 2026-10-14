@@ -61,5 +61,14 @@
     "L+ /usr/sbin/iscsiadm - - - - ${pkgs.openiscsi}/bin/iscsiadm"
   ];
 
+  # R2 credential-backup config (creds + backup age recipient), rendered from
+  # SOPS so it survives a rebuild instead of being hand-placed per host.
+  systemd.tmpfiles.rules = [ "d /root/.config 0700 root root -" ];
+  sops.secrets."homelab_backup_env" = {
+    path = "/root/.config/homelab-backup.env";
+    owner = "root";
+    mode = "0600";
+  };
+
   system.stateVersion = "24.05";
 }
