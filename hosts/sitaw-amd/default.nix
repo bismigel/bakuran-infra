@@ -54,7 +54,8 @@
 
   networking.firewall = {
     enable = true;
-    allowedTCPPorts = [ 22 6443 80 443 32080 2049 111 ];
+    # 2379/2380 = etcd client/peer (k3s HA join), 10250 = kubelet
+    allowedTCPPorts = [ 22 6443 80 443 32080 2049 111 2379 2380 10250 ];
     allowedUDPPorts = [ 8472 2049 111 ];
   };
 

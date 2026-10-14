@@ -38,6 +38,18 @@
           ./hosts/sitaw-amd/default.nix
         ];
       };
+
+      # MacBook Pro 13" Mid-2012 (kamatis-mbp) — 3rd k3s server (etcd quorum)
+      kamatis-mbp = nixpkgs.lib.nixosSystem {
+        system = "x86_64-linux";
+        specialArgs = {
+          sshPubKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIH+soIiTQA3y96cqgaPluR9i9Z9qCdypdSfH/w0KiYrb labanos@bakuran";
+        };
+        modules = [
+          disko.nixosModules.disko
+          ./hosts/kamatis-mbp/default.nix
+        ];
+      };
     };
 
     # Push-based OS deploys:  nix run github:serokell/deploy-rs -- .#sitaw-amd
@@ -57,6 +69,13 @@
           profiles.system = {
             user = "root";
             path = deploy-rs.lib.x86_64-linux.activate.nixos self.nixosConfigurations.sitaw-amd;
+          };
+        };
+        kamatis-mbp = {
+          hostname = "192.168.2.83";
+          profiles.system = {
+            user = "root";
+            path = deploy-rs.lib.x86_64-linux.activate.nixos self.nixosConfigurations.kamatis-mbp;
           };
         };
       };
