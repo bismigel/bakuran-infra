@@ -14,7 +14,11 @@ TUN="8dcc83bd-eb95-4c0d-8f71-b92a27d37649"
 API="https://api.cloudflare.com/client/v4"
 : "${CF_API_TOKEN:?set CF_API_TOKEN (Cloudflare API token)}"
 cf() { curl -sf --max-time 30 -H "Authorization: Bearer $CF_API_TOKEN" -H "Content-Type: application/json" "$@"; }
-DOMAINS=(d7786ec1130918385079b8f224f271b5 bfca3075a1f1d5d2836aca7f4558af0b 0ee0ef4302ab23094e39aae78ca9492e)
+DOMAINS=(
+  d7786ec1130918385079b8f224f271b5:bismigel.dev
+  bfca3075a1f1d5d2836aca7f4558af0b:ciceley.cc
+  0ee0ef4302ab23094e39aae78ca9492e:miguelarbis.dev
+)
 
 # --- desired state ---------------------------------------------------------
 # Every public hostname routes to the box-local ingress (NodePorts are loopback).
@@ -51,9 +55,12 @@ cf -X PUT "$API/accounts/$ACCT/cfd_tunnel/$TUN/configurations" --data "$(jq -nc 
 echo ">> DNS CNAMEs"
 for h in "${HOSTNAMES[@]}"; do
   for z in "${DOMAINS[@]}"; do
-    if cf "$API/zones/$z/dns_records?name=$h" | jq -e '.result|length>0' >/dev/null 2>&1; then continue; fi
-    # only the zone that owns the name will accept it
-    if cf -X POST "$API/zones/$z/dns_records" --data "$(jq -nc --arg n "$h" --arg c "$TUN.cfargotunnel.com" '{type:"CNAME",name:$n,content:$c,proxied:true}')" >/dev/null 2>&1; then
+    zid=${z%%:*}; zname=${z##*:}
+    # only the zone that owns the name (Cloudflare would otherwise create a
+    # bogus "<host>.<zone>" record in every zone).
+    [ "$h" = "$zname" ] || [[ "$h" == *."$zname" ]] || continue
+    if cf "$API/zones/$zid/dns_records?name=$h" | jq -e '.result|length>0' >/dev/null 2>&1; then continue; fi
+    if cf -X POST "$API/zones/$zid/dns_records" --data "$(jq -nc --arg n "$h" --arg c "$TUN.cfargotunnel.com" '{type:"CNAME",name:$n,content:$c,proxied:true}')" >/dev/null 2>&1; then
       echo "   + $h"
     fi
   done
