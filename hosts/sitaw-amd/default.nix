@@ -5,6 +5,7 @@
     ../../modules/base.nix
     ../../modules/k3s.nix
     ../../modules/backup.nix
+    ../../modules/backup-apps.nix
     ./disko.nix
   ];
 
