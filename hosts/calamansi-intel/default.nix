@@ -107,7 +107,11 @@
     owner = "root";
     mode = "0400";
   };
-  systemd.tmpfiles.rules = [ "d /root/.cloudflared 0700 root root -" ];
+  systemd.tmpfiles.rules = [
+    "d /root/.cloudflared 0700 root root -"
+    # Jellyfin transcode temp — local disk, NOT the mergerfs/NFS pool.
+    "d /var/cache/jellyfin 0777 root root -"
+  ];
   services.cloudflared = {
     enable = true;
     tunnels."8dcc83bd-eb95-4c0d-8f71-b92a27d37649" = {
@@ -155,8 +159,10 @@
 
   networking.firewall = {
     enable = true;
-    # 2379/2380 = etcd client/peer (HA join), 10250 = kubelet
-    allowedTCPPorts = [ 22 6443 80 443 2379 2380 10250 ];
+    # 2379/2380 = etcd client/peer (HA join), 10250 = kubelet,
+    # 8096 = Jellyfin, 8989/7878/9696/6767 = *arrs, 8081/8082 = qbt/sab
+    # (hostPorts for LAN/browser access; the tunnel stays the only remote path)
+    allowedTCPPorts = [ 22 6443 80 443 2379 2380 10250 8096 8989 7878 9696 6767 8081 8082 ];
     allowedUDPPorts = [ 8472 ];
   };
 }

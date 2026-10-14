@@ -254,9 +254,11 @@ ensure_jellyfin_hwaccel() {
   # host i915 GuC isn't enabled, so low-power fails with "ratecontrol mode
   # unsupported". Keep it OFF — standard QSV (PAK) encoding works fine.
   local want
-  want="$(printf '%s' "$cfg" | jqr -c '.HardwareAccelerationType="qsv" | .EnableHardwareEncoding=true | .EnableVppTonemapping=true | .EnableIntelLowPowerH264HwEncoder=false | .EnableIntelLowPowerHevcHwEncoder=false')"
-  if [ "$(printf '%s' "$cfg" | jqr -c '[.HardwareAccelerationType,.EnableVppTonemapping,.EnableIntelLowPowerH264HwEncoder,.EnableIntelLowPowerHevcHwEncoder]')" = '["qsv",true,false,false]' ]; then
-    echo "  jellyfin transcoding already qsv (+vpp; low-power off)"
+  want="$(printf '%s' "$cfg" | jqr -c '.HardwareAccelerationType="qsv" | .EnableHardwareEncoding=true | .EnableVppTonemapping=true | .EnableIntelLowPowerH264HwEncoder=false | .EnableIntelLowPowerHevcHwEncoder=false | .HardwareDecodingCodecs=["h264","hevc","mpeg2video","vc1","vp9"] | .EnableThrottling=true | .EnableSegmentDeletion=true | .TranscodingTempPath="/cache/transcodes"')"
+  # HEVC is most of the library: without hardware HEVC decode it runs on the CPU.
+  # Throttling stops a transcode from pinning the box once it's ahead of playback.
+  if [ "$(printf '%s' "$cfg" | jqr -c '[.HardwareAccelerationType,.EnableVppTonemapping,.EnableIntelLowPowerH264HwEncoder,.EnableIntelLowPowerHevcHwEncoder,.EnableThrottling,.TranscodingTempPath,(.HardwareDecodingCodecs|sort)]')" = '["qsv",true,false,false,true,"/cache/transcodes",["h264","hevc","mpeg2video","vc1","vp9"]]' ]; then
+    echo "  jellyfin transcoding already tuned (qsv; hevc decode; throttled)"
     return
   fi
   printf '%s' "$want" >/tmp/jfenc.json
