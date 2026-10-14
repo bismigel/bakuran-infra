@@ -31,8 +31,11 @@ jqr() { "$JQ" "$@"; }
 secret_get() { $KUBECTL -n media get secret media-setup -o jsonpath="{.data.$1}" 2>/dev/null | base64 -d; }
 api_key() { $KUBECTL -n media exec "deploy/$1" -- \
   sh -c "grep -o '<ApiKey>[^<]*' /config/config.xml" 2>/dev/null | sed 's/<ApiKey>//'; }
+# Bazarr is Python-based: its key is `auth.apikey` in config.yaml (not config.xml).
+bazarr_key() { $KUBECTL -n media exec deploy/bazarr -- \
+  sh -c "awk '/^auth:/{a=1} a&&/apikey:/{print \$2; exit}' /config/config/config.yaml" 2>/dev/null | tr -d ' \r'; }
 
-BAZ_KEY="$(api_key bazarr)"
+BAZ_KEY="$(bazarr_key)"
 SO_KEY="$(api_key sonarr)"
 RA_KEY="$(api_key radarr)"
 OS_USER="$(secret_get opensubtitles-user)"
