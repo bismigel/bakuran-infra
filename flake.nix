@@ -46,6 +46,7 @@
           sshPubKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIH+soIiTQA3y96cqgaPluR9i9Z9qCdypdSfH/w0KiYrb labanos@bakuran";
         };
         modules = [
+          sops-nix.nixosModules.sops
           disko.nixosModules.disko
           ./hosts/kamatis-mbp/default.nix
         ];

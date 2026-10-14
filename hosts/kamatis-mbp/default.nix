@@ -59,7 +59,7 @@
     enable = true;
     role = "server";
     serverAddr = "https://192.168.2.82:6443";
-    tokenFile = "/etc/k3s-cluster-token";
+    tokenFile = config.sops.secrets."k3s_cluster_token".path;
     nodeTaint = [ "node-role.kubernetes.io/control-plane=true:NoSchedule" ];
     extraFlags = toString [
       "--disable"
@@ -75,6 +75,15 @@
     enable = true;
     allowedTCPPorts = [ 22 6443 2379 2380 10250 ];
     allowedUDPPorts = [ 8472 ];
+  };
+
+  # SOPS: host key = age identity; k3s cluster token comes from Bitwarden-backed
+  # SOPS (secrets/homelab.yaml) and decrypts on first boot.
+  sops.defaultSopsFile = ../../secrets/homelab.yaml;
+  sops.age.sshKeyPaths = [ "/etc/ssh/ssh_host_ed25519_key" ];
+  sops.secrets."k3s_cluster_token" = {
+    owner = "root";
+    mode = "0400";
   };
 
   system.stateVersion = lib.mkForce "25.11";

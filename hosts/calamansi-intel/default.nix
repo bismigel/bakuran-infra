@@ -74,6 +74,10 @@
     owner = "root";
     mode = "0400";
   };
+  sops.secrets."k3s_cluster_token" = {
+    owner = "root";
+    mode = "0400";
+  };
 
   networking.wg-quick.interfaces.proton0 = {
     privateKeyFile = config.sops.secrets."wg_proton_private_key".path;
@@ -126,10 +130,14 @@
     };
   };
 
+  # Join sitaw-amd's embedded etcd as the third server (etcd quorum). This box
+  # also runs the media stack, so it is NOT tainted. Token bootstrapped at
+  # /etc/k3s-cluster-token; migrate to SOPS later.
   services.k3s = {
     enable = true;
     role = "server";
-    clusterInit = true;
+    serverAddr = "https://192.168.2.82:6443";
+    tokenFile = config.sops.secrets."k3s_cluster_token".path;
     extraFlags = toString [
       "--disable"
       "traefik"
@@ -142,7 +150,8 @@
 
   networking.firewall = {
     enable = true;
-    allowedTCPPorts = [ 22 6443 80 443 ];
+    # 2379/2380 = etcd client/peer (HA join), 10250 = kubelet
+    allowedTCPPorts = [ 22 6443 80 443 2379 2380 10250 ];
     allowedUDPPorts = [ 8472 ];
   };
 }

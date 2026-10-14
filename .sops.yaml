@@ -1,6 +1,10 @@
 keys:
   - &calamansi-intel age1evc56v0u5l8yg2lkdc2degndc6rm8a4z7sqk2jx4pdhvq8d25cqqr4wla5
   - &sitaw-amd age140e2k8ype2mv6hlkus98qfq5v65c6k8k76qunnz62dypue4rl5pq5ptf9g
+  - &kamatis-mbp age1k3m6w7c0u6qvnm9aeag0xwld68c956qp2c84gysl0ze43ggucuzqcjuk8z
+  # Admin age key stored at ~/.config/sops/age/homelab.txt (also in Bitwarden),
+  # so secrets can be edited from nix-station without a host key.
+  - &admin age1ehhdvs0pmvyf7lecwgwn2yleasdwzgs3a0au53teuz9u44tksp9s3jjvuy
 
 creation_rules:
   - path_regex: secrets/.*\.yaml$
@@ -8,3 +12,5 @@ creation_rules:
       - age:
           - *calamansi-intel
           - *sitaw-amd
+          - *kamatis-mbp
+          - *admin
