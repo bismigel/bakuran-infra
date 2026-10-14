@@ -49,10 +49,14 @@
     enable = true;
     name = "iqn.2026-10.dev.bismigel:${config.networking.hostName}";
   };
-  # Longhorn network ports (iSCSI engine + manager + instance-manager).
+  # Longhorn network ports (iSCSI engine + manager + instance-manager), plus
+  # node-exporter (9100): it runs hostNetwork, so Prometheus on another node
+  # scrapes it over the LAN at <node>:9100 — open it on every host (incl. the
+  # MacBook).
   networking.firewall.allowedTCPPorts = [
     3260 3261 3262 3263 3264
     9500 9501 9502 9503 9504 9505
+    9100
   ];
   # Longhorn's containers nsenter into the host and call iscsiadm from PATH;
   # NixOS keeps it in /run/current-system/sw/bin, so expose it under /usr/bin too.
