@@ -9,8 +9,11 @@
   services.openssh = {
     enable = true;
     settings = {
-      PermitRootLogin = "yes";
-      PasswordAuthentication = true;
+      # Key-only. Root login is allowed, but only with an authorized key —
+      # no passwords anywhere.
+      PermitRootLogin = "prohibit-password";
+      PasswordAuthentication = false;
+      KbdInteractiveAuthentication = false;
     };
   };
 
