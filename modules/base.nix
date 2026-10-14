@@ -59,11 +59,11 @@
   systemd.tmpfiles.rules = [
     "L+ /usr/bin/iscsiadm  - - - - ${pkgs.openiscsi}/bin/iscsiadm"
     "L+ /usr/sbin/iscsiadm - - - - ${pkgs.openiscsi}/bin/iscsiadm"
+    "d /root/.config 0700 root root -"
   ];
 
   # R2 credential-backup config (creds + backup age recipient), rendered from
   # SOPS so it survives a rebuild instead of being hand-placed per host.
-  systemd.tmpfiles.rules = [ "d /root/.config 0700 root root -" ];
   sops.secrets."homelab_backup_env" = {
     path = "/root/.config/homelab-backup.env";
     owner = "root";
