@@ -145,6 +145,11 @@
       "servicelb"
       "--write-kubeconfig-mode"
       "0644"
+      # Edge lock: NodePorts only on loopback, so only the local cloudflared
+      # connector (-> 127.0.0.1:32080) can reach them; LAN clients cannot
+      # bypass Cloudflare Access via NodePorts.
+      "--kube-proxy-arg"
+      "nodeport-addresses=127.0.0.1/32"
     ];
   };
 
