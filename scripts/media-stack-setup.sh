@@ -254,11 +254,12 @@ ensure_jellyfin_hwaccel() {
   # host i915 GuC isn't enabled, so low-power fails with "ratecontrol mode
   # unsupported". Keep it OFF — standard QSV (PAK) encoding works fine.
   local want
-  want="$(printf '%s' "$cfg" | jqr -c '.HardwareAccelerationType="qsv" | .EnableHardwareEncoding=true | .EnableVppTonemapping=true | .EnableIntelLowPowerH264HwEncoder=false | .EnableIntelLowPowerHevcHwEncoder=false | .HardwareDecodingCodecs=["h264","hevc","mpeg2video","vc1","vp9"] | .EnableThrottling=true | .EnableSegmentDeletion=true | .TranscodingTempPath="/cache/transcodes"')"
+  want="$(printf '%s' "$cfg" | jqr -c '.HardwareAccelerationType="qsv" | .EnableHardwareEncoding=true | .EnableVppTonemapping=true | .EnableIntelLowPowerH264HwEncoder=false | .EnableIntelLowPowerHevcHwEncoder=false | .HardwareDecodingCodecs=["h264","hevc","mpeg2video","vc1","vp9"] | .EnableThrottling=false | .EnableSegmentDeletion=true | .TranscodingTempPath="/cache/transcodes"')"
   # HEVC is most of the library: without hardware HEVC decode it runs on the CPU.
-  # Throttling stops a transcode from pinning the box once it's ahead of playback.
-  if [ "$(printf '%s' "$cfg" | jqr -c '[.HardwareAccelerationType,.EnableVppTonemapping,.EnableIntelLowPowerH264HwEncoder,.EnableIntelLowPowerHevcHwEncoder,.EnableThrottling,.TranscodingTempPath,(.HardwareDecodingCodecs|sort)]')" = '["qsv",true,false,false,true,"/cache/transcodes",["h264","hevc","mpeg2video","vc1","vp9"]]' ]; then
-    echo "  jellyfin transcoding already tuned (qsv; hevc decode; throttled)"
+  # Throttling is OFF: on some clients (Android TV) throttling causes periodic
+  # buffering, and this box is idle enough not to need it.
+  if [ "$(printf '%s' "$cfg" | jqr -c '[.HardwareAccelerationType,.EnableVppTonemapping,.EnableIntelLowPowerH264HwEncoder,.EnableIntelLowPowerHevcHwEncoder,.EnableThrottling,.TranscodingTempPath,(.HardwareDecodingCodecs|sort)]')" = '["qsv",true,false,false,false,"/cache/transcodes",["h264","hevc","mpeg2video","vc1","vp9"]]' ]; then
+    echo "  jellyfin transcoding already tuned (qsv; hevc decode; no throttle)"
     return
   fi
   printf '%s' "$want" >/tmp/jfenc.json
