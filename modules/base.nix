@@ -59,7 +59,8 @@
   networking.firewall.allowedTCPPorts = [
     3260 3261 3262 3263 3264
     9500 9501 9502 9503 9504 9505
-    9100
+    9100               # node-exporter (scraped cross-node)
+    9102               # kepler (hostNetwork power exporter, scraped cross-node)
   ];
   # Longhorn's containers nsenter into the host and call iscsiadm from PATH;
   # NixOS keeps it in /run/current-system/sw/bin, so expose it under /usr/bin too.
