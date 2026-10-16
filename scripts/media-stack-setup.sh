@@ -64,6 +64,7 @@ load_secret JELLYFIN_ADMIN_PASS  jellyfin-admin-pass
 load_secret JELLYFIN_ANTON       jellyfin-anton
 load_secret JELLYFIN_DELFIN      jellyfin-delfin
 load_secret JELLYFIN_CICELEY     jellyfin-ciceley
+load_secret JELLYFIN_GUEST       jellyfin-guest
 : "${QBT_PASSWORD:?set QBT_PASSWORD, or seed the 'media-setup' Secret (ns media)}"
 
 # Read an app's API key from its config.xml inside the running pod.
@@ -373,6 +374,7 @@ log "Jellyfin users"
 ensure_jellyfin_user anton   "${JELLYFIN_ANTON:-}"
 ensure_jellyfin_user delfin  "${JELLYFIN_DELFIN:-}"
 ensure_jellyfin_user ciceley "${JELLYFIN_CICELEY:-}"
+ensure_jellyfin_user guest   "${JELLYFIN_GUEST:-}"
 
 log "Jellyfin libraries"
 ensure_jellyfin_library "TV Shows" "TV%20Shows" tvshows /media/tv
