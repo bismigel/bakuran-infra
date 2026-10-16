@@ -47,7 +47,7 @@
 
   # ---- Longhorn (distributed storage) prerequisites ----
   # open-iscsi initiator + iscsid; Longhorn attaches volumes over iSCSI.
-  boot.kernelModules = [ "iscsi_tcp" ];
+  boot.kernelModules = [ "iscsi_tcp" "msr" "cpuid" ];
   services.openiscsi = {
     enable = true;
     name = "iqn.2026-10.dev.bismigel:${config.networking.hostName}";
