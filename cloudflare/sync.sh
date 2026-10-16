@@ -35,9 +35,12 @@ HOSTNAMES=(
 )
 
 # Access apps: "Name|domain1,domain2|email1,email2"; add "*" to gate a wildcard.
+# NOTE: jellyfin.bismigel.dev is intentionally NOT gated by Access — it is served
+# publicly by the reverse proxy (ingress-nginx) and Jellyfin does its own auth.
+# (LAN viewers use the hostPort :8096; remote clients that can't complete an
+# interactive Access challenge use the public hostname.)
 ACCESS=(
   "Grafana|grafana.bismigel.dev|bismigel@pm.me,ciceleyrubio17@gmail.com"
-  "Jellyfin|jellyfin.bismigel.dev|bismigel@pm.me,ciceleyrubio17@gmail.com"
   "ZeroClaw|agent.bismigel.dev|bismigel@pm.me"
   "Private API|private.bismigel.dev|bismigel@pm.me"
   "ArgoCD|argocd.bismigel.dev|bismigel@pm.me"
@@ -88,5 +91,15 @@ for spec in "${ACCESS[@]}"; do
   if [ -n "$pid" ]; then cf -X PUT "$API/accounts/$ACCT/access/apps/$id/policies/$pid" --data "$pol" >/dev/null
   else cf -X POST "$API/accounts/$ACCT/access/apps/$id/policies" --data "$pol" >/dev/null; fi
 done
+
+# --- prune ----------------------------------------------------------------
+# Delete Access apps that are no longer declared above (e.g. Jellyfin moved off
+# Zero Trust). Scoped to Access apps, which are all managed by this file.
+echo ">> prune stale Access apps"
+want=$(printf '%s\n' "${ACCESS[@]}" | sed 's/|.*//')
+while IFS=$'\t' read -r aid aname; do
+  [ -n "$aid" ] || continue
+  grep -qxF "$aname" <<<"$want" || { cf -X DELETE "$API/accounts/$ACCT/access/apps/$aid" >/dev/null 2>&1 && echo "   - $aname"; }
+done < <(cf "$API/accounts/$ACCT/access/apps" | jq -r '.result[]|"\(.id)\t\(.name)"')
 
 echo ">> done"
