@@ -17,6 +17,12 @@
     };
   };
 
+  # Tailscale — private remote access with NO exposed ports. Devices join the
+  # tailnet and reach these hosts by their 100.x address (e.g. Jellyfin at
+  # <host>:8096). Nothing is forwarded on the router.
+  services.tailscale.enable = true;
+  networking.firewall.trustedInterfaces = [ "tailscale0" ];
+
   users.users.calamansi = {
     isNormalUser = true;
     extraGroups = [ "wheel" "networkmanager" ];
