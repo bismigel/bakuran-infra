@@ -31,6 +31,7 @@ HOSTNAMES=(
   bazarr.bismigel.dev qbittorrent.bismigel.dev sabnzbd.bismigel.dev
   homepage.bismigel.dev prometheus.bismigel.dev
   argocd.bismigel.dev longhorn.bismigel.dev
+  immich.bismigel.dev
 )
 
 # Access apps: "Name|domain1,domain2|email1,email2"; add "*" to gate a wildcard.
@@ -41,6 +42,7 @@ ACCESS=(
   "Private API|private.bismigel.dev|bismigel@pm.me"
   "ArgoCD|argocd.bismigel.dev|bismigel@pm.me"
   "Longhorn|longhorn.bismigel.dev|bismigel@pm.me"
+  "Immich|immich.bismigel.dev|bismigel@pm.me,family-member@example.com"
   "Homelab Media|sonarr.bismigel.dev,radarr.bismigel.dev,prowlarr.bismigel.dev,bazarr.bismigel.dev,qbittorrent.bismigel.dev,sabnzbd.bismigel.dev,homepage.bismigel.dev,prometheus.bismigel.dev|bismigel@pm.me,family-member@example.com"
 )
 SESSION=730h
