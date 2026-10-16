@@ -165,4 +165,37 @@
     allowedTCPPorts = [ 22 6443 80 443 2379 2380 10250 8096 8989 7878 9696 6767 8081 8082 ];
     allowedUDPPorts = [ 8472 ];
   };
+
+  # ---- VPN kill switch -----------------------------------------------------
+  # Force all internet egress through the ProtonVPN WireGuard tunnel. If proton0
+  # goes down, non-LAN traffic is DROPPED instead of leaking to the real IP. The
+  # media pods route via this host, so this protects them too (a pod can't bind
+  # to the host's proton0 interface itself). LAN, the cluster networks, and the
+  # WireGuard handshake are still allowed.
+  systemd.services.vpn-killswitch = {
+    description = "VPN kill switch (force internet egress via proton0)";
+    wantedBy = [ "multi-user.target" ];
+    after = [ "network-online.target" "wg-quick-proton0.service" ];
+    serviceConfig = {
+      Type = "oneshot";
+      RemainAfterExit = true;
+      ExecStop = "${pkgs.nftables}/bin/nft delete table inet killswitch";
+    };
+    script = ''
+      ${pkgs.nftables}/bin/nft delete table inet killswitch 2>/dev/null || true
+      ${pkgs.nftables}/bin/nft -f ${pkgs.writeText "killswitch.nft" ''
+        table inet killswitch {
+          chain output {
+            type filter hook output priority 0; policy accept;
+            oifname "lo" return
+            ip daddr { 192.168.2.0/24, 10.0.0.0/8, 100.64.0.0/10, 127.0.0.0/8, 169.254.0.0/16 } return
+            ip6 daddr { fe80::/10, fc00::/7, ::1/128 } return
+            oifname "proton0" return
+            udp dport 51820 return
+            oifname "eno1" drop
+          }
+        }
+      ''}
+    '';
+  };
 }
