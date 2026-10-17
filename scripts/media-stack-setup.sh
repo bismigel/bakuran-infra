@@ -310,6 +310,28 @@ ensure_jellyfin_scan_interval() {
   echo "  jellyfin library scan every 15m"
 }
 
+# ensure_jellyfin_remote_settings   (idempotent; cap remote bitrate + trust ingress)
+# Remote clients get 12 Mbps (4K HDR otherwise transcodes to ~31 Mbps and chokes).
+# KnownProxies lets Jellyfin see the real client IP from ingress-nginx so the
+# remote-only cap applies; LAN clients (hostPort) stay uncapped.
+ensure_jellyfin_remote_settings() {
+  [ -n "${JELLYFIN_ADMIN_USER:-}" ] || return 0
+  local tok cfg net
+  tok="$(curl -sf -X POST "$JELLYFIN/Users/AuthenticateByName" -H 'Content-Type: application/json' \
+    -H 'X-Emby-Authorization: MediaBrowser Client="setup", Device="setup", DeviceId="setup", Version="1.0"' \
+    -d "{\"Username\":\"$JELLYFIN_ADMIN_USER\",\"Pw\":\"$JELLYFIN_ADMIN_PASS\"}" | jqr -r '.AccessToken')"
+  [ -n "$tok" ] && [ "$tok" != "null" ] || { echo "  (jellyfin admin auth failed; skipping remote settings)"; return; }
+  cfg="$(curl -sf "$JELLYFIN/System/Configuration" -H "Authorization: MediaBrowser Token=$tok")"
+  printf '%s' "$cfg" | jqr -c '.RemoteClientBitrateLimit=12000000' >/tmp/jfcfg.json
+  curl -sf -o /dev/null -X POST "$JELLYFIN/System/Configuration" \
+    -H "Authorization: MediaBrowser Token=$tok" -H 'Content-Type: application/json' --data @/tmp/jfcfg.json
+  net="$(curl -sf "$JELLYFIN/System/Configuration/network" -H "Authorization: MediaBrowser Token=$tok")"
+  printf '%s' "$net" | jqr -c '.KnownProxies=["127.0.0.1","10.42.0.0/16"]' >/tmp/jfnet.json
+  curl -sf -o /dev/null -X POST "$JELLYFIN/System/Configuration/network" \
+    -H "Authorization: MediaBrowser Token=$tok" -H 'Content-Type: application/json' --data @/tmp/jfnet.json
+  echo "  jellyfin remote cap 12 Mbps + KnownProxies set"
+}
+
 log "Sonarr"
 ensure_rootfolder "$SONARR" "$SO_KEY" /tv
 ensure_qbt_client "$SONARR" "$SO_KEY" tv
@@ -384,6 +406,7 @@ log "Jellyfin transcoding"
 ensure_jellyfin_hwaccel
 ensure_jellyfin_subtitle_mode
 ensure_jellyfin_scan_interval
+ensure_jellyfin_remote_settings
 
 log "App auth (*arrs: login for remote, LAN bypass; Bazarr/SABnzbd: no auth)"
 # *arrs: Forms auth with a shared admin account (skipped for local/LAN).
