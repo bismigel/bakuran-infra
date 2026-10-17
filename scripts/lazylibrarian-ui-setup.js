@@ -44,6 +44,9 @@ const { chromium } = require("playwright");
         // (Audiobooks stay Skipped; set newauthor_audio/newaudio_status if wanted.)
         set("newauthor_status", "Wanted"),
         set("newbook_status", "Wanted"),
+        // SABnzbd completes into /downloads/complete/<category>; LazyLibrarian
+        // mounts the same /mnt/media tree at /downloads (see the gitops manifest).
+        set("download_dir", "/downloads/complete/books"),
       ];
       const enabled = document.getElementById("newznab_0_enabled");
       if (enabled) enabled.checked = true;
