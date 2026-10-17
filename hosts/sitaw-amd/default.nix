@@ -6,6 +6,7 @@
     ../../modules/k3s.nix
     ../../modules/backup.nix
     ../../modules/backup-apps.nix
+    ../../modules/cloudflare-sync.nix
     ./disko.nix
   ];
 
