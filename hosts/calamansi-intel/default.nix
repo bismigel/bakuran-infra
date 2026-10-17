@@ -62,8 +62,8 @@
     serviceConfig.Type = "oneshot";
     serviceConfig.RemainAfterExit = true;
     script = ''
-      mkdir -p /mnt/media-sda/tv /mnt/media-sda/movies /mnt/media-sda/downloads /mnt/media-sda/temp
-      chmod 0777 /mnt/media-sda/tv /mnt/media-sda/movies /mnt/media-sda/downloads /mnt/media-sda/temp
+        mkdir -p /mnt/media-sda/tv /mnt/media-sda/movies /mnt/media-sda/downloads /mnt/media-sda/temp /mnt/media-sda/books
+        chmod 0777 /mnt/media-sda/tv /mnt/media-sda/movies /mnt/media-sda/downloads /mnt/media-sda/temp /mnt/media-sda/books
     '';
   };
 

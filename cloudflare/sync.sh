@@ -32,6 +32,7 @@ HOSTNAMES=(
   homepage.bismigel.dev prometheus.bismigel.dev
   argocd.bismigel.dev longhorn.bismigel.dev
   immich.bismigel.dev
+  kavita.bismigel.dev lazylibrarian.bismigel.dev
 )
 
 # Access apps: "Name|domain1,domain2|email1,email2[|session]"; add "*" to gate a
@@ -51,6 +52,7 @@ ACCESS=(
   # native phone app (background backup) can't complete an interactive Access
   # challenge. Served publicly by the reverse proxy; Immich does its own auth.
   "Homelab Media|sonarr.bismigel.dev,radarr.bismigel.dev,prowlarr.bismigel.dev,bazarr.bismigel.dev,qbittorrent.bismigel.dev,sabnzbd.bismigel.dev,homepage.bismigel.dev,prometheus.bismigel.dev|bismigel@pm.me,ciceleyrubio17@gmail.com"
+  "Books|kavita.bismigel.dev,lazylibrarian.bismigel.dev|bismigel@pm.me,ciceleyrubio17@gmail.com|24h"
 )
 SESSION=730h
 
