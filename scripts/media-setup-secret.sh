@@ -48,6 +48,7 @@ data:
   radarr-api-key: $(b64 "$radarr_key")
   prowlarr-api-key: $(b64 "$prowlarr_key")
   sabnzbd-api-key: $(b64 "$sab_key")
+  lazylibrarian-api-key: $(b64 "$(get lazylibrarian-api-key)")
 ---
 # Pull secret for private GHCR images (ghcr.io/bismigel/*) — the media cluster has
 # no ESO, so it is seeded here from Bitwarden alongside media-setup.

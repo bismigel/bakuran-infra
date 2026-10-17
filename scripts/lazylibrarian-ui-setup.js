@@ -23,7 +23,7 @@ const { chromium } = require("playwright");
   await page.goto(base + "/config", { waitUntil: "load", timeout: 30000 });
 
   const result = await page.evaluate(
-    ({ sabHost, sabKey, nzbKey }) => {
+    ({ sabHost, sabKey, nzbKey, apiKey }) => {
       const set = (id, value) => {
         const el = document.getElementById(id);
         if (!el) return id + ":missing";
@@ -47,6 +47,8 @@ const { chromium } = require("playwright");
         // SABnzbd completes into /downloads/complete/<category>; LazyLibrarian
         // mounts the same /mnt/media tree at /downloads (see the gitops manifest).
         set("download_dir", "/downloads/complete/books"),
+        // API key for media-mcp (the agent's book tools); needs api_enabled.
+        set("api_key", apiKey),
       ];
       const enabled = document.getElementById("newznab_0_enabled");
       if (enabled) enabled.checked = true;
@@ -55,6 +57,8 @@ const { chromium } = require("playwright");
       // is enabled").
       const sabDownloader = document.getElementById("nzb_downloader_sabnzbd");
       if (sabDownloader) sabDownloader.checked = true;
+      const apiEnabled = document.getElementById("api_enabled");
+      if (apiEnabled) apiEnabled.checked = true;
       const form = document.querySelector('form[action="config_update"]');
       if (!form) return { err: "no config_update form", out };
       form.submit();
@@ -64,6 +68,7 @@ const { chromium } = require("playwright");
       sabHost: process.env.SAB_HOST || "sabnzbd.downloads.svc.cluster.local",
       sabKey: process.env.SAB_KEY,
       nzbKey: process.env.NZB_KEY,
+      apiKey: process.env.LL_API_KEY,
     }
   );
 
