@@ -8,10 +8,13 @@
 
 | Host | Addr | Hardware | Role |
 | --- | --- | --- | --- |
-| `sitaw-amd` | 192.168.2.82 | Ryzen 5 4600G | Hosting + platform: k3s, the single ArgoCD control plane, ingress-nginx (NodePort 32080/32443), cloudflared connector #1 |
-| `calamansi-intel` | 192.168.2.81 | Intel i5-7500T | Media only: Jellyfin (QSV), *arr stack, qBittorrent, cloudflared connector #2 (registered as an external cluster in the one ArgoCD) |
+| `sitaw-amd` | 192.168.2.82 | Ryzen 5 4600G | Platform: k3s server + **the single ArgoCD**, ingress-nginx, cloudflared connector #1, the daily Cloudflare-edge reconcile timer |
+| `calamansi-intel` | 192.168.2.81 | Intel i5-7500T | Media worker: Jellyfin (QSV), *arr stack, download clients, cloudflared connector #2; ProtonVPN + **kill switch** |
+| `kamatis-mbp` | 192.168.2.83 | Intel i5 (MacBook Pro 13" 2012) | 3rd k3s **server (etcd quorum)**, tainted; runs **Immich** (storage on `/mnt/data`) |
 
-Both run NixOS 25.11 with single-node k3s (traefik + servicelb disabled).
+All run NixOS 25.11 and form **one 3-node k3s cluster** (embedded etcd, 3 members;
+traefik + servicelb disabled). `kamatis-mbp` is `NoSchedule`-tainted except the
+`immich` app, which tolerates it.
 
 ## Layout
 
@@ -20,13 +23,17 @@ flake.nix                    # inputs (nixpkgs, disko, deploy-rs, sops-nix) + ho
 hosts/<host>/default.nix     # per-host config (imports modules/, inlines hardware)
 hosts/<host>/disko.nix       # disk layout (only where disko is used)
 modules/
-  base.nix                   # shared: SSH, users, packages, sops-nix, backup tooling
-  k3s.nix                    # k3s server config (the ProtonVPN WireGuard key is a SOPS secret read on .81)
+  base.nix                   # shared: SSH (key-only), users, packages, sops-nix, backup tooling
+  k3s.nix                    # k3s server config (ProtonVPN key + VPN kill switch on .81)
   backup.nix                 # daily R2 credential backup (systemd timer)
+  backup-apps.nix            # daily R2 app-data backup (config PVCs, via kubectl exec)
+  cloudflare-sync.nix        # daily Cloudflare edge reconcile (tunnel/DNS/Access) on .82
 scripts/
   bootstrap-argocd.sh        # one-time ArgoCD bootstrap + repo/cluster secrets
-  media-stack-setup.sh       # idempotent *arr ↔ qBittorrent wiring
+  media-stack-setup.sh       # idempotent *arr ↔ qBittorrent wiring + Jellyfin settings
+  immich-setup.sh            # Immich admin + household accounts (from Bitwarden)
   backup-credentials.sh      # host keys + kubeconfigs + BWS token → R2 (age-encrypted)
+cloudflare/sync.sh           # declared Cloudflare edge (hostnames, DNS, Access apps)
 secrets/homelab.yaml         # SOPS/age-encrypted host secrets
 docs/REBUILD.md              # disaster recovery
 docs/HOMELAB-MIGRATION.md    # historical: Proxmox → NixOS migration plan
@@ -39,6 +46,7 @@ deploy.sh                    # legacy: sync + nixos-rebuild over ssh (prefer dep
 ```bash
 nix run github:serokell/deploy-rs -- .#sitaw-amd
 nix run github:serokell/deploy-rs -- .#calamansi-intel
+nix run github:serokell/deploy-rs -- .#kamatis-mbp
 ```
 
 Validate before deploying:
@@ -53,21 +61,26 @@ Install a **brand-new** host (wipes the target): add `hosts/<name>/default.nix`
 
 ## Secrets
 
-- **Host secrets** (cloudflared credentials, age identity) are **SOPS/age**
-  (`sops-nix`); the age identity is the host's SSH key.
+- **Host secrets** (cloudflared credentials, ProtonVPN key, Cloudflare API token,
+  age identity) are **SOPS/age** (`sops-nix`); the age identity is the host's SSH key.
 - **Cluster secrets** (GHCR pull, tokens) live in **Bitwarden Secrets Manager** and
   are synced by External Secrets Operator — see `bakuran-gitops`.
 - Never commit plaintext secrets.
 
 ## Backups
 
-A daily systemd timer (`modules/backup.nix`) pushes age-encrypted host keys,
-kubeconfigs, and the Bitwarden access token to `r2:homelab-backups/credentials/`.
+Daily systemd timers push age-encrypted data to R2:
+- `modules/backup.nix` → `r2:homelab-backups/credentials/` (host keys, kubeconfigs, BWS token).
+- `modules/backup-apps.nix` → `r2:homelab-backups/appdata/` (config PVCs:
+  *arrs/Jellyfin/Grafana/Prometheus/ZeroClaw).
+- **Immich is NOT backed up** (DB + photo library) — known gap.
 
 ## Known issues
 
-- SSH still allows `PermitRootLogin = yes` + `PasswordAuthentication = true`
-  (`modules/base.nix`); the Firewall does not restrict k3s NodePorts.
+- **Immich is not backed up** (Postgres DB + photo library) — see
+  `homelab-context/NEXT-STEPS.md`.
+- **Cloudflare:** `min_tls_version` is still 1.0 and Bot Fight Mode is off (the API
+  token lacks those scopes) — set these in the dashboard.
 - The live inventory/roadmap lives in `homelab-context/` (local-only);
   `SERVICES.md` here is a summary and may lag.
 

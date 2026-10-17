@@ -2,36 +2,42 @@
 
 ## Deployed Services
 
-| Service | URL | Status | Notes |
-|---------|-----|--------|-------|
-| Homepage | http://192.168.2.82:30080 | ✅ | AMD · dashboard |
-| Prometheus | http://192.168.2.82:30909 | ✅ | AMD · metrics (1GB retention) |
-| Grafana | https://grafana.bismigel.dev | ✅ | AMD · user `admin` · Access-gated |
-| OTel Collector | 192.168.2.82 (observability) | ✅ | AMD |
-| Jellyfin | https://jellyfin.bismigel.dev | ✅ | Intel · QSV (privileged); users anton/delfin/ciceley; lib `/media/tv` · Access-gated |
-| qBittorrent | http://192.168.2.81:30081 | ✅ | Intel · user `admin`; save path `/downloads` |
-| Prowlarr | http://192.168.2.81:30069 | ✅ | Intel · indexer manager (syncs to Sonarr/Radarr) |
-| Sonarr | http://192.168.2.81:30089 | ✅ | Intel · root `/tv` + qBittorrent client (cat `tv`) |
-| Radarr | http://192.168.2.81:30078 | ✅ | Intel · root `/movies` + qBittorrent client (cat `movies`) |
-| Bazarr | http://192.168.2.81:30067 | ✅ | Intel · subtitle management |
-| ZeroClaw | https://agent.bismigel.dev | ✅ | AMD · homelab agent (DeepSeek + local LLM) · Access-gated · Telegram |
+| Service | URL | Node | Notes |
+|---------|-----|------|-------|
+| ArgoCD | https://argocd.bismigel.dev | AMD | GitOps · Access (24h) |
+| Grafana | https://grafana.bismigel.dev | AMD | `homelab-overview` + `homelab-power` · Access (24h) |
+| Prometheus | https://prometheus.bismigel.dev | AMD | metrics · Access (730h) |
+| Alertmanager | (loopback `30903`) | AMD | Telegram alerts |
+| Longhorn | https://longhorn.bismigel.dev | AMD | storage · Access (24h) |
+| Homepage | https://homepage.bismigel.dev | AMD | dashboard · Access |
+| ZeroClaw | https://agent.bismigel.dev | AMD | agent (DeepSeek 64k) · Access + Telegram |
+| Jellyfin | https://jellyfin.bismigel.dev · LAN `:8096` | Intel | 12.2.0 QSV; remote capped 12 Mbps · **public** (own auth) |
+| Immich | https://immich.bismigel.dev | MacBook | photos; ML on AMD · **public** (own auth) |
+| Sonarr | LAN `:8989` / sonarr.bismigel.dev | Intel | root `/tv` |
+| Radarr | LAN `:7878` / radarr.bismigel.dev | Intel | root `/movies` |
+| Prowlarr | LAN `:9696` / prowlarr.bismigel.dev | Intel | indexers |
+| Bazarr | LAN `:6767` / bazarr.bismigel.dev | Intel | subtitles |
+| qBittorrent | LAN `:8081` / qbittorrent.bismigel.dev | Intel | download client |
+| SABnzbd | LAN `:8082` / sabnzbd.bismigel.dev | Intel | Usenet |
+| media-mcp | (loopback `30097`) | Intel | MCP for ZeroClaw (incl. add movie/series) |
+| Kepler | (metrics `:9102`) | all | power/RAPL |
 
-**Auth:** Grafana ships `admin`/`admin` (behind Cloudflare Access). Jellyfin and
-qBittorrent use the standard homelab password (qBittorrent's is set by
-`media-stack-setup.sh`). The *arr apps (Sonarr/Radarr/Prowlarr/Bazarr) use `Forms`
-auth **disabled for local addresses** — login-free on the LAN. Public hosts are
-gated by **Cloudflare Access** (see below).
+**Auth:** Grafana has a real admin password (Bitwarden). **Jellyfin and Immich are
+public** and use their own logins (no Access — native apps can't do the email OTP).
+The *arrs are login-free on the LAN (hostPorts) and behind Cloudflare Access when
+remote. Admin apps behind Access use a **24h** session; media **730h**.
 
 ## Cluster placement
 
-- **Intel `calamansi-intel` (192.168.2.81)** — media only: Jellyfin, arr
-  (Sonarr/Radarr/Prowlarr/Bazarr), qBittorrent, node-exporter.
-  ArgoCD apps: `applications/calamansi-intel/` → `manifests/media`, `manifests/node-exporter`.
-- **AMD `sitaw-amd` (192.168.2.82)** — everything else **and the single ArgoCD
-  control plane**: sites (ciceley, miguelarbis), APIs (private-api, status-api),
-  homepage, monitoring (prometheus/grafana/ksm), observability (OTel collector +
-  operator), cert-manager, external-secrets, ingress-nginx, zeroclaw.
-  ArgoCD apps: `applications/sitaw/`.
+- **Intel `calamansi-intel` (192.168.2.81)** — media: Jellyfin, arr
+  (Sonarr/Radarr/Prowlarr/Bazarr), download clients, media-mcp, kepler, node-exporter;
+  host services: cloudflared, ProtonVPN + kill switch.
+- **AMD `sitaw-amd` (192.168.2.82)** — the single ArgoCD control plane +
+  sites/APIs, homepage, monitoring (prometheus/grafana/alertmanager/ksm/kepler,
+  login watchers), observability, cert-manager, external-secrets, ingress-nginx,
+  zeroclaw, and the daily Cloudflare-edge reconcile timer.
+- **MacBook `kamatis-mbp` (192.168.2.83)** — 3rd k3s server (etcd), tainted except
+  **Immich** (server/postgres/valkey on `/mnt/data`; ML runs on `.82`).
 
 ## Secrets & exposure
 
@@ -44,7 +50,8 @@ gated by **Cloudflare Access** (see below).
 
 ## Cluster Info
 
-- **Servers**: calamansi-intel (192.168.2.81, Intel) · sitaw-amd (192.168.2.82, AMD)
+- **Servers** (one cluster, 3-member etcd): calamansi-intel (192.168.2.81, Intel) ·
+  sitaw-amd (192.168.2.82, AMD) · kamatis-mbp (192.168.2.83, MacBook)
 - **k3s**: 1.34.5
 - **NixOS**: 25.11
 - **VPN**: WireGuard (ProtonVPN, US-NJ endpoint) on calamansi-intel — key is a SOPS secret
@@ -88,4 +95,6 @@ secrets are committed. Re-running is safe.
 - [x] Add Ingress controller (ingress-nginx + Cloudflare Tunnel/Access)
 - [x] Connect arr apps to qBittorrent download client
 - [ ] Add more indexers (most public trackers need FlareSolverr)
-- [ ] Move the WireGuard key in `modules/k3s.nix` into SOPS
+- [x] WireGuard key -> SOPS (done)
+- [ ] Back up Immich (DB + photo library) to R2
+- [ ] Set Cloudflare min TLS 1.2 + Bot Fight Mode (dashboard; API token lacks scope)
