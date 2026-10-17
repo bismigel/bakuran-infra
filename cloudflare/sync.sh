@@ -82,7 +82,9 @@ for z in "${DOMAINS[@]}"; do
   cf -X PATCH "$API/zones/$zid/settings/min_tls_version" --data '{"value":"1.2"}' >/dev/null 2>&1 \
     && echo "   min_tls_version=1.2 ($zid)" || echo "   (min_tls skipped for $zid)"
   cf -X PATCH "$API/zones/$zid/settings/always_use_https" --data '{"value":"on"}' >/dev/null 2>&1 || true
-  cf -X PUT "$API/zones/$zid/bot_management" --data '{"fight_mode":true}' >/dev/null 2>&1 \
+  # Bot Fight Mode requires JS detections; set both together (a zone with
+  # EnableJS off rejects fight_mode alone).
+  cf -X PUT "$API/zones/$zid/bot_management" --data '{"enable_js":true,"fight_mode":true}' >/dev/null 2>&1 \
     && echo "   bot_fight_mode=on ($zid)" || echo "   (bot fight skipped for $zid)"
 done
 
