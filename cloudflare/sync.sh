@@ -75,6 +75,17 @@ for h in "${HOSTNAMES[@]}"; do
   done
 done || true
 
+# --- zone settings (hardening) --------------------------------------------
+echo ">> zone settings"
+for z in "${DOMAINS[@]}"; do
+  zid=${z%%:*}
+  cf -X PATCH "$API/zones/$zid/settings/min_tls_version" --data '{"value":"1.2"}' >/dev/null 2>&1 \
+    && echo "   min_tls_version=1.2 ($zid)" || echo "   (min_tls skipped for $zid)"
+  cf -X PATCH "$API/zones/$zid/settings/always_use_https" --data '{"value":"on"}' >/dev/null 2>&1 || true
+  cf -X PUT "$API/zones/$zid/bot_management" --data '{"fight_mode":true}' >/dev/null 2>&1 \
+    && echo "   bot_fight_mode=on ($zid)" || echo "   (bot fight skipped for $zid)"
+done
+
 # --- Access apps + policies ------------------------------------------------
 echo ">> Access apps"
 for spec in "${ACCESS[@]}"; do
