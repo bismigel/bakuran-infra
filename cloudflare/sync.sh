@@ -33,6 +33,9 @@ HOSTNAMES=(
   argocd.bismigel.dev longhorn.bismigel.dev
   immich.bismigel.dev
   kavita.bismigel.dev lazylibrarian.bismigel.dev
+  # Public (no Access) so the Karakeep iOS/Android apps can reach its API; it has
+  # its own NextAuth login.
+  karakeep.bismigel.dev
 )
 
 # Access apps: "Name|domain1,domain2|email1,email2[|session]"; add "*" to gate a
