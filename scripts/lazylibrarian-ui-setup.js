@@ -40,6 +40,10 @@ const { chromium } = require("playwright");
         set("newznab_0_dispname", "NZBGeek"),
         set("newznab_0_host", "https://api.nzbgeek.info"),
         set("newznab_0_api", nzbKey),
+        // LibraryScan defaults: want everything for newly added authors/books.
+        // (Audiobooks stay Skipped; set newauthor_audio/newaudio_status if wanted.)
+        set("newauthor_status", "Wanted"),
+        set("newbook_status", "Wanted"),
       ];
       const enabled = document.getElementById("newznab_0_enabled");
       if (enabled) enabled.checked = true;
