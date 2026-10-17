@@ -47,6 +47,11 @@ const { chromium } = require("playwright");
       ];
       const enabled = document.getElementById("newznab_0_enabled");
       if (enabled) enabled.checked = true;
+      // The SABnzbd client alone is not enough: the download method defaults
+      // to disabled, which silently drops every grab ("No NZB download method
+      // is enabled").
+      const sabDownloader = document.getElementById("nzb_downloader_sabnzbd");
+      if (sabDownloader) sabDownloader.checked = true;
       const form = document.querySelector('form[action="config_update"]');
       if (!form) return { err: "no config_update form", out };
       form.submit();
