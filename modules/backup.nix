@@ -39,6 +39,45 @@ let
     rm -f "$out"
     echo "backed up to r2:$R2_BUCKET/credentials/"
   '';
+
+    # Alerts if the newest object in R2 is too old (covers a timer that never
+    # ran, which OnFailure cannot see). Runs only on the control-plane host that
+    # already has the R2 env + Alertmanager.
+    freshness = pkgs.writeShellScript "homelab-backup-freshness" ''
+      set -euo pipefail
+      env_file=/root/.config/homelab-backup.env
+      [ -f "$env_file" ] || { echo "missing $env_file"; exit 1; }
+      set -a; . "$env_file"; set +a
+      export RCLONE_CONFIG_R2_TYPE=s3 RCLONE_CONFIG_R2_PROVIDER=Cloudflare \
+        RCLONE_CONFIG_R2_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID" \
+        RCLONE_CONFIG_R2_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY" \
+        RCLONE_CONFIG_R2_ENDPOINT="$R2_ENDPOINT"
+      alert() { # <name> <dataset> <summary> <severity>
+        ${pkgs.curl}/bin/curl -fsS -m 10 -X POST -H 'Content-Type: application/json' \
+          -d "[{\"labels\":{\"alertname\":\"$1\",\"severity\":\"$4\",\"instance\":\"$(cat /proc/sys/kernel/hostname)\",\"dataset\":\"$2\"},\"annotations\":{\"summary\":\"$3\"}}]" \
+          http://127.0.0.1:30903/api/v2/alerts || true
+      }
+      now=$(date +%s); rc=0
+      for spec in appdata:36 credentials:36; do
+        prefix=''${spec%%:*}; limit=''${spec##*:}
+        if ! mt=$(${pkgs.rclone}/bin/rclone lsjson "r2:$R2_BUCKET/$prefix/" --files-only 2>/dev/null \
+                  | ${pkgs.jq}/bin/jq -r 'sort_by(.ModTime)|last|.ModTime // empty'); then
+          echo "check failed: $prefix"
+          alert BackupCheckFailed "$prefix" "Could not list R2 $prefix/" warning
+          rc=1; continue
+        fi
+        if [ -z "$mt" ]; then age=999999
+        else age=$(( (now - $(date -d "$mt" +%s)) / 3600 )); fi
+        if [ "$age" -gt "$limit" ]; then
+          echo "STALE $prefix: ''${age}h (limit ''${limit}h)"
+          alert BackupStale "$prefix" "$prefix backup is ''${age}h old" critical
+          rc=1
+        else
+          echo "ok $prefix: ''${age}h"
+        fi
+      done
+      exit "$rc"
+    '';
 in
 {
   # Template unit: push a failed backup to Alertmanager (NodePort 30903, loopback).
@@ -66,13 +105,31 @@ in
     };
   };
 
-  systemd.timers.homelab-backup = {
-    description = "Daily credential backup to R2";
-    wantedBy = [ "timers.target" ];
-    timerConfig = {
-      OnCalendar = "daily";
-      Persistent = true;
-      RandomizedDelaySec = "1h";
+    systemd.timers.homelab-backup = {
+      description = "Daily credential backup to R2";
+      wantedBy = [ "timers.target" ];
+      timerConfig = {
+        OnCalendar = "daily";
+        Persistent = true;
+        RandomizedDelaySec = "1h";
+      };
     };
-  };
-}
+
+    systemd.services.homelab-backup-freshness = lib.mkIf (config.networking.hostName == "sitaw-amd") {
+      description = "Alert if the newest R2 backup is older than 36h";
+      path = with pkgs; [ coreutils rclone jq curl bash ];
+      serviceConfig = {
+        Type = "oneshot";
+        ExecStart = freshness;
+      };
+    };
+
+    systemd.timers.homelab-backup-freshness = lib.mkIf (config.networking.hostName == "sitaw-amd") {
+      description = "Daily backup freshness check";
+      wantedBy = [ "timers.target" ];
+      timerConfig = {
+        OnCalendar = "*-*-* 12:00:00";
+        Persistent = true;
+      };
+    };
+  }
