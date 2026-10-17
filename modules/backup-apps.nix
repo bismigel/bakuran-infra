@@ -15,11 +15,12 @@ let
       RCLONE_CONFIG_R2_ENDPOINT="$R2_ENDPOINT"
     K="k3s kubectl"
     w=$(mktemp -d); trap 'rm -rf "$w"' EXIT
+    failed=0
     dump() { # <ns> <deploy> <path> <name>
       if $K -n "$1" exec "deploy/$2" -- sh -c "cd '$3' && tar czf - ." > "$w/$4.tgz" 2>/dev/null; then
         echo "  $4 ok ($(du -h "$w/$4.tgz" | cut -f1))"
       else
-        echo "  $4 SKIP"; rm -f "$w/$4.tgz"
+        echo "  $4 SKIP"; rm -f "$w/$4.tgz"; failed=$((failed + 1))
       fi
     }
     dump media     sonarr      /config        sonarr
@@ -39,7 +40,7 @@ let
          2>/dev/null | gzip > "$w/immich-db.sql.gz"; then
       echo "  immich-db ok ($(du -h "$w/immich-db.sql.gz" | cut -f1))"
     else
-      echo "  immich-db SKIP"; rm -f "$w/immich-db.sql.gz"
+      echo "  immich-db SKIP"; rm -f "$w/immich-db.sql.gz"; failed=$((failed + 1))
     fi
     dump immich    immich-server /usr/src/app/upload immich-library
     # Newer self-hosted apps (configs + bookmark/reading data).
@@ -47,6 +48,7 @@ let
     dump books     lazylibrarian /config lazylibrarian
     dump karakeep  karakeep    /data   karakeep
     dump karakeep  meilisearch /meili_data meilisearch
+    if [ "$failed" -ne 0 ]; then echo "error: $failed app dump(s) failed"; exit 1; fi
     out="/tmp/appdata-$(cat /proc/sys/kernel/hostname)-$(date -u +%Y%m%dT%H%M%SZ).tar.gz.age"
     tar czf - -C "$w" . | ${pkgs.age}/bin/age -r "$AGE_RECIPIENT" > "$out"
     ${pkgs.rclone}/bin/rclone copy "$out" "r2:$R2_BUCKET/appdata/"
