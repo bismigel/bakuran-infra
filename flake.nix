@@ -7,7 +7,7 @@
     disko.inputs.nixpkgs.follows = "nixpkgs";
     deploy-rs.url = "github:serokell/deploy-rs";
     deploy-rs.inputs.nixpkgs.follows = "nixpkgs";
-    sops-nix.url = "github:Mic92/sops-nix/5a7d18b5c55642df5c432aadb757140edfeb70b3";
+    sops-nix.url = "github:Mic92/sops-nix/44931708c62937c2b1bf7953902989fa5bb9ee1b";
     sops-nix.inputs.nixpkgs.follows = "nixpkgs";
   };
 
