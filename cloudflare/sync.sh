@@ -34,17 +34,19 @@ HOSTNAMES=(
   immich.bismigel.dev
 )
 
-# Access apps: "Name|domain1,domain2|email1,email2"; add "*" to gate a wildcard.
+# Access apps: "Name|domain1,domain2|email1,email2[|session]"; add "*" to gate a
+# wildcard. Admin-only apps get a short (24h) session; media keeps 730h so TVs/
+# phones don't have to re-auth constantly.
 # NOTE: jellyfin.bismigel.dev is intentionally NOT gated by Access — it is served
 # publicly by the reverse proxy (ingress-nginx) and Jellyfin does its own auth.
 # (LAN viewers use the hostPort :8096; remote clients that can't complete an
 # interactive Access challenge use the public hostname.)
 ACCESS=(
-  "Grafana|grafana.bismigel.dev|bismigel@pm.me,family-member@example.com"
-  "ZeroClaw|agent.bismigel.dev|bismigel@pm.me"
-  "Private API|private.bismigel.dev|bismigel@pm.me"
-  "ArgoCD|argocd.bismigel.dev|bismigel@pm.me"
-  "Longhorn|longhorn.bismigel.dev|bismigel@pm.me"
+  "Grafana|grafana.bismigel.dev|bismigel@pm.me,family-member@example.com|24h"
+  "ZeroClaw|agent.bismigel.dev|bismigel@pm.me|24h"
+  "Private API|private.bismigel.dev|bismigel@pm.me|24h"
+  "ArgoCD|argocd.bismigel.dev|bismigel@pm.me|24h"
+  "Longhorn|longhorn.bismigel.dev|bismigel@pm.me|24h"
   # NOTE: immich.bismigel.dev is intentionally NOT gated by Access either — the
   # native phone app (background backup) can't complete an interactive Access
   # challenge. Served publicly by the reverse proxy; Immich does its own auth.
@@ -76,9 +78,10 @@ done || true
 # --- Access apps + policies ------------------------------------------------
 echo ">> Access apps"
 for spec in "${ACCESS[@]}"; do
-  IFS='|' read -r name domains emails <<<"$spec"
+  IFS='|' read -r name domains emails sess <<<"$spec"
+  sess="${sess:-$SESSION}"
   id=$(cf "$API/accounts/$ACCT/access/apps" | jq -r --arg n "$name" '.result[]?|select(.name==$n)|.id')
-  body=$(jq -nc --arg n "$name" --arg d "$domains" --arg s "$SESSION" \
+  body=$(jq -nc --arg n "$name" --arg d "$domains" --arg s "$sess" \
     '{name:$n,type:"self_hosted",session_duration:$s,self_hosted_domains:($d|split(","))}')
   if [ -n "$id" ]; then
     cf -X PUT "$API/accounts/$ACCT/access/apps/$id" --data "$body" >/dev/null && echo "   ~ $name"
