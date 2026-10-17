@@ -45,7 +45,9 @@ ACCESS=(
   "Private API|private.bismigel.dev|bismigel@pm.me"
   "ArgoCD|argocd.bismigel.dev|bismigel@pm.me"
   "Longhorn|longhorn.bismigel.dev|bismigel@pm.me"
-  "Immich|immich.bismigel.dev|bismigel@pm.me,ciceleyrubio17@gmail.com"
+  # NOTE: immich.bismigel.dev is intentionally NOT gated by Access either — the
+  # native phone app (background backup) can't complete an interactive Access
+  # challenge. Served publicly by the reverse proxy; Immich does its own auth.
   "Homelab Media|sonarr.bismigel.dev,radarr.bismigel.dev,prowlarr.bismigel.dev,bazarr.bismigel.dev,qbittorrent.bismigel.dev,sabnzbd.bismigel.dev,homepage.bismigel.dev,prometheus.bismigel.dev|bismigel@pm.me,ciceleyrubio17@gmail.com"
 )
 SESSION=730h
