@@ -6,7 +6,7 @@
 #
 #   CF_API_TOKEN=<cfat_...> ./cloudflare/sync.sh
 #
-# Token = Bitwarden `cloudflare-api-token` (DNS Write, Tunnel Write, Access). # docs
+# Token = Bitwarden `cloudflare-api-token` (DNS Write, Tunnel Write, Access, R2).
 set -euo pipefail
 
 ACCT="c13ab6fbc2a53cfe719bca75fdc825c2"
@@ -96,8 +96,27 @@ for z in "${DOMAINS[@]}"; do
     && echo "   bot_fight_mode=on ($zid)" || echo "   (bot fight skipped for $zid)"
 done
 
-# --- Access apps + policies ------------------------------------------------
-echo ">> Access apps"
+  # --- R2 backup retention ---------------------------------------------------
+  # The daily appdata archive is ~0.5 GiB; keep two weeks. Credentials backups
+  # are tiny but important for DR; keep 90 days. Keep the default multipart
+  # abort rule (7 days) so incomplete uploads don't accumulate.
+  echo ">> R2 lifecycle"
+  R2_BUCKET="${R2_BUCKET:-homelab-backups}"
+  RULES=$(jq -nc '[
+    {id:"Default Multipart Abort Rule",enabled:true,conditions:{},
+     abortMultipartUploadsTransition:{condition:{type:"Age",maxAge:604800}}},
+    {id:"expire-appdata-14d",enabled:true,conditions:{prefix:"appdata/"},
+     deleteObjectsTransition:{condition:{type:"Age",maxAge:1209600}}},
+    {id:"expire-credentials-90d",enabled:true,conditions:{prefix:"credentials/"},
+     deleteObjectsTransition:{condition:{type:"Age",maxAge:7776000}}}
+  ]')
+  cf -X PUT "$API/accounts/$ACCT/r2/buckets/$R2_BUCKET/lifecycle" \
+    --data "{\"rules\":$RULES}" >/dev/null \
+    && echo "   appdata=14d credentials=90d ($R2_BUCKET)" \
+    || echo "   (R2 lifecycle skipped — token may lack R2 write)"
+
+  # --- Access apps + policies ------------------------------------------------
+  echo ">> Access apps"
 for spec in "${ACCESS[@]}"; do
   IFS='|' read -r name domains emails sess <<<"$spec"
   sess="${sess:-$SESSION}"
