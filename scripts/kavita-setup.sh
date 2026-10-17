@@ -28,7 +28,13 @@ POD="$($K -n "$NS" get pods -l "app=$DEPLOY" -o name | head -1)"; POD="${POD#pod
 [ -n "$POD" ] || { echo "no $DEPLOY pod in $NS"; exit 1; }
 echo ">> pod: $POD"
 
-$K -n "$NS" exec "$POD" -- tar cf - -C /config kavita.db kavita.db-wal kavita.db-shm 2>/dev/null | tar xf - -C "$TMP"
+# WAL/SHM may be absent (checkpointed on restart); tar only what exists.
+$K -n "$NS" exec "$POD" -- sh -c '
+  cd /config || exit 1
+  set -- kavita.db
+  [ -f kavita.db-wal ] && set -- "$@" kavita.db-wal
+  [ -f kavita.db-shm ] && set -- "$@" kavita.db-shm
+  tar cf - "$@"' | tar xf - -C "$TMP"
 if ! "$SQLITE" "$TMP/kavita.db" "select 1 from AspNetUsers where UserName='$USER_NAME';" 2>/dev/null | grep -q 1; then
   echo ">> $USER_NAME does not exist — open Kavita and register the admin first"; exit 1
 fi
