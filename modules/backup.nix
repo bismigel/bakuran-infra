@@ -78,6 +78,48 @@ let
       done
       exit "$rc"
     '';
+
+    # Weekly restore verification: decrypt the newest appdata archive, validate
+    # tar/gzip, then run SQLite integrity_check on the Kavita + LazyLibrarian DBs
+    # and gzip -t the Immich dump. Failure posts BackupVerifyFailed.
+    # The age identity lives at /root/.config/homelab-backup.agekey (from BWS
+    # backup-age-key) — see RUNBOOK.
+    verify = pkgs.writeShellScript "homelab-backup-verify" ''
+      set -euo pipefail
+      env_file=/root/.config/homelab-backup.env
+      key=/root/.config/homelab-backup.agekey
+      work=$(mktemp -d); trap 'rm -rf "$work"' EXIT
+      alert() {
+        ${pkgs.curl}/bin/curl -fsS -m 10 -X POST -H 'Content-Type: application/json' \
+          -d "[{\"labels\":{\"alertname\":\"BackupVerifyFailed\",\"severity\":\"critical\",\"instance\":\"$(cat /proc/sys/kernel/hostname)\",\"dataset\":\"appdata\"},\"annotations\":{\"summary\":\"$1\"}}]" \
+          http://127.0.0.1:30903/api/v2/alerts || true
+      }
+      trap 'alert "restore verification failed (line $LINENO)"' ERR
+      [ -s "$env_file" ] || { alert "missing $env_file"; exit 1; }
+      [ -s "$key" ] || { alert "missing age key $key"; exit 1; }
+      set -a; . "$env_file"; set +a
+      export RCLONE_CONFIG_R2_TYPE=s3 RCLONE_CONFIG_R2_PROVIDER=Cloudflare \
+        RCLONE_CONFIG_R2_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID" \
+        RCLONE_CONFIG_R2_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY" \
+        RCLONE_CONFIG_R2_ENDPOINT="$R2_ENDPOINT"
+      bucket="''${R2_BUCKET:-homelab-backups}"
+      obj=$(${pkgs.rclone}/bin/rclone lsjson "r2:$bucket/appdata/" --files-only 2>/dev/null \
+            | ${pkgs.jq}/bin/jq -r 'sort_by(.ModTime)|last|.Path // empty')
+      [ -n "$obj" ] || { alert "no appdata archive found in R2"; exit 1; }
+      echo "verifying $obj"
+      ${pkgs.rclone}/bin/rclone copyto "r2:$bucket/appdata/$obj" "$work/a.tar.gz.age"
+      ${pkgs.age}/bin/age -d -i "$key" -o "$work/a.tar.gz" "$work/a.tar.gz.age"
+      ${pkgs.gzip}/bin/gzip -t "$work/a.tar.gz"
+      ${pkgs.gnutar}/bin/tar -tzf "$work/a.tar.gz" >/dev/null
+      mkdir -p "$work/x" "$work/k" "$work/l"
+      ${pkgs.gnutar}/bin/tar -xzf "$work/a.tar.gz" -C "$work/x" ./kavita.tgz ./lazylibrarian.tgz ./immich-db.sql.gz
+      ${pkgs.gnutar}/bin/tar -xzf "$work/x/kavita.tgz" -C "$work/k" ./kavita.db
+      ${pkgs.gnutar}/bin/tar -xzf "$work/x/lazylibrarian.tgz" -C "$work/l" ./lazylibrarian.db
+      [ "$(${pkgs.sqlite}/bin/sqlite3 "$work/k/kavita.db" 'pragma integrity_check;')" = "ok" ]
+      [ "$(${pkgs.sqlite}/bin/sqlite3 "$work/l/lazylibrarian.db" 'pragma integrity_check;')" = "ok" ]
+      ${pkgs.gzip}/bin/gzip -t "$work/x/immich-db.sql.gz"
+      echo "restore verification ok: $obj"
+    '';
 in
 {
   # Template unit: push a failed backup to Alertmanager (NodePort 30903, loopback).
@@ -129,6 +171,24 @@ in
       wantedBy = [ "timers.target" ];
       timerConfig = {
         OnCalendar = "*-*-* 12:00:00";
+        Persistent = true;
+      };
+    };
+
+    systemd.services.homelab-backup-verify = lib.mkIf (config.networking.hostName == "sitaw-amd") {
+      description = "Weekly restore verification of the newest appdata backup";
+      path = with pkgs; [ coreutils rclone jq curl age gzip gnutar sqlite bash ];
+      serviceConfig = {
+        Type = "oneshot";
+        ExecStart = verify;
+      };
+    };
+
+    systemd.timers.homelab-backup-verify = lib.mkIf (config.networking.hostName == "sitaw-amd") {
+      description = "Weekly restore verification";
+      wantedBy = [ "timers.target" ];
+      timerConfig = {
+        OnCalendar = "Sun 04:30";
         Persistent = true;
       };
     };
