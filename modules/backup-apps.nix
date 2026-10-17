@@ -42,6 +42,11 @@ let
       echo "  immich-db SKIP"; rm -f "$w/immich-db.sql.gz"
     fi
     dump immich    immich-server /usr/src/app/upload immich-library
+    # Newer self-hosted apps (configs + bookmark/reading data).
+    dump books     kavita      /config kavita
+    dump books     lazylibrarian /config lazylibrarian
+    dump karakeep  karakeep    /data   karakeep
+    dump karakeep  meilisearch /meili_data meilisearch
     out="/tmp/appdata-$(cat /proc/sys/kernel/hostname)-$(date -u +%Y%m%dT%H%M%SZ).tar.gz.age"
     tar czf - -C "$w" . | ${pkgs.age}/bin/age -r "$AGE_RECIPIENT" > "$out"
     ${pkgs.rclone}/bin/rclone copy "$out" "r2:$R2_BUCKET/appdata/"
