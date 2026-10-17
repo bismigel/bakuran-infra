@@ -55,7 +55,10 @@ ACCESS=(
   # native phone app (background backup) can't complete an interactive Access
   # challenge. Served publicly by the reverse proxy; Immich does its own auth.
   "Homelab Media|sonarr.bismigel.dev,radarr.bismigel.dev,prowlarr.bismigel.dev,bazarr.bismigel.dev,qbittorrent.bismigel.dev,sabnzbd.bismigel.dev,homepage.bismigel.dev,prometheus.bismigel.dev|bismigel@pm.me,family-member@example.com"
-  "Books|kavita.bismigel.dev,lazylibrarian.bismigel.dev|bismigel@pm.me,family-member@example.com|24h"
+  # NOTE: kavita.bismigel.dev is intentionally NOT gated by Access — the mobile
+  # apps can't complete an interactive Access challenge. Served publicly by the
+  # reverse proxy; Kavita has its own login.
+  "Books|lazylibrarian.bismigel.dev|bismigel@pm.me,family-member@example.com|24h"
 )
 SESSION=730h
 
