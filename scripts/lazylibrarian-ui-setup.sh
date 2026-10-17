@@ -55,6 +55,8 @@ spec:
               valueFrom: { secretKeyRef: { name: media-setup, key: sabnzbd-api-key } }
             - name: NZB_KEY
               valueFrom: { secretKeyRef: { name: media-setup, key: nzbgeek-api } }
+            - name: LL_API_KEY
+              valueFrom: { secretKeyRef: { name: media-setup, key: lazylibrarian-api-key } }
           volumeMounts:
             - { name: script, mountPath: /scripts }
           resources:
