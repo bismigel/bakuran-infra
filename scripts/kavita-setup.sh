@@ -62,8 +62,14 @@ echo ">> reset $USER_NAME's password; Kavita restarting"
 IFS= read -r U
 IFS= read -r P
 D=/config/tmp; mkdir -p "$D"
+# Wait until the restarted app actually serves requests (rollout status can
+# return before the HTTP listener is up).
+i=0; until curl -sf -o /dev/null http://127.0.0.1:5000/api/Health; do
+  i=$((i+1)); [ "$i" -gt 60 ] && break; sleep 2
+done
 printf "{\"username\":\"%s\",\"password\":\"%s\"}" "$U" "$P" > "$D/b.json"
 TOK=$(curl -s -X POST http://127.0.0.1:5000/api/Account/login -H "Content-Type: application/json" --data-binary @"$D/b.json" | sed -n "s/.*\"token\":\"\([^\"]*\)\".*/\1/p")
+if [ -z "$TOK" ]; then echo "error: admin login failed" >&2; rm -f "$D/b.json"; exit 1; fi
 N=$(curl -s -H "Authorization: Bearer $TOK" http://127.0.0.1:5000/api/Library/libraries | grep -o "\"id\"" | wc -l)
 if [ "$N" -eq 0 ]; then
   curl -s -o /dev/null -w ">> created library Books (%{http_code})\n" -X POST http://127.0.0.1:5000/api/Library/create \
