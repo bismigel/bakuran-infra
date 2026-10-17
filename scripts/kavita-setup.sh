@@ -52,11 +52,16 @@ $K -n "$NS" exec "$POD" -- sh -c 'rm -f /config/kavita.db-wal /config/kavita.db-
 $K -n "$NS" delete pod "$POD" --wait=false >/dev/null 2>&1 || true
 echo ">> reset $USER_NAME's password; Kavita restarting"
 
-# Ensure the Books library exists (idempotent). Done through the app's own API
-# from inside the pod: Kavita lists libraries at /api/Library/libraries (GET
-# /api/Library returns one by id) and creates with a JSON LibraryDto. A Book
-# library (type 2) scans Epub+Pdf (file groups 2,3) and uses Hardcover (2) for
-# metadata; the host folder is mounted at /books.
+# Ensure the Books library exists and is configured (idempotent). Done through
+# the app's own API from inside the pod: Kavita lists libraries at
+# /api/Library/libraries (GET /api/Library returns one by id) and creates with
+# an UpdateLibraryDto. A Book library (type 2) scans Epub+Pdf (2,3) and uses
+# Hardcover (2); the host folder is mounted at /books.
+#
+# EnableMetadata MUST be true: with it off Kavita parses series names from the
+# filename, which yields an empty series for "Title - Author.epub" and the scan
+# logs "Unable to parse any meaningful information out of file" and imports
+# nothing. With it on, the EPUB's own metadata is used.
 "$K" -n "$NS" rollout status "deploy/$DEPLOY" --timeout=180s >/dev/null 2>&1 || true
 { printf '%s\n%s' "$USER_NAME" "$PW"; } | "$K" -n "$NS" exec -i "deploy/$DEPLOY" -- sh -c '
 IFS= read -r U
@@ -70,13 +75,18 @@ done
 printf "{\"username\":\"%s\",\"password\":\"%s\"}" "$U" "$P" > "$D/b.json"
 TOK=$(curl -s -X POST http://127.0.0.1:5000/api/Account/login -H "Content-Type: application/json" --data-binary @"$D/b.json" | sed -n "s/.*\"token\":\"\([^\"]*\)\".*/\1/p")
 if [ -z "$TOK" ]; then echo "error: admin login failed" >&2; rm -f "$D/b.json"; exit 1; fi
-N=$(curl -s -H "Authorization: Bearer $TOK" http://127.0.0.1:5000/api/Library/libraries | grep -o "\"id\"" | wc -l)
+LIBS=$(curl -s -H "Authorization: Bearer $TOK" http://127.0.0.1:5000/api/Library/libraries)
+N=$(printf "%s" "$LIBS" | grep -o "\"id\"" | wc -l)
+ID=$(printf "%s" "$LIBS" | sed -n "s/.*\"id\":\([0-9]*\).*/\1/p" | head -1)
+SETTINGS="\"name\":\"Books\",\"type\":2,\"folders\":[\"/books\"],\"folderWatching\":true,\"includeInDashboard\":true,\"includeInSearch\":true,\"manageCollections\":true,\"manageReadingLists\":true,\"allowScrobbling\":false,\"allowMetadataMatching\":true,\"enableMetadata\":true,\"removePrefixForSortName\":false,\"inheritWebLinksFromFirstChapter\":false,\"defaultLanguage\":\"en\",\"metadataProvider\":2,\"fileGroupTypes\":[2,3],\"excludePatterns\":[]"
 if [ "$N" -eq 0 ]; then
-  curl -s -o /dev/null -w ">> created library Books (%{http_code})\n" -X POST http://127.0.0.1:5000/api/Library/create \
-    -H "Authorization: Bearer $TOK" -H "Content-Type: application/json" \
-    -d "{\"name\":\"Books\",\"type\":2,\"folders\":[\"/books\"],\"fileGroupTypes\":[2,3],\"excludePatterns\":[],\"metadataProvider\":2}"
+  C=$(curl -s -o /dev/null -w "%{http_code}" -X POST http://127.0.0.1:5000/api/Library/create \
+    -H "Authorization: Bearer $TOK" -H "Content-Type: application/json" -d "{$SETTINGS}")
+  echo ">> created library Books ($C)"
 else
-  echo ">> library already present ($N)"
+  C=$(curl -s -o /dev/null -w "%{http_code}" -X POST http://127.0.0.1:5000/api/Library/update \
+    -H "Authorization: Bearer $TOK" -H "Content-Type: application/json" -d "{\"id\":$ID,$SETTINGS}")
+  echo ">> library Books present, settings refreshed ($C)"
 fi
 rm -f "$D/b.json"
 '
