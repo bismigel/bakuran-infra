@@ -32,6 +32,16 @@ let
     dump monitoring grafana    /var/lib/grafana grafana
     dump monitoring prometheus /prometheus    prometheus
     dump zeroclaw  zeroclaw    /zeroclaw-data zeroclaw
+    # Immich — the DB must be dumped (never file-copied) and the photo library
+    # lives on the server pod's upload volume.
+    if $K -n immich exec immich-postgres-0 -- sh -c \
+         'PGPASSWORD="$POSTGRES_PASSWORD" pg_dump -U immich -h 127.0.0.1 -d immich' \
+         2>/dev/null | gzip > "$w/immich-db.sql.gz"; then
+      echo "  immich-db ok ($(du -h "$w/immich-db.sql.gz" | cut -f1))"
+    else
+      echo "  immich-db SKIP"; rm -f "$w/immich-db.sql.gz"
+    fi
+    dump immich    immich-server /usr/src/app/upload immich-library
     out="/tmp/appdata-$(cat /proc/sys/kernel/hostname)-$(date -u +%Y%m%dT%H%M%SZ).tar.gz.age"
     tar czf - -C "$w" . | ${pkgs.age}/bin/age -r "$AGE_RECIPIENT" > "$out"
     ${pkgs.rclone}/bin/rclone copy "$out" "r2:$R2_BUCKET/appdata/"
