@@ -108,11 +108,13 @@ done
     {id:"expire-appdata-14d",enabled:true,conditions:{prefix:"appdata/"},
      deleteObjectsTransition:{condition:{type:"Age",maxAge:1209600}}},
     {id:"expire-credentials-90d",enabled:true,conditions:{prefix:"credentials/"},
+     deleteObjectsTransition:{condition:{type:"Age",maxAge:7776000}}},
+    {id:"expire-nixstation-90d",enabled:true,conditions:{prefix:"nixstation/"},
      deleteObjectsTransition:{condition:{type:"Age",maxAge:7776000}}}
   ]')
   cf -X PUT "$API/accounts/$ACCT/r2/buckets/$R2_BUCKET/lifecycle" \
     --data "{\"rules\":$RULES}" >/dev/null \
-    && echo "   appdata=14d credentials=90d ($R2_BUCKET)" \
+    && echo "   appdata=14d credentials=90d nixstation=90d ($R2_BUCKET)" \
     || echo "   (R2 lifecycle skipped — token may lack R2 write)"
 
   # --- Access apps + policies ------------------------------------------------
