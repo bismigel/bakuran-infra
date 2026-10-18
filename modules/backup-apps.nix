@@ -23,6 +23,19 @@ let
         echo "  $4 SKIP"; rm -f "$w/$4.tgz"; failed=$((failed + 1))
       fi
     }
+    dump_live() { # <ns> <deploy> <path> <name>
+      # Hermes writes sockets and cache while tar reads. Excluding those keeps
+      # the archive stable; the integrity check still catches a truncated stream.
+      if $K -n "$1" exec "deploy/$2" -- sh -c "cd '$3' && tar czf - --exclude='./cache' --exclude='*.sock' ." > "$w/$4.tgz" 2>/dev/null; then
+        if tar tzf "$w/$4.tgz" >/dev/null 2>&1; then
+          echo "  $4 ok (live, $(du -h "$w/$4.tgz" | cut -f1))"
+        else
+          echo "  $4 INVALID"; rm -f "$w/$4.tgz"; failed=$((failed + 1))
+        fi
+      else
+        echo "  $4 SKIP"; rm -f "$w/$4.tgz"; failed=$((failed + 1))
+      fi
+    }
     dump media     sonarr      /config        sonarr
     dump media     radarr      /config        radarr
     dump media     prowlarr    /config        prowlarr
@@ -32,7 +45,7 @@ let
     dump default   jellyfin    /config        jellyfin
     dump monitoring grafana    /var/lib/grafana grafana
     dump monitoring prometheus /prometheus    prometheus
-    dump zeroclaw  hermes      /opt/data      hermes
+    dump_live zeroclaw hermes   /opt/data      hermes
     # Immich — the DB must be dumped (never file-copied) and the photo library
     # lives on the server pod's upload volume.
     if $K -n immich exec immich-postgres-0 -- sh -c \
