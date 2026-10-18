@@ -49,6 +49,8 @@
       "traefik"
       "--disable"
       "servicelb"
+      "--flannel-backend=none"
+      "--disable-network-policy"
       "--write-kubeconfig-mode"
       "0644"
       # Edge lock: NodePorts only on loopback, so only the local cloudflared
@@ -62,7 +64,7 @@
   networking.firewall = {
     enable = true;
     # 2379/2380 = etcd client/peer (k3s HA join), 10250 = kubelet
-    allowedTCPPorts = [ 22 6443 80 443 32080 2049 111 2379 2380 10250 ];
+    allowedTCPPorts = [ 22 6443 80 443 32080 2049 111 2379 2380 10250 4240 4244 ];
     allowedUDPPorts = [ 8472 2049 111 ];
   };
 
