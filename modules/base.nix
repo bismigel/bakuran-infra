@@ -62,11 +62,11 @@
     9100               # node-exporter (scraped cross-node)
     9102               # kepler (hostNetwork power exporter, scraped cross-node)
   ];
-    # etcd metrics relay (hostNetwork socat on :9101). Allow only the pod CIDR
-    # so Prometheus can scrape it while the LAN cannot; 9100/9102 stay in
-    # allowedTCPPorts for their existing cross-node scrapes.
-    networking.firewall.extraInputRules = ''
-      ip saddr 10.42.0.0/16 tcp dport 9101 accept
+    # etcd metrics relay (hostNetwork socat on :9101). This host runs the
+    # iptables-based NixOS firewall, so extraCommands (not extraInputRules)
+    # applies. Accept only the pod CIDR: Prometheus scrapes it, the LAN cannot.
+    networking.firewall.extraCommands = ''
+      iptables -A nixos-fw -p tcp -s 10.42.0.0/16 --dport 9101 -j nixos-fw-accept
     '';
 
     # Longhorn's containers nsenter into the host and call iscsiadm from PATH;
