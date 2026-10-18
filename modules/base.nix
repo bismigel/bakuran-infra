@@ -62,7 +62,14 @@
     9100               # node-exporter (scraped cross-node)
     9102               # kepler (hostNetwork power exporter, scraped cross-node)
   ];
-  # Longhorn's containers nsenter into the host and call iscsiadm from PATH;
+    # etcd metrics relay (hostNetwork socat on :9101). Allow only the pod CIDR
+    # so Prometheus can scrape it while the LAN cannot; 9100/9102 stay in
+    # allowedTCPPorts for their existing cross-node scrapes.
+    networking.firewall.extraInputRules = ''
+      ip saddr 10.42.0.0/16 tcp dport 9101 accept
+    '';
+
+    # Longhorn's containers nsenter into the host and call iscsiadm from PATH;
   # NixOS keeps it in /run/current-system/sw/bin, so expose it under /usr/bin too.
   systemd.tmpfiles.rules = [
     "L+ /usr/bin/iscsiadm  - - - - ${pkgs.openiscsi}/bin/iscsiadm"
