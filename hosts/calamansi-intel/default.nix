@@ -147,6 +147,8 @@
       "traefik"
       "--disable"
       "servicelb"
+      "--flannel-backend=none"
+      "--disable-network-policy"
       "--write-kubeconfig-mode"
       "0644"
       # Edge lock: NodePorts only on loopback, so only the local cloudflared
@@ -162,7 +164,7 @@
     # 2379/2380 = etcd client/peer (HA join), 10250 = kubelet,
     # 8096 = Jellyfin, 8989/7878/9696/6767 = *arrs, 8081/8082 = qbt/sab
     # (hostPorts for LAN/browser access; the tunnel stays the only remote path)
-    allowedTCPPorts = [ 22 6443 80 443 2379 2380 10250 8096 8989 7878 9696 6767 8081 8082 ];
+    allowedTCPPorts = [ 22 6443 80 443 2379 2380 10250 8096 8989 7878 9696 6767 8081 8082 4240 4244 ];
     allowedUDPPorts = [ 8472 ];
   };
 
