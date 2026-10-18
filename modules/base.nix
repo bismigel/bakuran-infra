@@ -66,7 +66,10 @@
     # iptables-based NixOS firewall, so extraCommands (not extraInputRules)
     # applies. Accept only the pod CIDR: Prometheus scrapes it, the LAN cannot.
     networking.firewall.extraCommands = ''
-      iptables -A nixos-fw -p tcp -s 10.42.0.0/16 --dport 9101 -j nixos-fw-accept
+      # flannel SNATs cross-node pod egress to the node IP, so allow the three
+      # nodes as well as the pod CIDR. Other LAN hosts stay blocked.
+      iptables -I nixos-fw 1 -p tcp -m iprange --src-range 192.168.2.81-192.168.2.83 --dport 9101 -j nixos-fw-accept
+      iptables -I nixos-fw 1 -p tcp -s 10.42.0.0/16 --dport 9101 -j nixos-fw-accept
     '';
 
     # Longhorn's containers nsenter into the host and call iscsiadm from PATH;
