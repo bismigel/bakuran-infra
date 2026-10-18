@@ -66,6 +66,8 @@
       "traefik"
       "--disable"
       "servicelb"
+      "--flannel-backend=none"
+      "--disable-network-policy"
       "--write-kubeconfig-mode"
       "0644"
       # Edge lock: NodePorts only on loopback, so only the local cloudflared
@@ -78,7 +80,7 @@
 
   networking.firewall = {
     enable = true;
-    allowedTCPPorts = [ 22 6443 2379 2380 10250 ];
+    allowedTCPPorts = [ 22 6443 2379 2380 10250 4240 4244 ];
     allowedUDPPorts = [ 8472 ];
   };
 
