@@ -1,4 +1,4 @@
-{ config, pkgs, ... }:
+{ config, pkgs, unstable, ... }:
 
   {
     # Cilium installs cilium-cni into /opt/cni/bin. The k3s CNI multiplexer
@@ -7,6 +7,8 @@
       "d /opt/cni/bin 0755 root root -"
       "L+ /opt/cni/bin/portmap - - - - /var/lib/rancher/k3s/data/current/bin/cni"
     ];
+
+    services.k3s.package = unstable.legacyPackages.${pkgs.stdenv.hostPlatform.system}.k3s;
 
     environment.systemPackages = with pkgs; [
     k3s
