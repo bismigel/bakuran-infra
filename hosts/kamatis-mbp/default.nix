@@ -70,6 +70,12 @@
       "servicelb"
       "--write-kubeconfig-mode"
       "0644"
+      # Container log rotation: 10Mi per file, 3 files per container, so the
+      # kubelet keeps at most ~30Mi of stdout/stderr per container on /.
+      "--kubelet-arg"
+      "container-log-max-size=10Mi"
+      "--kubelet-arg"
+      "container-log-max-files=3"
       # Edge lock: NodePorts only on loopback, so only the local cloudflared
       # connector (-> 127.0.0.1:32080) can reach them; LAN clients cannot
       # bypass Cloudflare Access via NodePorts.

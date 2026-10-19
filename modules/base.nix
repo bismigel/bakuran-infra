@@ -97,5 +97,18 @@
     mode = "0600";
   };
 
+  # ---- Log retention -------------------------------------------------------
+  # The journal is the large unbounded writer on / once the kubelet's container
+  # log rotation is in place (that is configured per host with --kubelet-arg).
+  # Cap it here so a chatty unit cannot grind the root filesystem down; 500M is
+  # ~2 weeks of normal homelab output and leaves plenty of history for
+  # `journalctl -u k3s` after an incident.
+  services.journald.extraConfig = ''
+    SystemMaxUse=500M
+    SystemMaxFileSize=50M
+    MaxRetentionSec=2week
+    Compress=yes
+  '';
+
   system.stateVersion = "24.05";
 }
