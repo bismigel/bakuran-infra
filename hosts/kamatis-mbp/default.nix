@@ -62,6 +62,8 @@
     tokenFile = config.sops.secrets."k3s_cluster_token".path;
     nodeTaint = [ "node-role.kubernetes.io/control-plane=true:NoSchedule" ];
     extraFlags = toString [
+      "--flannel-backend=none"
+      "--disable-network-policy"
       "--disable"
       "traefik"
       "--disable"

@@ -62,6 +62,12 @@
     9100               # node-exporter (scraped cross-node)
     9102               # kepler (hostNetwork power exporter, scraped cross-node)
   ];
+
+  # Cilium native routing forwards pod traffic through the host. Trust the
+  # veth interfaces and relax reverse-path filtering, as the Cilium NixOS
+  # module does.
+  networking.firewall.checkReversePath = false;
+  networking.firewall.trustedInterfaces = [ "cni+" ];
     # etcd metrics relay (hostNetwork socat on :9101). This host runs the
     # iptables-based NixOS firewall, so extraCommands (not extraInputRules)
     # applies. Accept only the pod CIDR: Prometheus scrapes it, the LAN cannot.
