@@ -51,7 +51,7 @@ HOSTNAMES=("${PUBLIC_HOSTNAMES[@]}" "${ADMIN_HOSTNAMES[@]}")
 # interactive Access challenge use the public hostname.)
 ACCESS=(
   "Grafana|grafana.bismigel.dev|bismigel@pm.me,ciceleyrubio17@gmail.com|24h"
-  "ZeroClaw|agent.bismigel.dev|bismigel@pm.me|24h"
+  "Homelab Agent|agent.bismigel.dev|bismigel@pm.me|24h"
   "Private API|private.bismigel.dev|bismigel@pm.me|24h"
   "ArgoCD|argocd.bismigel.dev|bismigel@pm.me|24h"
   "Longhorn|longhorn.bismigel.dev|bismigel@pm.me|24h"
