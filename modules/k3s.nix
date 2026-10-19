@@ -40,7 +40,7 @@
         ExecStart = pkgs.writeShellScript "homelab-smoke" ''
           set -euo pipefail
           export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
-          ready=$(${pkgs.kubectl}/bin/kubectl get nodes --no-headers | awk '$2=="Ready"{n++} END{print n+0}')
+          ready=$(${pkgs.kubectl}/bin/kubectl get nodes -o json | ${pkgs.jq}/bin/jq '[.items[] | select(any(.status.conditions[]; .type=="Ready" and .status=="True"))] | length')
           [ "$ready" = "3" ] || { echo "nodes ready=$ready"; exit 1; }
           ${pkgs.kubectl}/bin/kubectl -n argocd get applications -o json | ${pkgs.jq}/bin/jq -e 'all(.items[]; .status.sync.status=="Synced" and .status.health.status=="Healthy")' >/dev/null
           ${pkgs.kubectl}/bin/kubectl -n kube-system exec ds/cilium -c cilium-agent -- cilium-dbg status | grep -q "Cluster health:.*3/3"
