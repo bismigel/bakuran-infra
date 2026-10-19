@@ -97,6 +97,8 @@ for z in "${DOMAINS[@]}"; do
   cf -X PATCH "$API/zones/$zid/settings/security_header" --data '{"value":{"strict_transport_security":{"enabled":true,"max_age":15552000,"include_subdomains":true,"preload":false}}}' >/dev/null 2>&1 \
     && echo "   hsts=on ($zid)" || echo "   (hsts skipped for $zid)"
     && echo "   min_tls_version=1.2 ($zid)" || echo "   (min_tls skipped for $zid)"
+  cf -X PATCH "$API/zones/$zid/settings/security_header" --data '{"value":{"strict_transport_security":{"enabled":true,"max_age":15552000,"include_subdomains":true,"preload":false}}}' >/dev/null 2>&1 \
+    && echo "   hsts=on ($zid)" || echo "   (hsts skipped for $zid)"
   cf -X PATCH "$API/zones/$zid/settings/always_use_https" --data '{"value":"on"}' >/dev/null 2>&1 || true
   # Bot Fight Mode requires JS detections; set both together (a zone with
   # EnableJS off rejects fight_mode alone).
