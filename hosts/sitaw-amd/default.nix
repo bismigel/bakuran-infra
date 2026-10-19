@@ -49,6 +49,8 @@
       "traefik"
       "--disable"
       "servicelb"
+      "--flannel-backend=none"
+      "--disable-network-policy"
       "--write-kubeconfig-mode"
       "0644"
       # Edge lock: NodePorts only on loopback, so only the local cloudflared
