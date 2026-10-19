@@ -33,7 +33,24 @@ $KUBECTL -n argocd label secret repo-bakuran-gitops \
 echo ">> root app-of-apps"
 $KUBECTL -n argocd apply -f "$ROOT_APP"
 
-# ---- ArgoCD HA: survive losing the node a component runs on ----
+  # ---- ArgoCD Redis HA ----
+  echo ">> Redis HA"
+  HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  $KUBECTL apply -f "$HERE/argocd-redis-ha.yaml"
+  TOL='[{"key":"node-role.kubernetes.io/control-plane","operator":"Exists","effect":"NoSchedule"}]'
+  $KUBECTL -n argocd patch statefulset argocd-redis-ha-server --type merge \
+    -p "{\"spec\":{\"template\":{\"spec\":{\"tolerations\":$TOL}}}}" >/dev/null
+  $KUBECTL -n argocd patch deploy argocd-redis-ha-haproxy --type merge \
+    -p "{\"spec\":{\"template\":{\"spec\":{\"tolerations\":$TOL}}}}" >/dev/null
+  $KUBECTL -n argocd patch configmap argocd-cmd-params-cm --type merge \
+    -p '{"data":{"redis.server":"argocd-redis-ha-haproxy:6379"}}' >/dev/null
+  $KUBECTL -n argocd rollout status statefulset/argocd-redis-ha-server --timeout=300s
+  $KUBECTL -n argocd rollout status deploy/argocd-redis-ha-haproxy --timeout=300s
+  $KUBECTL -n argocd rollout restart \
+    deploy/argocd-repo-server deploy/argocd-applicationset-controller \
+    statefulset/argocd-application-controller >/dev/null
+
+  # ---- ArgoCD HA: survive losing the node a component runs on ----
 # Stateless components scale to 2 with soft anti-affinity; the controller
 # StatefulSet runs active/standby via leader election. (Redis stays single and
 # is a known SPOF — see REBUILD.md.)
