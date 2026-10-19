@@ -3,6 +3,7 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
+    nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixos-unstable";
     disko.url = "github:nix-community/disko";
     disko.inputs.nixpkgs.follows = "nixpkgs";
     deploy-rs.url = "github:serokell/deploy-rs";
@@ -11,13 +12,15 @@
     sops-nix.inputs.nixpkgs.follows = "nixpkgs";
   };
 
-  outputs = { self, nixpkgs, disko, deploy-rs, sops-nix }: {
+  outputs = { self, nixpkgs, nixpkgs-unstable, disko, deploy-rs, sops-nix }: {
     nixosConfigurations = {
       # .81 (Intel i5) — media / arr stack
       calamansi-intel = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
         specialArgs = {
           sshPubKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIH+soIiTQA3y96cqgaPluR9i9Z9qCdypdSfH/w0KiYrb labanos@bakuran";
+
+          unstable = nixpkgs-unstable;
         };
         modules = [
           sops-nix.nixosModules.sops
@@ -31,6 +34,8 @@
         system = "x86_64-linux";
         specialArgs = {
           sshPubKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIH+soIiTQA3y96cqgaPluR9i9Z9qCdypdSfH/w0KiYrb labanos@bakuran";
+
+          unstable = nixpkgs-unstable;
         };
         modules = [
           sops-nix.nixosModules.sops
@@ -44,6 +49,8 @@
         system = "x86_64-linux";
         specialArgs = {
           sshPubKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIH+soIiTQA3y96cqgaPluR9i9Z9qCdypdSfH/w0KiYrb labanos@bakuran";
+
+          unstable = nixpkgs-unstable;
         };
         modules = [
           sops-nix.nixosModules.sops
