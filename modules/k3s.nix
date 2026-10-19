@@ -1,4 +1,4 @@
-{ config, pkgs, unstable, ... }:
+{ config, lib, pkgs, unstable, ... }:
 
   {
     # Cilium installs cilium-cni into /opt/cni/bin. The k3s CNI multiplexer
@@ -32,8 +32,32 @@
     script = "${pkgs.iproute2}/bin/ip link del flannel.1 2>/dev/null || true";
   };
 
-  # Enable systemd-resolved for DNS
-    services.resolved.enable = true;
+    systemd.services.homelab-smoke = lib.mkIf (config.networking.hostName == "sitaw-amd") {
+      description = "Homelab smoke test";
+      unitConfig.OnFailure = [ "homelab-alert@%N.service" ];
+      serviceConfig = {
+        Type = "oneshot";
+        ExecStart = pkgs.writeShellScript "homelab-smoke" ''
+          set -euo pipefail
+          export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+          ready=$(${pkgs.kubectl}/bin/kubectl get nodes --no-headers | awk '$2=="Ready"{n++} END{print n+0}')
+          [ "$ready" = "3" ] || { echo "nodes ready=$ready"; exit 1; }
+          ${pkgs.kubectl}/bin/kubectl -n argocd get applications -o json | ${pkgs.jq}/bin/jq -e 'all(.items[]; .status.sync.status=="Synced" and .status.health.status=="Healthy")' >/dev/null
+          ${pkgs.kubectl}/bin/kubectl -n kube-system exec ds/cilium -c cilium-agent -- cilium-dbg status | grep -q "Cluster health:.*3/3"
+          ${pkgs.curl}/bin/curl -fsSL -o /dev/null --max-time 15 https://bismigel.dev/
+          ${pkgs.curl}/bin/curl -fsSL -o /dev/null --max-time 10 http://192.168.2.81:8096/
+          echo "smoke test passed"
+        '';
+      };
+    };
+    systemd.timers.homelab-smoke = lib.mkIf (config.networking.hostName == "sitaw-amd") {
+      description = "Run the homelab smoke test";
+      wantedBy = [ "timers.target" ];
+      timerConfig = { OnCalendar = "*:0/15"; Persistent = true; };
+    };
+
+    # Enable systemd-resolved for DNS
+      services.resolved.enable = true;
 
   # NOTE: the WireGuard/VPN interface lives in the *host* config (calamansi-intel
   # only) and takes its key from SOPS — not here.
