@@ -21,22 +21,26 @@ DOMAINS=(
 )
 
 # --- desired state ---------------------------------------------------------
-# Every public hostname routes to the box-local ingress (NodePorts are loopback).
-HOSTNAMES=(
+# Public surfaces stay on the public ingress (32080).
+PUBLIC_HOSTNAMES=(
   ciceley.cc www.ciceley.cc
   bismigel.dev www.bismigel.dev
   miguelarbis.dev www.miguelarbis.dev
-  status.bismigel.dev private.bismigel.dev grafana.bismigel.dev agent.bismigel.dev
-  jellyfin.bismigel.dev sonarr.bismigel.dev radarr.bismigel.dev prowlarr.bismigel.dev
+  status.bismigel.dev
+  jellyfin.bismigel.dev immich.bismigel.dev
+  kavita.bismigel.dev karakeep.bismigel.dev
+)
+
+# Access-gated/admin surfaces use the separate admin ingress (32081).
+ADMIN_HOSTNAMES=(
+  private.bismigel.dev grafana.bismigel.dev agent.bismigel.dev
+  sonarr.bismigel.dev radarr.bismigel.dev prowlarr.bismigel.dev
   bazarr.bismigel.dev qbittorrent.bismigel.dev sabnzbd.bismigel.dev
   homepage.bismigel.dev prometheus.bismigel.dev
-  argocd.bismigel.dev longhorn.bismigel.dev
-  immich.bismigel.dev
-  kavita.bismigel.dev lazylibrarian.bismigel.dev
-  # Public (no Access) so the Karakeep iOS/Android apps can reach its API; it has
-  # its own NextAuth login.
-  karakeep.bismigel.dev
+  argocd.bismigel.dev longhorn.bismigel.dev lazylibrarian.bismigel.dev
 )
+
+HOSTNAMES=("${PUBLIC_HOSTNAMES[@]}" "${ADMIN_HOSTNAMES[@]}")
 
 # Access apps: "Name|domain1,domain2|email1,email2[|session]"; add "*" to gate a
 # wildcard. Admin-only apps get a short (24h) session; media keeps 730h so TVs/
@@ -64,7 +68,9 @@ SESSION=730h
 
 # --- tunnel ingress --------------------------------------------------------
 echo ">> tunnel ingress"
-ING=$(for h in "${HOSTNAMES[@]}"; do jq -nc --arg h "$h" '{hostname:$h,service:"http://127.0.0.1:32080"}'; done | jq -sc '. + [{service:"http_status:404"}]')
+ING_PUBLIC=$(for h in "${PUBLIC_HOSTNAMES[@]}"; do jq -nc --arg h "$h" '{hostname:$h,service:"http://127.0.0.1:32080"}'; done | jq -sc '.')
+ING_ADMIN=$(for h in "${ADMIN_HOSTNAMES[@]}"; do jq -nc --arg h "$h" '{hostname:$h,service:"http://127.0.0.1:32081"}'; done | jq -sc '.')
+ING=$(jq -nc --argjson p "$ING_PUBLIC" --argjson a "$ING_ADMIN" '$p + $a + [{service:"http_status:404"}]')
 cf -X PUT "$API/accounts/$ACCT/cfd_tunnel/$TUN/configurations" --data "$(jq -nc --argjson i "$ING" '{config:{ingress:$i}}')" >/dev/null \
   && echo "   ok"
 

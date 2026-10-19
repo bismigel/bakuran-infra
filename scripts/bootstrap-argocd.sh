@@ -60,7 +60,7 @@ metadata:
   name: argocd-server
   namespace: argocd
 spec:
-  ingressClassName: nginx
+  ingressClassName: nginx-admin
   rules:
     - host: argocd.bismigel.dev
       http:
