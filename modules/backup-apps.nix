@@ -25,17 +25,16 @@ let
     }
       dump_live() { # <ns> <deploy> <path> <name>
         # Hermes writes sockets and cache while tar reads. Excluding those keeps
-        # the archive stable; retry once because a file can change mid-read.
+        # the archive stable. A tar warning can return non-zero even when the
+        # stream is usable, so validate the archive before deciding it failed.
         for attempt in 1 2; do
-          if $K -n "$1" exec "deploy/$2" -- sh -c "cd '$3' && tar czf - --warning=no-file-changed --exclude='./cache' --exclude='*.sock' ." > "$w/$4.tgz" 2>/dev/null; then
-            if tar tzf "$w/$4.tgz" >/dev/null 2>&1; then
-              echo "  $4 ok (live, $(du -h "$w/$4.tgz" | cut -f1))"
-              return 0
-            fi
-            echo "  $4 INVALID (attempt $attempt)"
-          else
-            echo "  $4 SKIP (attempt $attempt)"
+          $K -n "$1" exec "deploy/$2" -- sh -c "cd '$3' && tar czf - --warning=no-file-changed --exclude='./cache' --exclude='*.sock' ." > "$w/$4.tgz" 2>"$w/$4.err" || true
+          if tar tzf "$w/$4.tgz" >/dev/null 2>&1; then
+            echo "  $4 ok (live, $(du -h "$w/$4.tgz" | cut -f1))"
+            return 0
           fi
+          echo "  $4 INVALID (attempt $attempt)"
+          tail -2 "$w/$4.err" | sed 's/^/    /'
           rm -f "$w/$4.tgz"
           sleep 2
         done
