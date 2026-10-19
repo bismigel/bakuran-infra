@@ -72,7 +72,7 @@ Install a **brand-new** host (wipes the target): add `hosts/<name>/default.nix`
 Daily systemd timers push age-encrypted data to R2:
 - `modules/backup.nix` → `r2:homelab-backups/credentials/` (host keys, kubeconfigs, BWS token).
 - `modules/backup-apps.nix` → `r2:homelab-backups/appdata/` (config PVCs:
-  *arrs/Jellyfin/Grafana/Prometheus/ZeroClaw).
+  *arrs/Jellyfin/Grafana/Prometheus/homelab agent).
 - **Immich is NOT backed up** (DB + photo library) — known gap.
 
 ## Known issues
