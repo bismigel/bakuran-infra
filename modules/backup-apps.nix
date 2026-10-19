@@ -23,19 +23,24 @@ let
         echo "  $4 SKIP"; rm -f "$w/$4.tgz"; failed=$((failed + 1))
       fi
     }
-    dump_live() { # <ns> <deploy> <path> <name>
-      # Hermes writes sockets and cache while tar reads. Excluding those keeps
-      # the archive stable; the integrity check still catches a truncated stream.
-      if $K -n "$1" exec "deploy/$2" -- sh -c "cd '$3' && tar czf - --exclude='./cache' --exclude='*.sock' ." > "$w/$4.tgz" 2>/dev/null; then
-        if tar tzf "$w/$4.tgz" >/dev/null 2>&1; then
-          echo "  $4 ok (live, $(du -h "$w/$4.tgz" | cut -f1))"
-        else
-          echo "  $4 INVALID"; rm -f "$w/$4.tgz"; failed=$((failed + 1))
-        fi
-      else
-        echo "  $4 SKIP"; rm -f "$w/$4.tgz"; failed=$((failed + 1))
-      fi
-    }
+      dump_live() { # <ns> <deploy> <path> <name>
+        # Hermes writes sockets and cache while tar reads. Excluding those keeps
+        # the archive stable; retry once because a file can change mid-read.
+        for attempt in 1 2; do
+          if $K -n "$1" exec "deploy/$2" -- sh -c "cd '$3' && tar czf - --warning=no-file-changed --exclude='./cache' --exclude='*.sock' ." > "$w/$4.tgz" 2>/dev/null; then
+            if tar tzf "$w/$4.tgz" >/dev/null 2>&1; then
+              echo "  $4 ok (live, $(du -h "$w/$4.tgz" | cut -f1))"
+              return 0
+            fi
+            echo "  $4 INVALID (attempt $attempt)"
+          else
+            echo "  $4 SKIP (attempt $attempt)"
+          fi
+          rm -f "$w/$4.tgz"
+          sleep 2
+        done
+        failed=$((failed + 1))
+      }
     dump media     sonarr      /config        sonarr
     dump media     radarr      /config        radarr
     dump media     prowlarr    /config        prowlarr
