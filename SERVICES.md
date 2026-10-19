@@ -10,7 +10,7 @@
 | Alertmanager | (loopback `30903`) | AMD | Telegram alerts |
 | Longhorn | https://longhorn.bismigel.dev | AMD | storage · Access (24h) |
 | Homepage | https://homepage.bismigel.dev | AMD | dashboard · Access |
-| ZeroClaw | https://agent.bismigel.dev | AMD | agent (DeepSeek 64k) · Access + Telegram |
+| homelab agent | https://agent.bismigel.dev | AMD | agent (DeepSeek 64k) · Access + Telegram |
 | Jellyfin | https://jellyfin.bismigel.dev · LAN `:8096` | Intel | 12.2.0 QSV; remote capped 12 Mbps · **public** (own auth) |
 | Immich | https://immich.bismigel.dev | MacBook | photos; ML on AMD · **public** (own auth) |
 | Sonarr | LAN `:8989` / sonarr.bismigel.dev | Intel | root `/tv` |
@@ -19,7 +19,7 @@
 | Bazarr | LAN `:6767` / bazarr.bismigel.dev | Intel | subtitles |
 | qBittorrent | LAN `:8081` / qbittorrent.bismigel.dev | Intel | download client |
 | SABnzbd | LAN `:8082` / sabnzbd.bismigel.dev | Intel | Usenet |
-| media-mcp | (loopback `30097`) | Intel | MCP for ZeroClaw (incl. add movie/series) |
+| media-mcp | (loopback `30097`) | Intel | MCP for homelab agent (incl. add movie/series) |
 | Kepler | (metrics `:9102`) | all | power/RAPL |
 
 **Auth:** Grafana has a real admin password (Bitwarden). **Jellyfin and Immich are
