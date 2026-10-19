@@ -42,6 +42,10 @@ $KUBECTL -n argocd apply -f "$ROOT_APP"
     -p "{\"spec\":{\"template\":{\"spec\":{\"tolerations\":$TOL}}}}" >/dev/null
   $KUBECTL -n argocd patch deploy argocd-redis-ha-haproxy --type merge \
     -p "{\"spec\":{\"template\":{\"spec\":{\"tolerations\":$TOL}}}}" >/dev/null
+  # Work around the sentinel CPU spin: reset after the process is up.
+  # https://github.com/argoproj/argo-cd/issues/16360
+  $KUBECTL -n argocd patch statefulset argocd-redis-ha-server --type json \
+    -p '[{"op":"add","path":"/spec/template/spec/containers/1/lifecycle","value":{"postStart":{"exec":{"command":["/bin/sh","-c","sleep 30; redis-cli -p 26379 sentinel reset argocd"]}}}}]' >/dev/null
   $KUBECTL -n argocd patch configmap argocd-cmd-params-cm --type merge \
     -p '{"data":{"redis.server":"argocd-redis-ha-haproxy:6379"}}' >/dev/null
   $KUBECTL -n argocd rollout status statefulset/argocd-redis-ha-server --timeout=300s
@@ -52,8 +56,7 @@ $KUBECTL -n argocd apply -f "$ROOT_APP"
 
   # ---- ArgoCD HA: survive losing the node a component runs on ----
 # Stateless components scale to 2 with soft anti-affinity; the controller
-# StatefulSet runs active/standby via leader election. (Redis stays single and
-# is a known SPOF — see REBUILD.md.)
+  # StatefulSet runs active/standby via leader election. Redis runs in HA mode.
 echo ">> HA: scale stateless components + controller"
 $KUBECTL -n argocd scale deploy/argocd-server deploy/argocd-repo-server \
   deploy/argocd-applicationset-controller --replicas=2
