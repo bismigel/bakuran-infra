@@ -61,6 +61,7 @@
     9500 9501 9502 9503 9504 9505
     9100               # node-exporter (scraped cross-node)
     9102               # kepler (hostNetwork power exporter, scraped cross-node)
+    9962               # Cilium agent metrics (hostNetwork, scraped cross-node)
   ];
 
   # Cilium native routing forwards pod traffic through the host. Trust the
