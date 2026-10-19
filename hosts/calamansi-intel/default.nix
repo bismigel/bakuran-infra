@@ -143,6 +143,8 @@
     serverAddr = "https://192.168.2.82:6443";
     tokenFile = config.sops.secrets."k3s_cluster_token".path;
     extraFlags = toString [
+      "--flannel-backend=none"
+      "--disable-network-policy"
       "--disable"
       "traefik"
       "--disable"

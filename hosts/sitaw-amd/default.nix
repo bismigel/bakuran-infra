@@ -45,6 +45,8 @@
     role = "server";
     clusterInit = true;
     extraFlags = toString [
+      "--flannel-backend=none"
+      "--disable-network-policy"
       "--disable"
       "traefik"
       "--disable"
