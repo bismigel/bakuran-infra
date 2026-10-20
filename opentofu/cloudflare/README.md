@@ -1,8 +1,8 @@
 # Cloudflare OpenTofu
 
 Planning scaffold for replacing `cloudflare/sync.sh` with provider-managed state.
-DNS, the tunnel config and security zone settings are imported. Access policies
-and R2 lifecycle are not yet under state.
+DNS, the tunnel config, security zone settings and all seven Access applications are
+imported. R2 lifecycle is not yet under state.
 
 ## Credentials
 
@@ -59,14 +59,15 @@ All 21 DNS records in `bismigel.dev`, both `ciceley.cc` records and all three
 `miguelarbis.dev` records are imported. The tunnel ingress config and the ArgoCD
 Access application are imported. Targeted DNS and tunnel plans are clean.
 
-The Access policy and remaining Access applications remain on
-`cloudflare/sync.sh`. The Access API is returning 504s during this work. The
-provider reports that `cloudflare_r2_bucket_lifecycle` does not support import.
-Zone settings `ssl`, `min_tls_version`, `always_use_https` and `security_header`
-are imported and plan clean.
+All seven Access applications are imported. Their policies are app-scoped inline
+references, so no separate reusable policy resource is needed. The full
+`tofu plan` is clean. R2 lifecycle remains on `cloudflare/sync.sh`; the provider
+reports that `cloudflare_r2_bucket_lifecycle` does not support import. Zone
+settings `ssl`, `min_tls_version`, `always_use_https` and `security_header` are
+imported and plan clean.
 
 ## Tunnel
 
 The remote-managed tunnel ingress configuration is imported as
 `cloudflare_zero_trust_tunnel_cloudflared_config.main`. `tofu plan` is clean.
-Access policies and R2 lifecycle still use `cloudflare/sync.sh`.
+R2 lifecycle still uses `cloudflare/sync.sh`.
