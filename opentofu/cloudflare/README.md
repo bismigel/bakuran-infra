@@ -51,3 +51,9 @@ host. Do not commit `*.tfstate`.
 `cf-terraforming` could read the account, but its bundled Terraform installer
 rejected an expired signing key, and its provider-registry lookup failed. Manual
 imports are the safe path until that tooling works.
+
+## Current scope
+
+All 21 DNS records in `bismigel.dev` are imported. `tofu plan` is clean. The
+other zones, tunnel configuration, Access apps, R2 lifecycle and zone settings
+remain on `cloudflare/sync.sh`.
