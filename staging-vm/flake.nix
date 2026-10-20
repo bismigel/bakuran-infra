@@ -25,7 +25,7 @@
               enable = true;
               inherit role;
               token = "staging-only";
-              serverAddr = serverAddr;
+              serverAddr = nixpkgs.lib.mkIf (serverAddr != null) serverAddr;
               extraFlags = [
                 "--node-ip=${ip}"
                 "--flannel-iface=eth1"
