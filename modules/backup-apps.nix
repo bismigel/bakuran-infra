@@ -49,7 +49,7 @@ let
     dump default   jellyfin    /config        jellyfin
     dump monitoring grafana    /var/lib/grafana grafana
     dump monitoring prometheus /prometheus    prometheus
-    dump_live zeroclaw hermes   /opt/data      hermes
+    dump_live duwende hermes   /opt/data      hermes
     # Immich — the DB must be dumped (never file-copied) and the photo library
     # lives on the server pod's upload volume.
     if $K -n immich exec immich-postgres-0 -- sh -c \
