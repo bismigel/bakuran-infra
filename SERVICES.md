@@ -35,7 +35,7 @@ remote. Admin apps behind Access use a **24h** session; media **730h**.
 - **AMD `sitaw-amd` (192.168.2.82)** — the single ArgoCD control plane +
   sites/APIs, homepage, monitoring (prometheus/grafana/alertmanager/ksm/kepler,
   login watchers), observability, cert-manager, external-secrets, ingress-nginx,
-  zeroclaw, and the daily Cloudflare-edge reconcile timer.
+  duwende, and the daily Cloudflare-edge reconcile timer.
 - **MacBook `kamatis-mbp` (192.168.2.83)** — 3rd k3s server (etcd), tainted except
   **Immich** (server/postgres/valkey on `/mnt/data`; ML runs on `.82`).
 
