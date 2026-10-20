@@ -1,8 +1,7 @@
 # Cloudflare OpenTofu
 
-Planning scaffold for replacing `cloudflare/sync.sh` with provider-managed state.
-DNS, the tunnel config, security zone settings, all seven Access applications and
-the R2 lifecycle are managed here.
+OpenTofu state for the Cloudflare edge. DNS, the tunnel config, security zone
+settings, all seven Access applications and the R2 lifecycle are managed here.
 
 ## Credentials
 
@@ -44,8 +43,23 @@ the full edge and a `tofu plan` is clean.
 
 ## State
 
-Local encrypted storage is acceptable for the first import. Back it up with the
-host. Do not commit `*.tfstate`.
+State lives in the S3-compatible R2 backend:
+
+- bucket `homelab-backups`;
+- key `opentofu/cloudflare/terraform.tfstate`;
+- endpoint `https://c13ab6fbc2a53cfe719bca75fdc825c2.r2.cloudflarestorage.com`;
+- `use_lockfile = true` for native S3 state locking.
+
+Credentials are R2 access keys in `AWS_ACCESS_KEY_ID` and
+`AWS_SECRET_ACCESS_KEY`, sourced from the backup env. They are never written to
+this repo. Migrate an existing local state with:
+
+```bash
+tofu init -migrate-state
+```
+
+Keep an encrypted copy of the state in `r2:homelab-backups/opentofu/` for
+recovery. Do not commit `*.tfstate`.
 
 ## Why this is not automatic
 
