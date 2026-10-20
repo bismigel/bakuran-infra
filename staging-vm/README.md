@@ -43,7 +43,7 @@ Start the outputs in order: server, then agents.
 ./result-2/bin/run-agent2-vm
 ```
 
-SSH is forwarded on `2222`, `2223` and `2224`; the API is on `6444`.
+SSH is forwarded on `2222`, `2223` and `2224`; the API is on `6455`.
 
 ## Why Flannel is explicit
 

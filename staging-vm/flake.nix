@@ -5,7 +5,7 @@
 
   outputs = { self, nixpkgs }:
     let
-      mk = { host, ip, role, serverAddr ? null }: nixpkgs.lib.nixosSystem {
+      mk = { host, ip, role, mac, serverAddr ? null }: nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
         modules = [
           "${nixpkgs}/nixos/modules/virtualisation/qemu-vm.nix"
@@ -46,23 +46,23 @@
               diskImage = "./${host}.qcow2";
               forwardPorts = [
                 { from = "host"; host.port = (if host == "server" then 2222 else if host == "agent1" then 2223 else 2224); guest.port = 22; }
-              ] ++ (if role == "server" then [ { from = "host"; host.port = 6444; guest.port = 6443; } ] else [ ]);
+              ] ++ (if role == "server" then [ { from = "host"; host.port = 6455; guest.port = 6443; } ] else [ ]);
               qemu.options = [
                 "-netdev" "tap,id=n,ifname=tap-${host},script=no,downscript=no"
-                "-device" "virtio-net-pci,netdev=n"
+                "-device" "virtio-net-pci,netdev=n,mac=${mac}"
               ];
             };
           })
         ];
       };
     in {
-      nixosConfigurations.server = mk { host = "server"; ip = "192.168.102.10"; role = "server"; };
+      nixosConfigurations.server = mk { host = "server"; ip = "192.168.102.10"; role = "server"; mac = "52:54:00:12:36:10"; };
       nixosConfigurations.agent1 = mk {
-        host = "agent1"; ip = "192.168.102.11"; role = "agent";
+        host = "agent1"; ip = "192.168.102.11"; role = "agent"; mac = "52:54:00:12:36:11";
         serverAddr = "https://192.168.102.10:6443";
       };
       nixosConfigurations.agent2 = mk {
-        host = "agent2"; ip = "192.168.102.12"; role = "agent";
+        host = "agent2"; ip = "192.168.102.12"; role = "agent"; mac = "52:54:00:12:36:12";
         serverAddr = "https://192.168.102.10:6443";
       };
     };
