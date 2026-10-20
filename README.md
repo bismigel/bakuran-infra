@@ -1,5 +1,12 @@
 # bakuran-infra
 
+## Why "Bakuran"
+
+Bakuran is Tagalog for the yard or enclosure behind a house, from *bakod*, a
+fence. It is the space where things get built, repaired, and occasionally taken
+apart to see how they work. This repo is part of that backyard lab: small,
+personal, and safe to break on purpose.
+
 **NixOS machine configuration** for the Bakuran homelab. This repo defines the
 *machines*; what runs on top of them (k3s workloads) lives in
 [`bakuran-gitops`](../bakuran-gitops) and is reconciled by ArgoCD.
@@ -10,7 +17,7 @@
 | --- | --- | --- | --- |
 | `sitaw-amd` | 192.168.2.82 | Ryzen 5 4600G | Platform: k3s server + **the single ArgoCD**, ingress-nginx, cloudflared connector #1, the daily Cloudflare-edge reconcile timer |
 | `calamansi-intel` | 192.168.2.81 | Intel i5-7500T | Media worker: Jellyfin (QSV), *arr stack, download clients, cloudflared connector #2; ProtonVPN + **kill switch** |
-| `kamatis-mbp` | 192.168.2.83 | Intel i5 (MacBook Pro 13" 2012) | 3rd k3s **server (etcd quorum)**, tainted; runs **Immich** (storage on `/mnt/data`) |
+| `kamatis-mbp` | 192.168.2.83 | Intel i5 (MacBook Pro 13" 2012) | 3rd k3s **server (etcd quorum)**, tainted; runs **Immich** and one **Redis HA** replica (storage on `/mnt/data`) |
 
 All run NixOS 25.11 and form **one 3-node k3s cluster** (embedded etcd, 3 members;
 traefik + servicelb disabled). `kamatis-mbp` is `NoSchedule`-tainted except the
@@ -73,14 +80,12 @@ Daily systemd timers push age-encrypted data to R2:
 - `modules/backup.nix` → `r2:homelab-backups/credentials/` (host keys, kubeconfigs, BWS token).
 - `modules/backup-apps.nix` → `r2:homelab-backups/appdata/` (config PVCs:
   *arrs/Jellyfin/Grafana/Prometheus/homelab agent).
-- **Immich is NOT backed up** (DB + photo library) — known gap.
+  - **Immich is backed up** with a local database dump and file archive, plus an
+    offsite copy in R2 `homelab-backups/immich-manual/`. The restore path was tested.
 
 ## Known issues
 
-- **Immich is not backed up** (Postgres DB + photo library) — see
-  `homelab-context/NEXT-STEPS.md`.
-- **Cloudflare:** `min_tls_version` is still 1.0 and Bot Fight Mode is off (the API
-  token lacks those scopes) — set these in the dashboard.
+  - **Cloudflare:** `min_tls_version` is 1.2, HSTS is on, and Bot Fight Mode is on.
 - The live inventory/roadmap lives in `homelab-context/` (local-only);
   `SERVICES.md` here is a summary and may lag.
 
