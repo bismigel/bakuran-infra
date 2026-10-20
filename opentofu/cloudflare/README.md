@@ -57,3 +57,9 @@ imports are the safe path until that tooling works.
 All 21 DNS records in `bismigel.dev` are imported. `tofu plan` is clean. The
 other zones, tunnel configuration, Access apps, R2 lifecycle and zone settings
 remain on `cloudflare/sync.sh`.
+
+## Tunnel
+
+The remote-managed tunnel ingress configuration is imported as
+`cloudflare_zero_trust_tunnel_cloudflared_config.main`. `tofu plan` is clean.
+Access apps, R2 lifecycle and the other zones still use `cloudflare/sync.sh`.
