@@ -8,7 +8,7 @@
     disko.inputs.nixpkgs.follows = "nixpkgs";
     deploy-rs.url = "github:serokell/deploy-rs";
     deploy-rs.inputs.nixpkgs.follows = "nixpkgs";
-    sops-nix.url = "github:Mic92/sops-nix/44931708c62937c2b1bf7953902989fa5bb9ee1b";
+    sops-nix.url = "github:Mic92/sops-nix/49087bdf94a2";
     sops-nix.inputs.nixpkgs.follows = "nixpkgs";
   };
 
@@ -22,8 +22,13 @@
 
           unstable = nixpkgs-unstable;
         };
-        modules = [
-          sops-nix.nixosModules.sops
+          modules = [
+            ({ pkgs, ... }: {
+              sops.package = pkgs.callPackage "${sops-nix}/pkgs/sops-install-secrets" {
+                vendorHash = "sha256-SXOd+0yh0DQr3uLVQBdw07J9j5HNuFJSOajDul1B1qo=";
+              };
+            })
+            sops-nix.nixosModules.sops
           disko.nixosModules.disko
           ./hosts/calamansi-intel/default.nix
         ];
@@ -37,8 +42,13 @@
 
           unstable = nixpkgs-unstable;
         };
-        modules = [
-          sops-nix.nixosModules.sops
+          modules = [
+            ({ pkgs, ... }: {
+              sops.package = pkgs.callPackage "${sops-nix}/pkgs/sops-install-secrets" {
+                vendorHash = "sha256-SXOd+0yh0DQr3uLVQBdw07J9j5HNuFJSOajDul1B1qo=";
+              };
+            })
+            sops-nix.nixosModules.sops
           disko.nixosModules.disko
           ./hosts/sitaw-amd/default.nix
         ];
@@ -52,8 +62,13 @@
 
           unstable = nixpkgs-unstable;
         };
-        modules = [
-          sops-nix.nixosModules.sops
+          modules = [
+            ({ pkgs, ... }: {
+              sops.package = pkgs.callPackage "${sops-nix}/pkgs/sops-install-secrets" {
+                vendorHash = "sha256-SXOd+0yh0DQr3uLVQBdw07J9j5HNuFJSOajDul1B1qo=";
+              };
+            })
+            sops-nix.nixosModules.sops
           disko.nixosModules.disko
           ./hosts/kamatis-mbp/default.nix
         ];
