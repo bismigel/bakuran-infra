@@ -1,9 +1,11 @@
 { config, pkgs, ... }:
 
 let
-  # Reconcile the Cloudflare edge (tunnel ingress, DNS, Access apps) from
-  # cloudflare/sync.sh, so it's enforced instead of run by hand. The API token
-  # comes from SOPS (cloudflare_api_token).
+    # Manual rollback for the Cloudflare edge. OpenTofu owns DNS, tunnel,
+    # Access apps, zone settings and R2 lifecycle now. The daily timer is
+    # retired so sync.sh cannot fight the OpenTofu state. Start this unit by
+    # hand only when rolling back an edge change. The API token comes from
+    # SOPS (cloudflare_api_token).
   sync = pkgs.writeShellScript "cloudflare-sync" ''
     set -euo pipefail
     export CF_API_TOKEN="$(cat ${config.sops.secrets.cloudflare_api_token.path})"
@@ -26,13 +28,5 @@ in
     };
   };
 
-  systemd.timers.cloudflare-sync = {
-    description = "Daily Cloudflare edge reconcile";
-    wantedBy = [ "timers.target" ];
-    timerConfig = {
-      OnCalendar = "daily";
-      Persistent = true;
-      RandomizedDelaySec = "1h";
-    };
-  };
+
 }
