@@ -17,3 +17,13 @@ variable "domain" {
   type    = string
   default = "bismigel.dev"
 }
+
+variable "ciceley_zone_id" {
+  type    = string
+  default = "bfca3075a1f1d5d2836aca7f4558af0b"
+}
+
+variable "miguel_zone_id" {
+  type    = string
+  default = "0ee0ef4302ab23094e39aae78ca9492e"
+}
