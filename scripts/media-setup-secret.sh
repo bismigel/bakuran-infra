@@ -42,6 +42,8 @@ data:
   jellyfin-anton: $(b64 "$(get jellyfin-anton)")
   jellyfin-delfin: $(b64 "$(get jellyfin-delfin)")
   jellyfin-ciceley: $(b64 "$(get jellyfin-ciceley)")
+  jellyfin-guest: $(b64 "$(get jellyfin-guest)")
+  jellyfin-trish: $(b64 "$(get jellyfin-trish)")
   opensubtitles-user: $(b64 "$(get opensubtitles-user)")
   opensubtitles-pass: $(b64 "$(get opensubtitles-pass)")
   sonarr-api-key: $(b64 "$sonarr_key")
