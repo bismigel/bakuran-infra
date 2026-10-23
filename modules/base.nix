@@ -55,6 +55,12 @@
     # the pod veth, that packet is dropped as a martian source, so toFQDNs/DNS
     # policy silently fails (cilium#46260). New lxc interfaces inherit this.
     "net.ipv4.conf.default.accept_local" = 1;
+    # k3s/Cilium need IPv4 forwarding. NixOS's default (`all.forwarding=false`)
+    # is re-applied by systemd-sysctl on activation; without a k3s restart that
+    # leaves pod egress and hostPorts broken until a reboot. Pin it on.
+    "net.ipv4.ip_forward" = 1;
+    "net.ipv4.conf.all.forwarding" = lib.mkForce 1;
+    "net.ipv4.conf.default.forwarding" = 1;
   };
 
   # Interfaces that existed before the sysctl was applied keep accept_local=0;
