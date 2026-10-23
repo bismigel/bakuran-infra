@@ -70,6 +70,17 @@ resource "cloudflare_zero_trust_access_application" "agent" {
   policies = [{ id = "1b42de62-3604-42ae-b2fd-cca2879ba40d", precedence = 1 }]
 }
 
+# Reusable allow policy for the runbook (same allowlist as the other admin apps).
+resource "cloudflare_zero_trust_access_policy" "runbook" {
+  account_id = var.account_id
+  name       = "Runbook"
+  decision   = "allow"
+  include = [
+    { email = { email = "bismigel@pm.me" } },
+    { email = { email = "family-member@example.com" } },
+  ]
+}
+
 resource "cloudflare_zero_trust_access_application" "runbook" {
   account_id             = var.account_id
   name                   = "Runbook"
@@ -80,7 +91,7 @@ resource "cloudflare_zero_trust_access_application" "runbook" {
   enable_binding_cookie  = false
   options_preflight_bypass = false
   http_only_cookie_attribute = true
-  policies = [{ id = "eccc596c-0f1a-4aa7-b284-ed91b8a32d33", precedence = 1 }]
+  policies = [{ id = cloudflare_zero_trust_access_policy.runbook.id, precedence = 1 }]
 }
 
 resource "cloudflare_zero_trust_access_application" "grafana" {
