@@ -48,6 +48,17 @@ resource "cloudflare_dns_record" "r_7e5f0578d2" {
   comment = null
 }
 
+# Operations runbook: served by the site image on the admin ingress, behind Access.
+resource "cloudflare_dns_record" "r_runbook" {
+  zone_id = var.zone_id
+  name    = "runbook.bismigel.dev"
+  type    = "CNAME"
+  content = "8dcc83bd-eb95-4c0d-8f71-b92a27d37649.cfargotunnel.com"
+  proxied = true
+  ttl     = 1
+  comment = "operator runbook (Access-gated)"
+}
+
 resource "cloudflare_dns_record" "r_05e68032e2" {
   zone_id = var.zone_id
   name    = "homepage.bismigel.dev"
