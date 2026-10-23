@@ -65,6 +65,7 @@ load_secret JELLYFIN_ANTON       jellyfin-anton
 load_secret JELLYFIN_DELFIN      jellyfin-delfin
 load_secret JELLYFIN_CICELEY     jellyfin-ciceley
 load_secret JELLYFIN_GUEST       jellyfin-guest
+load_secret JELLYFIN_TRISH       jellyfin-trish
 : "${QBT_PASSWORD:?set QBT_PASSWORD, or seed the 'media-setup' Secret (ns media)}"
 
 # Read an app's API key from its config.xml inside the running pod.
@@ -208,7 +209,7 @@ ensure_jellyfin_user() {
   [ -n "${JELLYFIN_ADMIN_USER:-}" ] || { echo "  (no jellyfin admin creds; skipping)"; return; }
   local tok
   tok="$(curl -sf -X POST "$JELLYFIN/Users/AuthenticateByName" -H 'Content-Type: application/json' \
-    -H 'X-Emby-Authorization: MediaBrowser Client="setup", Device="setup", DeviceId="setup", Version="1.0"' \
+    -H 'Authorization: MediaBrowser Client="setup", Device="setup", DeviceId="setup", Version="1.0.0"' \
     -d "{\"Username\":\"$JELLYFIN_ADMIN_USER\",\"Pw\":\"$JELLYFIN_ADMIN_PASS\"}" | jqr -r '.AccessToken')"
   [ -n "$tok" ] && [ "$tok" != "null" ] || { echo "  (jellyfin admin auth failed; skipping)"; return; }
   if curl -sf "$JELLYFIN/Users" -H "Authorization: MediaBrowser Token=$tok" \
@@ -228,7 +229,7 @@ ensure_jellyfin_library() {
   [ -n "${JELLYFIN_ADMIN_USER:-}" ] || return 0
   local tok
   tok="$(curl -sf -X POST "$JELLYFIN/Users/AuthenticateByName" -H 'Content-Type: application/json' \
-    -H 'X-Emby-Authorization: MediaBrowser Client="setup", Device="setup", DeviceId="setup", Version="1.0"' \
+    -H 'Authorization: MediaBrowser Client="setup", Device="setup", DeviceId="setup", Version="1.0.0"' \
     -d "{\"Username\":\"$JELLYFIN_ADMIN_USER\",\"Pw\":\"$JELLYFIN_ADMIN_PASS\"}" | jqr -r '.AccessToken')"
   [ -n "$tok" ] && [ "$tok" != "null" ] || return 0
   if curl -sf "$JELLYFIN/Library/VirtualFolders" -H "Authorization: MediaBrowser Token=$tok" \
@@ -247,7 +248,7 @@ ensure_jellyfin_hwaccel() {
   [ -n "${JELLYFIN_ADMIN_USER:-}" ] || return 0
   local tok cfg
   tok="$(curl -sf -X POST "$JELLYFIN/Users/AuthenticateByName" -H 'Content-Type: application/json' \
-    -H 'X-Emby-Authorization: MediaBrowser Client="setup", Device="setup", DeviceId="setup", Version="1.0"' \
+    -H 'Authorization: MediaBrowser Client="setup", Device="setup", DeviceId="setup", Version="1.0.0"' \
     -d "{\"Username\":\"$JELLYFIN_ADMIN_USER\",\"Pw\":\"$JELLYFIN_ADMIN_PASS\"}" | jqr -r '.AccessToken')"
   [ -n "$tok" ] && [ "$tok" != "null" ] || { echo "  (jellyfin admin auth failed; skipping hw accel)"; return; }
   cfg="$(curl -sf "$JELLYFIN/System/Configuration/encoding" -H "Authorization: MediaBrowser Token=$tok")"
@@ -276,7 +277,7 @@ ensure_jellyfin_subtitle_mode() {
   [ -n "${JELLYFIN_ADMIN_USER:-}" ] || return 0
   local tok
   tok="$(curl -sf -X POST "$JELLYFIN/Users/AuthenticateByName" -H 'Content-Type: application/json' \
-    -H 'X-Emby-Authorization: MediaBrowser Client="setup", Device="setup", DeviceId="setup", Version="1.0"' \
+    -H 'Authorization: MediaBrowser Client="setup", Device="setup", DeviceId="setup", Version="1.0.0"' \
     -d "{\"Username\":\"$JELLYFIN_ADMIN_USER\",\"Pw\":\"$JELLYFIN_ADMIN_PASS\"}" | jqr -r '.AccessToken')"
   [ -n "$tok" ] && [ "$tok" != "null" ] || return 0
   curl -sf "$JELLYFIN/Users" -H "Authorization: MediaBrowser Token=$tok" \
@@ -298,7 +299,7 @@ ensure_jellyfin_scan_interval() {
   [ -n "${JELLYFIN_ADMIN_USER:-}" ] || return 0
   local tok tid
   tok="$(curl -sf -X POST "$JELLYFIN/Users/AuthenticateByName" -H 'Content-Type: application/json' \
-    -H 'X-Emby-Authorization: MediaBrowser Client="setup", Device="setup", DeviceId="setup", Version="1.0"' \
+    -H 'Authorization: MediaBrowser Client="setup", Device="setup", DeviceId="setup", Version="1.0.0"' \
     -d "{\"Username\":\"$JELLYFIN_ADMIN_USER\",\"Pw\":\"$JELLYFIN_ADMIN_PASS\"}" | jqr -r '.AccessToken')"
   [ -n "$tok" ] && [ "$tok" != "null" ] || return 0
   tid="$(curl -sf "$JELLYFIN/ScheduledTasks" -H "Authorization: MediaBrowser Token=$tok" \
@@ -318,7 +319,7 @@ ensure_jellyfin_remote_settings() {
   [ -n "${JELLYFIN_ADMIN_USER:-}" ] || return 0
   local tok cfg net
   tok="$(curl -sf -X POST "$JELLYFIN/Users/AuthenticateByName" -H 'Content-Type: application/json' \
-    -H 'X-Emby-Authorization: MediaBrowser Client="setup", Device="setup", DeviceId="setup", Version="1.0"' \
+    -H 'Authorization: MediaBrowser Client="setup", Device="setup", DeviceId="setup", Version="1.0.0"' \
     -d "{\"Username\":\"$JELLYFIN_ADMIN_USER\",\"Pw\":\"$JELLYFIN_ADMIN_PASS\"}" | jqr -r '.AccessToken')"
   [ -n "$tok" ] && [ "$tok" != "null" ] || { echo "  (jellyfin admin auth failed; skipping remote settings)"; return; }
   cfg="$(curl -sf "$JELLYFIN/System/Configuration" -H "Authorization: MediaBrowser Token=$tok")"
@@ -397,6 +398,7 @@ ensure_jellyfin_user anton   "${JELLYFIN_ANTON:-}"
 ensure_jellyfin_user delfin  "${JELLYFIN_DELFIN:-}"
 ensure_jellyfin_user ciceley "${JELLYFIN_CICELEY:-}"
 ensure_jellyfin_user guest   "${JELLYFIN_GUEST:-}"
+ensure_jellyfin_user trish   "${JELLYFIN_TRISH:-}"
 
 log "Jellyfin libraries"
 ensure_jellyfin_library "TV Shows" "TV%20Shows" tvshows /media/tv
