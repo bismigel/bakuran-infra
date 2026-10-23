@@ -49,6 +49,26 @@
     "net.core.bpf_jit_harden" = 2;
     "fs.protected_fifos" = 2;
     "fs.protected_regular" = 2;
+    # Cilium's transparent DNS proxy marks the pod's DNS packet to the proxy,
+    # which is routed via `lo` (local). With `net.ipv4.conf.all.src_valid_mark=1`
+    # (set by the ProtonVPN WireGuard interface on .81) and `accept_local=0` on
+    # the pod veth, that packet is dropped as a martian source, so toFQDNs/DNS
+    # policy silently fails (cilium#46260). New lxc interfaces inherit this.
+    "net.ipv4.conf.default.accept_local" = 1;
+  };
+
+  # Interfaces that existed before the sysctl was applied keep accept_local=0;
+  # fix them when the config is activated (new ones get it from `default`).
+  systemd.services.cilium-accept-local = {
+    description = "Set accept_local=1 on existing lxc interfaces (Cilium DNS proxy)";
+    after = [ "systemd-sysctl.service" ];
+    wantedBy = [ "sysinit-reactivation.target" ];
+    serviceConfig.Type = "oneshot";
+    script = ''
+      for i in /proc/sys/net/ipv4/conf/lxc*; do
+        if [ -e "$i/accept_local" ]; then echo 1 > "$i/accept_local" || true; fi
+      done
+    '';
   };
 
   environment.systemPackages = with pkgs; [
