@@ -16,6 +16,14 @@
       PermitRootLogin = "prohibit-password";
       PasswordAuthentication = false;
       KbdInteractiveAuthentication = false;
+      # Hardening: only the admin accounts may authenticate; cap the pre-auth
+      # window and brute-force attempts.
+      AllowUsers = [ "root" "calamansi" ];
+      MaxAuthTries = 3;
+      LoginGraceTime = 30;
+      ClientAliveInterval = 300;
+      ClientAliveCountMax = 2;
+      X11Forwarding = false;
     };
   };
 
@@ -30,6 +38,18 @@
   users.users.root.openssh.authorizedKeys.keys = [
     "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAILj/syjQTnLwTGNHC4IKec2QXJpzXOExBQKGJI6/p4Mz nix-station-opencode"
   ];
+
+  # Kernel hardening. Mainline sysctls only (no Debian-only keys); deliberately
+  # conservative so containers and systemd keep working.
+  boot.kernel.sysctl = {
+    "kernel.kptr_restrict" = 2;
+    "kernel.dmesg_restrict" = 1;
+    "kernel.yama.ptrace_scope" = 1;
+    "kernel.unprivileged_bpf_disabled" = 1;
+    "net.core.bpf_jit_harden" = 2;
+    "fs.protected_fifos" = 2;
+    "fs.protected_regular" = 2;
+  };
 
   environment.systemPackages = with pkgs; [
     vim
@@ -81,6 +101,13 @@
       # nodes as well as the pod CIDR. Other LAN hosts stay blocked.
       iptables -I nixos-fw 1 -p tcp -m iprange --src-range 192.168.2.81-192.168.2.83 --dport 9101 -j nixos-fw-accept
       iptables -I nixos-fw 1 -p tcp -s 10.42.0.0/16 --dport 9101 -j nixos-fw-accept
+
+      # Control-plane ports are node-to-node only (etcd) or nodes + pods
+      # (kubelet, which metrics-server and the apiserver reach). They are
+      # removed from allowedTCPPorts in each host file; 6443 stays on the LAN
+      # because the admin kubectl talks to the API directly.
+      iptables -I nixos-fw 1 -p tcp -m iprange --src-range 192.168.2.81-192.168.2.83 -m multiport --dports 2379,2380,10250 -j nixos-fw-accept
+      iptables -I nixos-fw 1 -p tcp -s 10.42.0.0/16 -m multiport --dports 10250 -j nixos-fw-accept
     '';
 
     # Longhorn's containers nsenter into the host and call iscsiadm from PATH;
@@ -111,6 +138,36 @@
     MaxRetentionSec=2week
     Compress=yes
   '';
+
+  # ---- Update-staleness reminder ------------------------------------------
+  # Patches are applied by hand with deploy-rs; nothing auto-updates. Warn via
+  # the existing Alertmanager path when this host has gone 30 days without a new
+  # generation, so a drifted package set is visible instead of silent.
+  systemd.services.homelab-updates-check = {
+    description = "Alert if the host has not been updated in 30 days";
+    serviceConfig = {
+      Type = "oneshot";
+      ExecStart = pkgs.writeShellScript "homelab-updates-check" ''
+        host=$(${pkgs.coreutils}/bin/cat /proc/sys/kernel/hostname)
+        built=$(${pkgs.coreutils}/bin/stat -L -c %Y /run/current-system)
+        age=$(( ( $(${pkgs.coreutils}/bin/date +%s) - built ) / 86400 ))
+        if [ "$age" -ge 30 ]; then
+          ${pkgs.curl}/bin/curl -fsS -m 10 -X POST -H 'Content-Type: application/json' \
+            -d "[{\"labels\":{\"alertname\":\"SystemStale\",\"severity\":\"warning\",\"instance\":\"$host\"},\"annotations\":{\"summary\":\"$host has not been updated in $age days\"}}]" \
+            http://127.0.0.1:30903/api/v2/alerts || true
+        fi
+      '';
+    };
+  };
+  systemd.timers.homelab-updates-check = {
+    description = "Weekly check for a stale deployment";
+    wantedBy = [ "timers.target" ];
+    timerConfig = {
+      OnCalendar = "weekly";
+      Persistent = true;
+      RandomizedDelaySec = "1h";
+    };
+  };
 
   system.stateVersion = "24.05";
 }

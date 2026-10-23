@@ -150,7 +150,7 @@
       "--disable"
       "servicelb"
       "--write-kubeconfig-mode"
-      "0644"
+      "0600"
       # Container log rotation: 10Mi per file, 3 files per container, so the
       # kubelet keeps at most ~30Mi of stdout/stderr per container on /.
       "--kubelet-arg"
@@ -170,7 +170,9 @@
     # 2379/2380 = etcd client/peer (HA join), 10250 = kubelet,
     # 8096 = Jellyfin, 8989/7878/9696/6767 = *arrs, 8081/8082 = qbt/sab
     # (hostPorts for LAN/browser access; the tunnel stays the only remote path)
-    allowedTCPPorts = [ 22 6443 80 443 2379 2380 10250 8096 8989 7878 9696 6767 8081 8082 4240 4244 ];
+    # 2379/2380/10250 are node-to-node only; base.nix allowlists them to
+    # 192.168.2.81-83 (+ pod CIDR for kubelet) via firewall.extraCommands.
+    allowedTCPPorts = [ 22 6443 80 443 8096 8989 7878 9696 6767 8081 8082 4240 4244 ];
     allowedUDPPorts = [ 8472 ];
   };
 
