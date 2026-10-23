@@ -28,6 +28,7 @@ resource "cloudflare_zero_trust_tunnel_cloudflared_config" "main" {
       { hostname = "argocd.bismigel.dev", service = "http://127.0.0.1:32081" },
       { hostname = "longhorn.bismigel.dev", service = "http://127.0.0.1:32081" },
       { hostname = "lazylibrarian.bismigel.dev", service = "http://127.0.0.1:32081" },
+      { hostname = "runbook.bismigel.dev", service = "http://127.0.0.1:32081" },
       { service = "http_status:404" },
     ]
   }

@@ -70,6 +70,19 @@ resource "cloudflare_zero_trust_access_application" "agent" {
   policies = [{ id = "1b42de62-3604-42ae-b2fd-cca2879ba40d", precedence = 1 }]
 }
 
+resource "cloudflare_zero_trust_access_application" "runbook" {
+  account_id             = var.account_id
+  name                   = "Runbook"
+  type                   = "self_hosted"
+  session_duration       = "24h"
+  self_hosted_domains    = ["runbook.bismigel.dev"]
+  auto_redirect_to_identity = false
+  enable_binding_cookie  = false
+  options_preflight_bypass = false
+  http_only_cookie_attribute = true
+  policies = [{ id = "eccc596c-0f1a-4aa7-b284-ed91b8a32d33", precedence = 1 }]
+}
+
 resource "cloudflare_zero_trust_access_application" "grafana" {
   account_id             = var.account_id
   name                   = "Grafana"
