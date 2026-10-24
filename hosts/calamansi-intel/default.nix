@@ -68,8 +68,8 @@
     serviceConfig.RemainAfterExit = true;
     script = ''
         for b in /mnt/media-sda /mnt/media-nvme; do
-          mkdir -p "$b"/tv "$b"/movies "$b"/downloads "$b"/temp "$b"/books "$b"/complete
-          chmod 0777 "$b"/tv "$b"/movies "$b"/downloads "$b"/temp "$b"/books "$b"/complete
+          mkdir -p "$b"/tv "$b"/movies "$b"/downloads "$b"/temp "$b"/books "$b"/complete "$b"/audiobooks
+          chmod 0777 "$b"/tv "$b"/movies "$b"/downloads "$b"/temp "$b"/books "$b"/complete "$b"/audiobooks
         done
     '';
   };
