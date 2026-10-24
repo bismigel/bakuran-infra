@@ -4,10 +4,16 @@
 # out of band. media-stack-setup.sh reads these values to wire the *arr stack.
 #
 #   BWS_ACCESS_TOKEN=<machine-account-token> ./scripts/media-setup-secret.sh
+#
+# The *arr API keys come from Bitwarden by default. Pass KEYS_FROM=pods after a
+# PVC restore: the app regenerates its key, so the Bitwarden copy is stale and
+# pushing it into the Secret would break media-mcp / the arr-auth bypass.
+#   KEYS_FROM=pods BWS_ACCESS_TOKEN=... ./scripts/media-setup-secret.sh
 set -euo pipefail
 export NIXPKGS_ALLOW_UNFREE="${NIXPKGS_ALLOW_UNFREE:-1}"
 : "${BWS_ACCESS_TOKEN:?set BWS_ACCESS_TOKEN to the Bitwarden machine-account token}"
 HOST="${HOST:-192.168.2.81}"
+KEYS_FROM="${KEYS_FROM:-bitwarden}" # bitwarden | pods
 NS="${NS:-media}"
 
 bws() { nix run --impure nixpkgs#bws -- "$@"; }
@@ -30,13 +36,21 @@ sabkey() { # sabnzbd keeps its key in an ini, not xml
   ssh "root@$HOST" "k3s kubectl -n downloads exec deploy/sabnzbd -- sed -n 's/^api_key = //p' /config/sabnzbd.ini" 2>/dev/null | tr -d '\r' | head -1
 }
 prefer() { # <bws-key> <fallback-fn> [args...] — Bitwarden first, pod scrape second
-  local v; v="$(get "$1")"; shift
+  local v=""
+  if [ "$KEYS_FROM" = bitwarden ]; then v="$(get "$1")"; fi
+  shift
   if [ -n "$v" ] && [ "$v" != "null" ]; then printf '%s' "$v"; else "$@" 2>/dev/null; fi
 }
 sonarr_key="$(prefer sonarr-api-key appkey media sonarr /config/config.xml ApiKey)"
 radarr_key="$(prefer radarr-api-key appkey media radarr /config/config.xml ApiKey)"
 prowlarr_key="$(prefer prowlarr-api-key appkey media prowlarr /config/config.xml ApiKey)"
 sab_key="$(prefer sabnzbd-api-key sabkey)"
+
+# Never apply a media-setup with an empty key: a silent empty value looks like
+# success but leaves media-mcp and the arr-auth bypass 401ing.
+for k in "$sonarr_key" "$radarr_key" "$prowlarr_key" "$sab_key"; do
+  [ -n "$k" ] || { echo "ERROR: empty *arr API key captured (KEYS_FROM=$KEYS_FROM) — not applying" >&2; exit 1; }
+done
 
 cat <<EOF | ssh "root@$HOST" "k3s kubectl apply -f -"
 apiVersion: v1
