@@ -113,7 +113,10 @@ HOST=127.0.0.1 KUBECTL="k3s kubectl" ./scripts/media-stack-setup.sh
 `media-stack-setup.sh` re-creates: qBittorrent save path + categories, Sonarr/Radarr
 root folders + download clients (**qBittorrent and SABnzbd**), Prowlarr apps,
 **indexers (Nyaa.si + NZBGeek)**, and **Jellyfin users** (anton/delfin/ciceley).
-All values come from the `media-setup` Secret (no hardcoded secrets).
+All values come from the `media-setup` Secret (no hardcoded secrets). The
+`*-api-key` entries are read from Bitwarden Secrets Manager first (`prowlarr-api-key`,
+`sonarr-api-key`, `radarr-api-key`, `sabnzbd-api-key`); if a BWS secret is missing the
+script falls back to scraping the running pods, so a fresh stack still bootstraps.
 
 ## 7. Cloudflare
 
