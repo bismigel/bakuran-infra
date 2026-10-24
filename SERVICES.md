@@ -20,6 +20,9 @@
 | qBittorrent | LAN `:8081` / qbittorrent.bismigel.dev | Intel | download client |
 | SABnzbd | LAN `:8082` / sabnzbd.bismigel.dev | Intel | Usenet |
 | media-mcp | (loopback `30097`) | Intel | MCP for homelab agent (incl. add movie/series) |
+| Kavita | https://kavita.bismigel.dev | Intel | books (EPUB/PDF) · **public** (own auth) |
+| LazyLibrarian | https://lazylibrarian.bismigel.dev | Intel | book manager, searches via Prowlarr · Access (24h) |
+| Audiobookshelf | https://audiobookshelf.bismigel.dev | Intel | audiobooks + podcasts, library `/mnt/media/audiobooks` · **public** (own auth) |
 | Kepler | (metrics `:9102`) | all | power/RAPL |
 
 **Auth:** Grafana has a real admin password (Bitwarden). **Jellyfin and Immich are
