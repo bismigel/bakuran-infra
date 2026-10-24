@@ -29,6 +29,9 @@ PUBLIC_HOSTNAMES=(
   status.bismigel.dev
   jellyfin.bismigel.dev immich.bismigel.dev
   kavita.bismigel.dev karakeep.bismigel.dev
+  # Audiobookshelf: like Kavita, the native phone apps cannot complete an
+  # interactive Access challenge, so it is public and does its own auth.
+  audiobookshelf.bismigel.dev
 )
 
 # Access-gated/admin surfaces use the separate admin ingress (32081).

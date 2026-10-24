@@ -50,20 +50,27 @@
     ];
   };
 
-  # Pin the library/download dirs to the LOCAL branch (media-sda) so they don't
-  # depend on the NFS export from .82. With category.create=epmfs, files inside
-  # an existing path land on the branch that path lives on (local here).
+  # Pin the library/download dirs to the LOCAL branches (media-sda + media-nvme) so
+  # they don't depend on the NFS export from .82. With category.create=epmfs a
+  # file goes to the branch that already holds its directory, *if that branch is
+  # above mergerfs' minfreespace* (4G). Create the dirs on BOTH local branches:
+  # 2026-10-24 media-sda hit 99% and every create under /books,/tv,/movies failed
+  # with ENOSPC while the pool reported 789G free, so books imports silently fell
+  # back to /config. With both branches populated, new dirs/files land on the
+  # roomier one (nvme), and the pool keeps itself usable.
   # Runs after local filesystems are mounted.
   systemd.services.media-dirs = {
-    description = "Create media library dirs on the local branch";
+    description = "Create media library dirs on the local branches";
     after = [ "local-fs.target" ];
     wants = [ "local-fs.target" ];
     wantedBy = [ "multi-user.target" ];
     serviceConfig.Type = "oneshot";
     serviceConfig.RemainAfterExit = true;
     script = ''
-        mkdir -p /mnt/media-sda/tv /mnt/media-sda/movies /mnt/media-sda/downloads /mnt/media-sda/temp /mnt/media-sda/books
-        chmod 0777 /mnt/media-sda/tv /mnt/media-sda/movies /mnt/media-sda/downloads /mnt/media-sda/temp /mnt/media-sda/books
+        for b in /mnt/media-sda /mnt/media-nvme; do
+          mkdir -p "$b"/tv "$b"/movies "$b"/downloads "$b"/temp "$b"/books "$b"/complete "$b"/audiobooks
+          chmod 0777 "$b"/tv "$b"/movies "$b"/downloads "$b"/temp "$b"/books "$b"/complete "$b"/audiobooks
+        done
     '';
   };
 
