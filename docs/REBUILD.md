@@ -106,6 +106,7 @@ out of band from Bitwarden, then one script wires everything:
 # from the admin box (has the BWS token):
 ./scripts/media-usenet-secret.sh    # usenet-frugal  (Frugal provider creds)
 ./scripts/media-setup-secret.sh     # media-setup    (qbt pass, NZBGeek key, jellyfin creds)
+./scripts/lazylibrarian-secrets.sh  # books/lazylibrarian-secrets (Prowlarr key for the books indexer)
 # then on the media box (or over ssh):
 HOST=127.0.0.1 KUBECTL="k3s kubectl" ./scripts/media-stack-setup.sh
 ```
