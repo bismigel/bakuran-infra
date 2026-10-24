@@ -63,6 +63,7 @@ let
     # Newer self-hosted apps (configs + bookmark/reading data).
     dump books     kavita      /config kavita
     dump books     lazylibrarian /config lazylibrarian
+    dump books     audiobookshelf /config audiobookshelf
     dump karakeep  karakeep    /data   karakeep
     dump karakeep  meilisearch /meili_data meilisearch
     if [ "$failed" -ne 0 ]; then echo "error: $failed app dump(s) failed"; exit 1; fi
