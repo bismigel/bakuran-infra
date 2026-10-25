@@ -6,6 +6,7 @@
     ../../modules/k3s.nix
     ../../modules/backup.nix
     ../../modules/wireguard-metrics.nix
+    ../../modules/wireguard-watchdog.nix
     ./disko.nix
   ];
 
@@ -85,6 +86,12 @@
   sops.secrets."k3s_cluster_token" = {
     owner = "root";
     mode = "0400";
+  };
+
+  # Watchdog values mirror the peer below; if the endpoint changes, change both.
+  bakuran.wireguardWatchdog = {
+    endpointIp = "176.113.74.82";
+    peerPublicKey = "nLx6LJgXWOtnlKV65ruYMGjiw4DERImZGCpN3lolm1I=";
   };
 
   networking.wg-quick.interfaces.proton0 = {
