@@ -56,6 +56,16 @@ fi
 echo "   interface key fingerprint matches ($live_fp)"
 wg set "$IF" peer "$PEER" endpoint "$EP:$PORT" allowed-ips 0.0.0.0/0 persistent-keepalive 25
 
+# A rolled-back generation can leave the PREVIOUS server's peer behind, and two
+# peers both advertising allowed-ips 0.0.0.0/0 means traffic may be steered into
+# the dead one - the tunnel then handshakes and blackholes at random. Drop any
+# peer whose endpoint is not the one we are configuring.
+echo ">> removing peers not pointed at $EP"
+for stale in $(wg show "$IF" | awk '/^peer:/{peer=$2} /endpoint:/{if ($2 !~ /^'${EP//./\\.}':/) print peer}'); do
+  wg set "$IF" peer "$stale" remove
+  echo "   removed ${stale:0:12}…"
+done
+
 echo ">> waiting for a handshake"
 for _ in $(seq 1 10); do
   sleep 3
