@@ -124,6 +124,14 @@
       persistentKeepalive = 25;
     }];
   };
+  # Make sure the SOPS secret exists before wg-quick reads it. This override MUST
+  # stay byte-identical to the one in the generation that is actually running
+  # (d00df62, #79): if it changes, switch-to-configuration restarts the unit, and
+  # a wg-quick restart takes this node off the network (7 outages, 2026-10-25).
+  systemd.services."wg-quick-proton0" = {
+    wants = [ "sops-nix.service" ];
+    after = [ "sops-nix.service" ];
+  };
 
   # ---- Cloudflare tunnel (SECOND connector — edge HA) ----
   # .82 runs one connector; this is the other. Cloudflare load-balances the
