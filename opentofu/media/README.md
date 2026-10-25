@@ -54,3 +54,11 @@ Indexers (Prowlarr), download clients, root folders, notifications. Those are
 still `bakuran-infra/scripts/media-stack-setup.sh`; moving them here is the
 next step and should be done one resource at a time (see
 `opentofu/cloudflare/README.md` for the same discipline).
+
+## Also owned: root folders
+
+`root_folders.tf` imports the existing `/movies` (Radarr) and `/tv` (Sonarr) root
+folders so a rebuild from zero cannot end up with an instance that searches but
+has nowhere to import. They are **import blocks**, not creates — `tofu plan`
+previews the import and `apply` adopts them; a follow-up `plan` must report
+**no changes**, otherwise the declared `path` disagrees with the live one.
