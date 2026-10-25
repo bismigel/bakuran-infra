@@ -5,6 +5,7 @@
     ../../modules/base.nix
     ../../modules/k3s.nix
     ../../modules/backup.nix
+    ../../modules/wireguard-metrics.nix
     ./disko.nix
   ];
 
@@ -90,12 +91,25 @@
     privateKeyFile = config.sops.secrets."wg_proton_private_key".path;
     address = [ "10.2.0.2/32" ];
     autostart = true;
+    # NOTE 2026-10-25: this endpoint is pinned on purpose. Proton rotates
+    # server IPs, and a stale IP leaves the tunnel with "packets sent, 0 bytes
+    # received" - which looks exactly like "the sites block us". If egress dies,
+    # first check `wg show proton0` here, then download a fresh config and
+    # update this IP + the wg_proton_private_key SOPS secret.
     peers = [{
-      publicKey = "/HvEnSU5JaswyBC/YFs74eGLXqLdzsaFeVT8SD1KYAc=";
+      publicKey = "nLx6LJgXWOtnlKV65ruYMGjiw4DERImZGCpN3lolm1I=";
       allowedIPs = [ "0.0.0.0/0" "::/0" ];
-      endpoint = "205.142.240.210:51820";
+      endpoint = "176.113.74.82:51820";
       persistentKeepalive = 25;
     }];
+    # Full-tunnel wg-quick normally pins the endpoint route itself, but here the
+    # endpoint route resolved INTO the tunnel (ip route get <endpoint> ->
+    # dev proton0), so the handshake could never leave and egress died. Pin it to
+    # the physical gateway explicitly; the `/32` prefix survives the
+    # suppress_prefixlength rule that ignores the default route.
+    postSetup = [
+      "bash -c 'GW=$(ip route show default table main | awk \"{print \$3}\" | head -1); DEV=$(ip route show default table main | awk \"{print \$5}\" | head -1); ip route replace 176.113.74.82/32 via $GW dev $DEV table main'"
+    ];
   };
   # Make sure the SOPS secret exists before wg-quick reads it.
   systemd.services."wg-quick-proton0" = {
