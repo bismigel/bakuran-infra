@@ -11,6 +11,19 @@
 #   wireguard_latest_handshake_seconds   unix ts of the last handshake (0 if none)
 #   wireguard_rx_bytes / wireguard_tx_bytes
 #   wireguard_up                         1 if the interface exists
+#   wireguard_egress_ok                  1 if traffic actually leaves (NOT the
+#                                        same as a handshake - see below)
+#   wireguard_egress_seconds             how long the egress probe took
+#   wireguard_unit_restarts              wg-quick restart count for the interface
+#
+# The egress probe exists because a handshake is not a working tunnel. On
+# 2026-10-25 the interface held a stale private key: it handshook happily and
+# blackholed every packet, and the handshake-based alerts stayed green for an
+# hour while I blamed the indexers. https://1.1.1.1/ answers 301, so any HTTP
+# status means the path is up; only no response (000) means it is not.
+#
+# The restart counter exists because restarting wg-quick is what strands this
+# node (NETWORK.md 7.1) - and a restart that "succeeds" leaves no other trace.
 let
   exporter = pkgs.writeShellScript "wireguard-metrics" ''
     set -eu
@@ -34,13 +47,30 @@ let
       wg show "$iface" dump >/dev/null 2>&1 || echo "wireguard_up{iface=\"$iface\"} 0" >> "$tmp"
     done
 
+    # data path: does anything actually leave?
+    code="$(${pkgs.curl}/bin/curl -s -o /dev/null --max-time 5 \
+      -w '%{http_code} %{time_total}' https://1.1.1.1/ 2>/dev/null || echo '000 0')"
+    set -- $code
+    http="''${1:-000}"; secs="''${2:-0}"
+    case "$http" in
+      "" | 000) ok=0 ;;
+      *)        ok=1 ;;
+    esac
+    echo "wireguard_egress_ok $ok" >> "$tmp"
+    echo "wireguard_egress_seconds $secs" >> "$tmp"
+
+    for iface in ${pkgs.lib.concatStringsSep " " (builtins.attrNames config.networking.wg-quick.interfaces)}; do
+      r="$(${pkgs.systemd}/bin/systemctl show "wg-quick-$iface" -p NRestarts --value 2>/dev/null || true)"
+      echo "wireguard_unit_restarts{iface=\"$iface\"} ''${r:-0}" >> "$tmp"
+    done
+
     mv "$tmp" "$out"
   '';
 in
 {
   systemd.services.wireguard-metrics = {
     description = "Export WireGuard state for node_exporter";
-    path = with pkgs; [ wireguard-tools coreutils ];
+    path = with pkgs; [ wireguard-tools coreutils curl systemd ];
     serviceConfig.Type = "oneshot";
     script = "${exporter}";
   };
