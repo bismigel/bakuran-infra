@@ -94,13 +94,16 @@
     peerPublicKey = "nLx6LJgXWOtnlKV65ruYMGjiw4DERImZGCpN3lolm1I=";
   };
 
-  # This host has IPv4-only connectivity (the tunnel carries 10.2.0.2/32 and gets
-  # no IPv6 default route), but resolvers answer AAAA first, so a plain
-  # "curl https://dual-stack-host" tries IPv6, blackholes, and fails - while
-  # "curl -4" returns 200. That cost an hour of "egress is down" confusion.
-  # Prefer IPv4 in getaddrinfo order; do not hand ::/0 to the tunnel either, so
-  # IPv6 traffic is never silently swallowed by an interface that cannot route it.
-  environment.etc."gai.conf".text = "precedence ::ffff:0:0/96  100\n";
+  # The tunnel is IPv4-only on purpose: the peer gets allowedIPs 0.0.0.0/0 and the
+  # interface carries 10.2.0.2/32. Handing it ::/0 as well does NOT give working
+  # IPv6 - the peer has no IPv6 allowed-ips, so v6 packets enter the tunnel and
+  # are dropped, which is slower and more confusing than them failing instantly.
+  # With no v6 default route at all, dual-stack clients fail fast and fall back
+  # to IPv4 (verified: curl -6 -> 000 immediately, plain curl -> 200).
+  #
+  # An earlier gai.conf workaround was removed: it was written while the tunnel
+  # was blackholing everything because of a stale key, and it "fixed" a symptom
+  # that was never about address-family preference.
 
   networking.wg-quick.interfaces.proton0 = {
     privateKeyFile = config.sops.secrets."wg_proton_private_key".path;
