@@ -34,13 +34,14 @@ modules/
   k3s.nix                    # k3s server config (ProtonVPN key + VPN kill switch on .81)
   backup.nix                 # daily R2 credential backup (systemd timer)
   backup-apps.nix            # daily R2 app-data backup (config PVCs, via kubectl exec)
-  cloudflare-sync.nix        # daily Cloudflare edge reconcile (tunnel/DNS/Access) on .82
+  cloudflare-sync.nix        # RETIRED timer; sync.sh is a manual rollback path only
 scripts/
   bootstrap-argocd.sh        # one-time ArgoCD bootstrap + repo/cluster secrets
   media-stack-setup.sh       # idempotent *arr ↔ qBittorrent wiring + Jellyfin settings
   immich-setup.sh            # Immich admin + household accounts (from Bitwarden)
   backup-credentials.sh      # host keys + kubeconfigs + BWS token → R2 (age-encrypted)
-cloudflare/sync.sh           # declared Cloudflare edge (hostnames, DNS, Access apps)
+opentofu/cloudflare/         # declared Cloudflare edge (DNS, tunnel, Access, R2) — tofu
+cloudflare/sync.sh           # RETIRED: manual rollback path only
 secrets/homelab.yaml         # SOPS/age-encrypted host secrets
 docs/REBUILD.md              # disaster recovery
 docs/HOMELAB-MIGRATION.md    # historical: Proxmox → NixOS migration plan
