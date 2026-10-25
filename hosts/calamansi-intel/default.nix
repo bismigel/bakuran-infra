@@ -112,8 +112,13 @@
   # and corrects endpoint, peer and key within 90s of boot. Keeping it identical to
   # what systemd is already running matters - changing it makes the activation
   # restart wg-quick-proton0, and that restart has taken this node off the network
-  # six times (2026-10-25). Once the interface is migrated to networking.wireguard
+  # seven times (2026-10-25). Once the interface is migrated to networking.wireguard
   # (which updates peers in place instead of deleting the link) this can be unified.
+  #
+  # IMPORTANT: `allowedIPs` below still lists `::/0` *on purpose* - it matches the
+  # generation that is running, and changing it would restart the unit (see above).
+  # The reconciler sets `allowed-ips 0.0.0.0/0` at runtime, so the LIVE tunnel is
+  # IPv4-only. Do NOT "tidy" the `::/0` out of this seed: that is a restart.
   networking.wg-quick.interfaces.proton0 = {
     privateKeyFile = config.sops.secrets."wg_proton_private_key".path;
     address = [ "10.2.0.2/32" ];
