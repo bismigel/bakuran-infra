@@ -32,7 +32,7 @@ let
       now=$(date +%s)
       if [ "$(( now - ''${hs:-0} ))" -gt 180 ]; then
         logger -t wg-watchdog "STILL no handshake after repair - the endpoint or key is dead, check Proton"
-        exit 1
+        exit 1  # tolerated by successExitStatus, so activation still succeeds
       fi
       logger -t wg-watchdog "tunnel repaired"
     fi
@@ -54,8 +54,15 @@ in
       after = [ "wg-quick-${cfg.interface}.service" ];
       wants = [ "wg-quick-${cfg.interface}.service" ];
       wantedBy = [ "multi-user.target" ];
-      path = with pkgs; [ wireguard-tools iproute2 gawk coreutils ];
-      serviceConfig = { Type = "oneshot"; RemainAfterExit = true; };
+      path = with pkgs; [ wireguard-tools iproute2 gawk coreutils util-linux ];
+      serviceConfig = {
+        Type = "oneshot";
+        RemainAfterExit = true;
+        # NEVER fail the activation. A non-zero exit here makes deploy-rs roll the
+        # whole system back, and that rollback restarts wg-quick-proton0 - the
+        # operation that can strand this headless node. Log loudly, exit 0.
+        successExitStatus = [ 1 ];
+      };
       script = "${script}";
     };
   };
