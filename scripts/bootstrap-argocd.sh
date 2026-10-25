@@ -44,18 +44,37 @@ $KUBECTL -n argocd apply -f "$ROOT_APP"
     statefulset/argocd-application-controller >/dev/null
 
   # ---- ArgoCD HA: survive losing the node a component runs on ----
-# Stateless components scale to 2 with soft anti-affinity; the controller
-  # StatefulSet runs active/standby via leader election. Redis runs in HA mode.
+  # Stateless components scale to 2; the controller StatefulSet runs
+  # active/standby via leader election. Redis runs in HA mode.
+  #
+  # Anti-affinity is REQUIRED, not preferred. With `preferred` the scheduler put
+  # every replica on one node - verified 2026-10-25: all of server, repo-server,
+  # applicationset and controller sat on sitaw-amd, so losing that node took
+  # ArgoCD down completely while every pod still reported Ready. Only .81/.82 are
+  # schedulable (.83 is tainted and these workloads have no toleration), which is
+  # exactly two nodes for two replicas.
 echo ">> HA: scale stateless components + controller"
 $KUBECTL -n argocd scale deploy/argocd-server deploy/argocd-repo-server \
   deploy/argocd-applicationset-controller --replicas=2
 $KUBECTL -n argocd scale statefulset/argocd-application-controller --replicas=2
 $KUBECTL -n argocd set env statefulset/argocd-application-controller \
   ARGOCD_CONTROLLER_REPLICAS=2 >/dev/null
-for d in argocd-server argocd-repo-server; do
+for d in argocd-server argocd-repo-server argocd-applicationset-controller; do
+  # NOTE: a required term takes labelSelector + topologyKey directly. The
+  # `podAffinityTerm` wrapper only exists for preferred terms - nesting it here
+  # is silently invalid (topologyKey resolves empty).
   $KUBECTL -n argocd patch deploy/"$d" --type merge -p \
-    "{\"spec\":{\"template\":{\"spec\":{\"affinity\":{\"podAntiAffinity\":{\"preferredDuringSchedulingIgnoredDuringExecution\":[{\"weight\":100,\"podAffinityTerm\":{\"labelSelector\":{\"matchLabels\":{\"app.kubernetes.io/name\":\"$d\"}},\"topologyKey\":\"kubernetes.io/hostname\"}}]}}}}}}" >/dev/null
+    "{\"spec\":{\"template\":{\"spec\":{\"affinity\":{\"podAntiAffinity\":{\"requiredDuringSchedulingIgnoredDuringExecution\":[{\"labelSelector\":{\"matchLabels\":{\"app.kubernetes.io/name\":\"$d\"}},\"topologyKey\":\"kubernetes.io/hostname\"}]}}}}}}" >/dev/null
 done
+  # maxSurge 0 is required *with* required anti-affinity, not a preference: a new
+  # pod cannot schedule while the previous ReplicaSet's pod still holds the other
+  # node, so the default surge strategy deadlocks the rollout (pods Pending).
+  for d in argocd-server argocd-repo-server argocd-applicationset-controller; do
+    $KUBECTL -n argocd patch deploy/"$d" --type merge -p \
+      '{"spec":{"strategy":{"type":"RollingUpdate","rollingUpdate":{"maxSurge":0,"maxUnavailable":1}}}}' >/dev/null
+  done
+$KUBECTL -n argocd patch statefulset/argocd-application-controller --type merge -p \
+  '{"spec":{"template":{"spec":{"affinity":{"podAntiAffinity":{"requiredDuringSchedulingIgnoredDuringExecution":[{"labelSelector":{"matchLabels":{"app.kubernetes.io/name":"argocd-application-controller"}},"topologyKey":"kubernetes.io/hostname"}]}}}}}' >/dev/null
 
 # ---- Edge exposure: HTTP behind ingress-nginx (TLS terminates at Cloudflare) ----
 echo ">> ArgoCD server.insecure + ingress"
