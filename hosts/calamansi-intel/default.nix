@@ -107,10 +107,15 @@
     # dev proton0), so the handshake could never leave and egress died. Pin it to
     # the physical gateway explicitly; the `/32` prefix survives the
     # suppress_prefixlength rule that ignores the default route.
-    postSetup = [
-      "bash -c 'GW=$(ip route show default table main | awk \"{print \$3}\" | head -1); DEV=$(ip route show default table main | awk \"{print \$5}\" | head -1); ip route replace 176.113.74.82/32 via $GW dev $DEV table main'"
-    ];
-  };
+    # Pin the endpoint route to the physical gateway after the interface is up.
+    # The /32 survives the suppress_prefixlength rule, and without it the
+    # endpoint route resolves INTO the tunnel -> handshake can never leave ->
+    # "packets sent, 0 bytes received".
+    #
+    # Hardcoded gateway on purpose: the previous version computed it with
+    # awk inside a Nix string and came out as status=127 (command not found),
+    # which killed the interface mid-activation and stranded the node.
+    postUp = [ "ip route replace 176.113.74.82/32 via 192.168.2.1 dev eno1 table main" ]; };
   # Make sure the SOPS secret exists before wg-quick reads it.
   systemd.services."wg-quick-proton0" = {
     wants = [ "sops-nix.service" ];
