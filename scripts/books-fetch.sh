@@ -51,7 +51,7 @@ targets=()
 if [ "$WANTED" = 1 ]; then
   # Ask the LL pod for its Wanted list (author|title), skipping the authors we
   # have deliberately silenced.
-  mapfile -t targets < <(ssh "root@$HOST" \
+  mapfile -t targets < <(ssh -n "root@$HOST" \
     "k3s kubectl -n books exec deploy/lazylibrarian -c lazylibrarian -- python3 -c \"
 import sqlite3
 d=sqlite3.connect('/config/lazylibrarian.db')
@@ -131,14 +131,14 @@ fetch_one() { # <author> <title>
   safe_t="$(printf '%s' "$title"  | sed -E 's/\s+-\s+.*$//' | tr '/:' '--')"
   local remote="$DEST_ROOT/$safe_a/$safe_t"
   local name="$safe_t - $safe_a.$ext"
-  if ssh "root@$HOST" "test -f '$remote/$name'"; then
+  if ssh -n "root@$HOST" "test -f '$remote/$name'"; then
     rm -f "$tmp"; echo "  already in library: $remote/$name"; return 0
   fi
-  ssh "root@$HOST" "mkdir -p '$remote'"
+  ssh -n "root@$HOST" "mkdir -p '$remote'"
   cat "$tmp" | ssh "root@$HOST" "cat > '$remote/$name'"
   rm -f "$tmp"
-  ssh "root@$HOST" "chown 1000:1000 '$remote/$name' 2>/dev/null || true"
-  echo "  placed: $remote/$name ($ext, $(ssh "root@$HOST" "stat -c%s '$remote/$name'") bytes)"
+  ssh -n "root@$HOST" "chown 1000:1000 '$remote/$name' 2>/dev/null || true"
+  echo "  placed: $remote/$name ($ext, $(ssh -n "root@$HOST" "stat -c%s '$remote/$name'") bytes)"
   echo "  Kavita picks it up on the nightly scan (books/kavita-scan)"
 }
 
