@@ -94,6 +94,14 @@
     peerPublicKey = "nLx6LJgXWOtnlKV65ruYMGjiw4DERImZGCpN3lolm1I=";
   };
 
+  # This host has IPv4-only connectivity (the tunnel carries 10.2.0.2/32 and gets
+  # no IPv6 default route), but resolvers answer AAAA first, so a plain
+  # "curl https://dual-stack-host" tries IPv6, blackholes, and fails - while
+  # "curl -4" returns 200. That cost an hour of "egress is down" confusion.
+  # Prefer IPv4 in getaddrinfo order; do not hand ::/0 to the tunnel either, so
+  # IPv6 traffic is never silently swallowed by an interface that cannot route it.
+  environment.etc."gai.conf".text = "precedence ::ffff:0:0/96  100\n";
+
   networking.wg-quick.interfaces.proton0 = {
     privateKeyFile = config.sops.secrets."wg_proton_private_key".path;
     address = [ "10.2.0.2/32" ];
@@ -105,7 +113,7 @@
     # update this IP + the wg_proton_private_key SOPS secret.
     peers = [{
       publicKey = "nLx6LJgXWOtnlKV65ruYMGjiw4DERImZGCpN3lolm1I=";
-      allowedIPs = [ "0.0.0.0/0" "::/0" ];
+      allowedIPs = [ "0.0.0.0/0" ]; # IPv4 only: see the gai.conf note above
       endpoint = "176.113.74.82:51820";
       persistentKeepalive = 25;
     }];
