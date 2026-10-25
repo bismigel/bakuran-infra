@@ -87,3 +87,46 @@ Next iteration: add Cilium to this guest (`--flannel-backend=none`,
 `--disable-kube-proxy`, helm install) and rerun. Until then the honest position is
 that the 2026-10-25 outages are **unexplained**, and no change should be deployed
 to the media node on the strength of a theory.
+
+## Result 3: the Cilium variant does not run yet (2026-10-25)
+
+Cilium needs to be installed *before* the tunnel comes up (a full tunnel with a
+dead endpoint has no egress at all), and the guest turned out to have no usable
+internet anyway:
+
+```
+helm repo add cilium https://helm.cilium.io/
+  Error: ... cannot be reached: Get "https://helm.cilium.io/index.yaml":
+         context deadline exceeded
+k3s nodes:  nixos   NotReady   v1.36.5+k3s1     <- no CNI, expected
+cilium agents running: 0
+tunnel up: ok
+restart: ok
+--- ip rule ---  unchanged · LAN: reachable      <- third non-reproduction
+```
+
+Three problems with this harness, all fixable but none of them a diagnosis:
+
+1. **Guest egress/DNS** — `helm repo add` times out. QEMU user networking gives
+   `10.0.2.15/24` with DNS at `10.0.2.3`; the guest needs that verified
+   (`curl https://helm.cilium.io/index.yaml`) before anything Helm-based can run.
+2. **Cilium needs images** from `quay.io` — same egress requirement.
+3. `--flannel-backend=none` leaves the node `NotReady` until Cilium is up, which
+   is expected but makes "is the cluster healthy" a poor progress signal.
+
+Given that, the single-guest approach has run out of road. Reproducing `.81`
+meaningfully needs the **three-node `staging-vm`** cluster with Cilium installed
+the way production does it (ArgoCD + the Cilium chart), which requires a Linux
+host with root for the bridge/tap devices.
+
+## Standing conclusion
+
+| Hypothesis | Status |
+| --- | --- |
+| kill-switch rules survive a failed tunnel bring-up | refuted |
+| kube-proxy / k3s iptables churn | refuted |
+| Cilium datapath | **untested** — harness could not install it |
+| cloudflared / media-stack IO load | untested |
+
+The 2026-10-25 outages are unexplained. No change goes to the media node on the
+strength of a theory; the live tunnel is healthy and the reconciler waits in git.
