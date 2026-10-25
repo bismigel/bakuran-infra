@@ -31,6 +31,13 @@ prowlarr_key="$(get prowlarr-api-key)"
 [ -n "$prowlarr_key" ] && [ "$prowlarr_key" != "null" ] ||
   { echo "ERROR: prowlarr-api-key missing from Bitwarden" >&2; exit 1; }
 
+# qBittorrent's WebUI authenticates everyone who is not on localhost, and
+# LazyLibrarian connects from a pod IP. Same item media/media-mcp uses for the
+# QBITTORRENT_PASSWORD env (media/media-setup -> qbt-password).
+qbt_pass="$(get qbittorrent-password)"
+[ -n "$qbt_pass" ] && [ "$qbt_pass" != "null" ] ||
+  { echo "ERROR: qbittorrent-password missing from Bitwarden" >&2; exit 1; }
+
 cat <<EOF | ssh "root@$HOST" "k3s kubectl apply -f -"
 apiVersion: v1
 kind: Secret
@@ -40,6 +47,7 @@ metadata:
 type: Opaque
 data:
   prowlarr-api-key: $(b64 "$prowlarr_key")
+  qbt-password: $(b64 "$qbt_pass")
 EOF
 echo "secret $NS/$NAME applied on $HOST"
 echo "now restart so the init container rewrites config.ini:"
