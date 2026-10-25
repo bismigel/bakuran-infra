@@ -57,6 +57,10 @@ spec:
               valueFrom: { secretKeyRef: { name: media-setup, key: nzbgeek-api } }
             - name: LL_API_KEY
               valueFrom: { secretKeyRef: { name: media-setup, key: lazylibrarian-api-key } }
+            - { name: QBT_HOST, value: qbittorrent.downloads.svc.cluster.local }
+            - { name: QBT_USER, value: admin }
+            - name: QBT_PASS
+              valueFrom: { secretKeyRef: { name: media-setup, key: qbt-password } }
           volumeMounts:
             - { name: script, mountPath: /scripts }
           resources:
