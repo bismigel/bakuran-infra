@@ -20,3 +20,26 @@ reservations are otherwise live-only).
 > The three cluster hosts set their IP **statically** in NixOS (`hosts/*/default.nix`),
 > so the reservations are belt-and-braces (keep the router DHCP pool from handing
 > those addresses out). `.245` and `.12` are DHCP/external.
+
+## Unknown devices (2026-10-26)
+
+- `192.168.2.32` `fc:b0:de:18:16:5b` — seen on the LAN, **not in the table above**.
+  Identify it (smart device / TV / old host?) and either reserve it or remove it.
+
+## Router config backup (single point of failure)
+
+The router at `192.168.2.1` (MAC `0c:ac:8a:d8:49:1a`) is a **SPOF** and its config
+is not backed up. Close it:
+
+1. Admin UI → screenshot/export: DHCP reservations (must match the table above),
+   any port-forwards (should be **none**), WAN/DDNS settings.
+2. Save to `bakuran-infra/network/router/` (gitignore if it holds credentials).
+3. Recovery path if it dies: flash the same model, re-enter the reservations
+   above, restore **no** port-forwards, then the Cloudflare Tunnel connectors
+   re-establish egress on their own (they need no inbound rules).
+
+## DNS correction
+
+"no local resolver" was not quite right: each host runs **systemd-resolved**
+(`127.0.0.53`) forwarding to `1.1.1.1`/`8.8.8.8`; cluster pods use CoreDNS, which
+forwards to the node's `/etc/resolv.conf`.
