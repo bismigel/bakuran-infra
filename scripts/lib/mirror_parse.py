@@ -37,9 +37,18 @@ for tr in re.findall(r"<tr[^>]*>(.*?)</tr>", raw, re.S | re.I):
     t = len(need & have) / len(need) if need else 0.0
     a = 1.0 if surname <= have else 0.0
     size = re.search(r"(\d+(?:\.\d+)?)\s*(MB|KB|GB)", tr, re.I)
-    rows.append((0.75 * t + 0.25 * a, md5.group(1),
-                 label[:80] + (f" [{size.group(1)}{size.group(2)}]" if size else "")))
+    # Format preference: EPUB over PDF over anything else. Ranked *after* the
+    # title/author score, so a wrong book never wins because of its container.
+    ext = ""
+    m = re.search(r"\b(epub|pdf|mobi|azw3?|djvu|cb[rz])\b", tr, re.I)
+    if m:
+        ext = m.group(1).lower()
+    fmt = {"epub": 0, "azw3": 1, "azw": 1, "mobi": 1, "pdf": 2}.get(ext, 3)
+    rows.append((round(0.75 * t + 0.25 * a, 3), fmt, md5.group(1),
+                 label[:80] + (f" [{size.group(1)}{size.group(2)}]" if size else "")
+                 + (f" ({ext})" if ext else "")))
 
-rows.sort(reverse=True)
-for score, md5, label in rows[:5]:
+# highest score first, then preferred format
+rows.sort(key=lambda r: (-r[0], r[1]))
+for score, _fmt, md5, label in rows[:5]:
     print(f"{score:.3f}\t{md5}\t{label}")
