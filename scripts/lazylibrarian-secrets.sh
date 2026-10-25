@@ -44,3 +44,24 @@ EOF
 echo "secret $NS/$NAME applied on $HOST"
 echo "now restart so the init container rewrites config.ini:"
 echo "  ssh root@$HOST 'k3s kubectl -n $NS rollout restart deploy/lazylibrarian'"
+
+# --- books/kavita-secrets -----------------------------------------------------
+# The nightly `kavita-scan` CronJob (bakuran-gitops manifests/books/kavita-scan.yaml)
+# logs in as admin to force a library scan: Kavita's own "daily" task does not
+# reliably pick up what LazyLibrarian imports. There is no service account, so
+# this is the admin password.
+kavita_pass="$(get kavita-admin-password)"
+[ -n "$kavita_pass" ] && [ "$kavita_pass" != "null" ] ||
+  { echo "ERROR: kavita-admin-password missing from Bitwarden" >&2; exit 1; }
+
+cat <<EOF | ssh "root@$HOST" "k3s kubectl apply -f -"
+apiVersion: v1
+kind: Secret
+metadata:
+  name: kavita-secrets
+  namespace: $NS
+type: Opaque
+data:
+  kavita-admin-password: $(b64 "$kavita_pass")
+EOF
+echo "secret $NS/kavita-secrets applied on $HOST"
