@@ -52,8 +52,13 @@ in
     systemd.services.wireguard-watchdog = {
       description = "Repair the WireGuard tunnel if it came up dead";
       after = [ "wg-quick-${cfg.interface}.service" ];
-      wants = [ "wg-quick-${cfg.interface}.service" ];
-      wantedBy = [ "multi-user.target" ];
+      # Driven by the TIMER only. It must never be a member of multi-user.target:
+      # deploy-rs fails an activation when any unit in the transaction is left in
+      # 'failed' state, and the rollback that follows restarts wg-quick-proton0 -
+      # the operation that strands this headless node. Cost: five outages on
+      # 2026-10-25, the last two purely because this service failed and dragged
+      # the activation with it. successExitStatus was not enough.
+      wantedBy = pkgs.lib.mkForce [ ];
       path = with pkgs; [ wireguard-tools iproute2 gawk coreutils util-linux ];
       serviceConfig = {
         Type = "oneshot";
@@ -64,6 +69,15 @@ in
         successExitStatus = [ 1 ];
       };
       script = "${script}";
+    };
+
+    systemd.timers.wireguard-watchdog = {
+      description = "Check the WireGuard tunnel 90s after boot";
+      wantedBy = [ "timers.target" ];
+      timerConfig = {
+        OnBootSec = "90s";
+        Unit = "wireguard-watchdog.service";
+      };
     };
   };
 }
