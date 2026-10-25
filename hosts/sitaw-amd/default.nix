@@ -7,6 +7,7 @@
     ../../modules/backup.nix
     ../../modules/backup-apps.nix
     ../../modules/cloudflare-sync.nix
+    ../../modules/docs-verify.nix
     ./disko.nix
   ];
 
