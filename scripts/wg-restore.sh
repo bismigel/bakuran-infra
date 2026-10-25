@@ -31,8 +31,29 @@ ip route replace "$EP/32" via "$GW" dev "$DEV" table main
 ip route get "$EP" | head -1 | grep -q "dev $DEV" \
   || { echo "ERROR: endpoint route still not via $DEV — stop, do not continue" >&2; exit 1; }
 
+# The key that matters is the one paired with the CURRENT server. After a failed
+# activation /run/secrets can still hold the previous key (sops-nix only
+# re-materialises it on a successful switch), and WireGuard happily completes an
+# outer handshake with the wrong key - the tunnel then looks healthy and
+# blackholes every packet. That is exactly what cost four outages on 2026-10-25,
+# so fingerprint everything and refuse to declare success on a handshake.
+want_fp=$(tr -d '\n' < "$KEYFILE" | sha256sum | cut -c1-16)
+echo ">> key fingerprint to apply: $want_fp"
+if [ -n "${EXPECT_FP:-}" ] && [ "${EXPECT_FP}" != "$want_fp" ]; then
+  echo "ERROR: $KEYFILE fingerprint $want_fp != EXPECT_FP $EXPECT_FP" >&2
+  echo "       /run/secrets is stale (failed activation). Get the current key from" >&2
+  echo "       SOPS in the repo and write it here first, or pass KEYFILE=<path>." >&2
+  exit 1
+fi
+
 echo ">> swapping key and peer in place"
 wg set "$IF" private-key "$KEYFILE"
+live_fp=$(wg show "$IF" private-key | tr -d '\n' | sha256sum | cut -c1-16)
+if [ "$live_fp" != "$want_fp" ]; then
+  echo "ERROR: interface uses $live_fp after wg set, expected $want_fp" >&2
+  exit 1
+fi
+echo "   interface key fingerprint matches ($live_fp)"
 wg set "$IF" peer "$PEER" endpoint "$EP:$PORT" allowed-ips 0.0.0.0/0 persistent-keepalive 25
 
 echo ">> waiting for a handshake"
@@ -45,10 +66,18 @@ for _ in $(seq 1 10); do
   fi
 done
 
-if curl -4 -s -o /dev/null --max-time 10 -w '' https://registry.npmjs.org/; then
+# A handshake is NOT proof the tunnel works: with a key that is not paired to the
+# server, WireGuard handshakes and then drops all data. Test the data path by IP
+# (no DNS in the way), then by name.
+ok_ip=$(curl -4 -s -o /dev/null --max-time 10 -w '%{http_code}' https://1.1.1.1/)
+ok_name=$(curl -4 -s -o /dev/null --max-time 10 -w '%{http_code}' https://registry.npmjs.org/)
+echo ">> data path: ip=$ok_ip name=$ok_name"
+if [ "$ok_ip" = "200" ] && [ "$ok_name" = "200" ]; then
   echo ">> egress OK (IPv4)"
 else
-  echo ">> no IPv4 egress — the endpoint or the key is dead; download a fresh" >&2
-  echo "   Proton config and update default.nix + the SOPS secret" >&2
+  echo ">> handshake ok but the data path is dead." >&2
+  echo "   Most likely the private key is not the one paired with $EP." >&2
+  echo "   Fetch the current key from SOPS, write it to a file and re-run with" >&2
+  echo "   KEYFILE=<file> EXPECT_FP=${want_fp}" >&2
   exit 1
 fi
