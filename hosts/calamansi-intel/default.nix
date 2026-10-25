@@ -106,39 +106,23 @@
   # was blackholing everything because of a stale key, and it "fixed" a symptom
   # that was never about address-family preference.
 
+  # NOTE: this block is deliberately the *previous* endpoint/peer. It is only the
+  # boot-time seed: the reconciler (bakuran.wireguard below) owns the live state
+  # and corrects endpoint, peer and key within 90s of boot. Keeping it identical to
+  # what systemd is already running matters - changing it makes the activation
+  # restart wg-quick-proton0, and that restart has taken this node off the network
+  # six times (2026-10-25). Once the interface is migrated to networking.wireguard
+  # (which updates peers in place instead of deleting the link) this can be unified.
   networking.wg-quick.interfaces.proton0 = {
     privateKeyFile = config.sops.secrets."wg_proton_private_key".path;
     address = [ "10.2.0.2/32" ];
     autostart = true;
-    # NOTE 2026-10-25: this endpoint is pinned on purpose. Proton rotates
-    # server IPs, and a stale IP leaves the tunnel with "packets sent, 0 bytes
-    # received" - which looks exactly like "the sites block us". If egress dies,
-    # first check `wg show proton0` here, then download a fresh config and
-    # update this IP + the wg_proton_private_key SOPS secret.
     peers = [{
-      publicKey = "nLx6LJgXWOtnlKV65ruYMGjiw4DERImZGCpN3lolm1I=";
-      allowedIPs = [ "0.0.0.0/0" ]; # IPv4 only: see the gai.conf note above
-      endpoint = "176.113.74.82:51820";
+      publicKey = "/HvEnSU5JaswyBC/YFs74eGLXqLdzsaFeVT8SD1KYAc=";
+      allowedIPs = [ "0.0.0.0/0" "::/0" ];
+      endpoint = "205.142.240.210:51820";
       persistentKeepalive = 25;
     }];
-    # Full-tunnel wg-quick normally pins the endpoint route itself, but here the
-    # endpoint route resolved INTO the tunnel (ip route get <endpoint> ->
-    # dev proton0), so the handshake could never leave and egress died. Pin it to
-    # the physical gateway explicitly; the `/32` prefix survives the
-    # suppress_prefixlength rule that ignores the default route.
-    # Pin the endpoint route to the physical gateway after the interface is up.
-    # The /32 survives the suppress_prefixlength rule, and without it the
-    # endpoint route resolves INTO the tunnel -> handshake can never leave ->
-    # "packets sent, 0 bytes received".
-    #
-    # Hardcoded gateway on purpose: the previous version computed it with
-    # awk inside a Nix string and came out as status=127 (command not found),
-    # which killed the interface mid-activation and stranded the node.
-    postUp = [ "ip route replace 176.113.74.82/32 via 192.168.2.1 dev eno1 table main" ]; };
-  # Make sure the SOPS secret exists before wg-quick reads it.
-  systemd.services."wg-quick-proton0" = {
-    wants = [ "sops-nix.service" ];
-    after = [ "sops-nix.service" ];
   };
 
   # ---- Cloudflare tunnel (SECOND connector — edge HA) ----

@@ -31,6 +31,7 @@ let
     environment.etc."wg-test.key".text = fakeKey;
     environment.systemPackages = with pkgs; [ kubernetes-helm curl gawk iproute2 cilium-cli ];
 
+    networking.nameservers = [ "1.1.1.1" "8.8.8.8" ];   # qemu user-net DNS is flaky
     networking.firewall.enable = false;     # keep nftables out of the experiment
     services.openssh.enable = true;
 
@@ -63,6 +64,9 @@ let
         ip rule show
         ip route get 203.0.113.1
         ip -br addr
+        echo "=== WGTEST guest egress check ==="
+        echo -n "DNS: "; getent hosts helm.cilium.io | head -1 || echo FAIL
+        echo -n "HTTPS index.yaml: "; curl -s -o /dev/null --max-time 20 -w "%{http_code}\n" https://helm.cilium.io/index.yaml
         echo "=== WGTEST installing cilium (tunnel still down, egress works) ==="
         export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
         echo "--- helm repo add ---"
