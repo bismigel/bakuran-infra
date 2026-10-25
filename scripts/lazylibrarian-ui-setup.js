@@ -14,6 +14,8 @@
 //   SAB_HOST  SABnzbd host          (default sabnzbd.downloads.svc.cluster.local)
 //   SAB_KEY   SABnzbd API key       (injected from the media-setup Secret)
 //   NZB_KEY   Newznab/NZBGeek key   (injected from the media-setup Secret)
+//   QBT_HOST  qBittorrent host      (default qbittorrent.downloads.svc.cluster.local)
+//   QBT_USER / QBT_PASS            (from the media-setup Secret; torrent downloader)
 const { chromium } = require("playwright");
 
 (async () => {
@@ -23,7 +25,7 @@ const { chromium } = require("playwright");
   await page.goto(base + "/config", { waitUntil: "load", timeout: 30000 });
 
   const result = await page.evaluate(
-    ({ sabHost, sabKey, nzbKey, apiKey }) => {
+    ({ sabHost, sabKey, nzbKey, apiKey, qbtHost, qbtUser, qbtPass }) => {
       const set = (id, value) => {
         const el = document.getElementById(id);
         if (!el) return id + ":missing";
@@ -49,6 +51,16 @@ const { chromium } = require("playwright");
         set("download_dir", "/downloads/complete/books"),
         // API key for media-mcp (the agent's book tools); needs api_enabled.
         set("api_key", apiKey),
+        // qBittorrent as the *torrent* downloader. Audiobooks and anything on a
+        // torrent tracker (AudioBookBay, EBookBay) can only be grabbed through
+        // a torrent client; SABnzbd is Usenet-only. The books namespace already
+        // reaches downloads:8080 (same service port as SAB), verified 200.
+        set("qbittorrent_host", qbtHost),
+        set("qbittorrent_port", "8080"),
+        set("qbittorrent_user", qbtUser),
+        set("qbittorrent_pass", qbtPass),
+        set("qbittorrent_label", "books"),
+        set("qbittorrent_dir", "/downloads/complete/books"),
       ];
       const enabled = document.getElementById("newznab_0_enabled");
       if (enabled) enabled.checked = true;
@@ -59,6 +71,12 @@ const { chromium } = require("playwright");
       if (sabDownloader) sabDownloader.checked = true;
       const apiEnabled = document.getElementById("api_enabled");
       if (apiEnabled) apiEnabled.checked = true;
+      // Enabling the torrent client itself; without this the qBittorrent
+      // settings above are stored but never used.
+      for (const id of ["torrent_downloader_qbittorrent", "qbittorrent_enabled"]) {
+        const el = document.getElementById(id);
+        if (el) el.checked = true;
+      }
       const form = document.querySelector('form[action="config_update"]');
       if (!form) return { err: "no config_update form", out };
       form.submit();
@@ -69,6 +87,9 @@ const { chromium } = require("playwright");
       sabKey: process.env.SAB_KEY,
       nzbKey: process.env.NZB_KEY,
       apiKey: process.env.LL_API_KEY,
+      qbtHost: process.env.QBT_HOST || "qbittorrent.downloads.svc.cluster.local",
+      qbtUser: process.env.QBT_USER || "admin",
+      qbtPass: process.env.QBT_PASS,
     }
   );
 
