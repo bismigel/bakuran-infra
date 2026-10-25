@@ -1,0 +1,24 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  invariants:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cachix/install-nix-action@v27
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+      # --no-build: the invariant checks are `assert`s evaluated at eval time, so
+      # a violation fails here without building three full NixOS systems. Build
+      # the real closure with deploy-rs (which has its own checks) when deploying.
+      - name: flake checks (evaluate only)
+        run: nix flake check --no-build --print-build-logs
+      - name: wireguard invariants (explicit)
+        run: nix eval --raw .#checks.x86_64-linux.wireguard-invariants.drvPath > /dev/null

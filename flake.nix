@@ -104,8 +104,35 @@
       };
     };
 
-    checks = builtins.mapAttrs
-      (system: deployLib: deployLib.deployChecks self.deploy)
-      deploy-rs.lib;
+    # Invariants that have cost real outages. These are assertions, not prose:
+    # they fail `nix flake check` (and therefore CI) if a well-meaning "tidy up"
+    # changes them. See NETWORK.md 7.1/7.4 and runbook 14.
+    checks =
+      let
+        base = builtins.mapAttrs
+          (system: deployLib: deployLib.deployChecks self.deploy)
+          deploy-rs.lib;
+        ci = self.nixosConfigurations.calamansi-intel.config;
+        seed = builtins.head ci.networking.wg-quick.interfaces.proton0.peers;
+        wgOverride = ci.systemd.services."wg-quick-proton0";
+        msg = nixpkgs.lib.assertMsg;
+        wireguard-invariants =
+          assert msg (seed.allowedIPs == [ "0.0.0.0/0" "::/0" ])
+            "The wg-quick seed must keep ::/0. It has to stay byte-identical to the running generation, otherwise activation restarts wg-quick and strands .81 (7 outages). The reconciler enforces IPv4-only at runtime.";
+          assert msg (seed.endpoint == "205.142.240.210:51820")
+            "The wg-quick seed must stay on the previous endpoint; the reconciler owns the live one (176.113.74.82).";
+          assert msg (seed.publicKey == "/HvEnSU5JaswyBC/YFs74eGLXqLdzsaFeVT8SD1KYAc=")
+            "The wg-quick seed peer changed. It must match the running generation or activation restarts the tunnel.";
+          assert msg (builtins.elem "sops-nix.service" wgOverride.wants && builtins.elem "sops-nix.service" wgOverride.after)
+            "The wg-quick-proton0 sops-nix ordering is missing. Dropping it changes the unit, restarts wg-quick and strands .81 (this was outage 7).";
+          assert msg (ci.bakuran.wireguard.endpoint == "176.113.74.82:51820")
+            "bakuran.wireguard.endpoint must stay the declared/live endpoint.";
+          assert msg (ci.bakuran.wireguard.useNative == false)
+            "The networking.wireguard migration must stay inert until its maintenance window (runbook 14).";
+          nixpkgs.legacyPackages.x86_64-linux.runCommand "wireguard-invariants-ok" { } "touch $out";
+      in
+      base // {
+        x86_64-linux = base.x86_64-linux // { inherit wireguard-invariants; };
+      };
   };
 }
