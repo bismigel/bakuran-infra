@@ -62,3 +62,19 @@ folders so a rebuild from zero cannot end up with an instance that searches but
 has nowhere to import. They are **import blocks**, not creates — `tofu plan`
 previews the import and `apply` adopts them; a follow-up `plan` must report
 **no changes**, otherwise the declared `path` disagrees with the live one.
+
+## Also owned: notifications
+
+`notifications.tf` declares the Telegram notification for both apps
+(`implementation = Telegram`, `config_contract = TelegramSettings`), pointing at
+the same bot/chat Alertmanager uses. Token comes from BWS `telegram-bot-token`
+as `TF_VAR_telegram_bot_token`; chat id defaults to `607008268`.
+
+**Failure signals only** — health issue/restored, application update, manual
+interaction required. `on_grab`, `on_download`, `on_upgrade`, `on_rename` and
+`on_import_complete` are off: this library produces an episode per hour, and the
+lab's rule elsewhere is "warn on what needs a human".
+
+Note the provider requires `on_movie_delete` on Radarr (not present on Sonarr) —
+`tofu validate` will tell you if a future provider version adds another required
+event flag.
