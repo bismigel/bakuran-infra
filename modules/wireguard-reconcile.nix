@@ -56,18 +56,23 @@ let
     wg set "$IF" peer "$PEER" endpoint "$EP" allowed-ips 0.0.0.0/0 persistent-keepalive 25 \
       || log "failed to set peer"
 
-    # 4. a handshake is not proof; probe the data path by IP (no DNS involved)
+    # 4. a handshake is not proof; probe the data path by IP (no DNS involved).
+    #    https://1.1.1.1/ answers 301 (it redirects to one.one.one.one), so demanding
+    #    exactly 200 produced a permanent false "no data path" error while the tunnel
+    #    was healthy - which is worse than no check, because it trains you to ignore
+    #    the one line that would tell you the tunnel is really dead. Any HTTP status
+    #    at all proves the path; only a total absence of a response means it is broken.
     sleep 3
     age=$(( $(date +%s) - $(wg show "$IF" latest-handshakes | awk '{print $2}' | sort -n | tail -1) ))
     if [ "$age" -gt 180 ]; then
       log "ERROR: no handshake for ''${age}s - the endpoint or key is dead; fetch a new Proton config"
       exit 0
     fi
-    if [ "$(curl -s -o /dev/null --max-time 10 -w '%{http_code}' https://1.1.1.1/)" = "200" ]; then
-      log "ok (handshake ''${age}s, data path 200)"
-    else
-      log "ERROR: handshake ''${age}s but no data path - endpoint/key mismatch, not a routing issue"
-    fi
+    code=$(curl -s -o /dev/null --max-time 10 -w '%{http_code}' https://1.1.1.1/ 2>/dev/null || true)
+    case "$code" in
+      "" | 000) log "ERROR: handshake ''${age}s but no data path (no HTTP response) - endpoint/key mismatch, not a routing issue" ;;
+      *)        log "ok (handshake ''${age}s, data path HTTP $code)" ;;
+    esac
     exit 0
   '';
 in

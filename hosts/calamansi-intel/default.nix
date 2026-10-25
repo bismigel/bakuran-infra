@@ -7,6 +7,7 @@
     ../../modules/backup.nix
     ../../modules/wireguard-metrics.nix
     ../../modules/wireguard-reconcile.nix
+    ../../modules/wireguard-native.nix
     ./disko.nix
   ];
 
