@@ -61,3 +61,29 @@ That means the production outages came from something this guest does not have:
 
 Next iteration: run the same experiment inside a single-node k3s + Cilium guest.
 Until that reproduces, no further `deploy-rs` on the media node.
+
+## Result 2: with k3s running (2026-10-25)
+
+Same experiment, guest now running `services.k3s` (server, kube-proxy active,
+flannel up — note `flannel.1` in the interface list):
+
+```
+restart: ok
+--- ip rule ---     unchanged
+--- table 51820 --- default dev proton0 scope link
+--- main default --- default via 10.0.2.2 dev eth0   (intact)
+--- ping gateway --- LAN: reachable
+```
+
+**Still no reproduction.** So kube-proxy rewriting iptables is not the trigger
+either.
+
+That leaves exactly one meaningful datapath difference between this guest and the
+production media node: **Cilium** (eBPF, kube-proxy replacement), plus the
+environmental factors the guest has none of — cloudflared, and the IO load of the
+media stack.
+
+Next iteration: add Cilium to this guest (`--flannel-backend=none`,
+`--disable-kube-proxy`, helm install) and rerun. Until then the honest position is
+that the 2026-10-25 outages are **unexplained**, and no change should be deployed
+to the media node on the strength of a theory.

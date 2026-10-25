@@ -33,6 +33,15 @@ let
     networking.firewall.enable = false;     # keep nftables out of the experiment
     services.openssh.enable = true;
 
+    # k3s is the one thing the production node has that the first version of this
+    # guest did not - and kube-proxy rewrites iptables constantly, which is the
+    # remaining suspect now that plain wg-quick activation was proven safe.
+    services.k3s = {
+      enable = true;
+      role = "server";
+      extraFlags = [ "--disable" "traefik" "--write-kubeconfig-mode" "0644" ];
+    };
+
     systemd.services.wgtest = {
       wantedBy = [ "multi-user.target" ];
       after = [ "wg-quick-proton0.service" "network-online.target" ];
