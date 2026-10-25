@@ -64,6 +64,14 @@ let
       echo "wireguard_unit_restarts{iface=\"$iface\"} ''${r:-0}" >> "$tmp"
     done
 
+    # node-exporter runs as nobody (65534) and reads this through the DaemonSet
+    # mount (/var/lib/node-exporter/textfile -> /host/textfile). mktemp creates
+    # the file 0600 root, so the collector skipped it *silently* and every
+    # wireguard_* metric was invisible to Prometheus. Only the absent() alert
+    # (WireGuardMetricsMissing) ever fired - that is how this was finally noticed
+    # on 2026-10-25, after the handshake alerts had been dead for who knows how
+    # long. These are not secrets; make them readable.
+    chmod 0644 "$tmp"
     mv "$tmp" "$out"
   '';
 in
