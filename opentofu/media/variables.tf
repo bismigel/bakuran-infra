@@ -17,3 +17,14 @@ variable "sonarr_api_key" {
   type      = string
   sensitive = true
 }
+
+variable "telegram_bot_token" {
+  type      = string
+  sensitive = true
+}
+
+# The chat (or user) the *arr notifications go to — same one Alertmanager uses.
+variable "telegram_chat_id" {
+  type    = string
+  default = "607008268"
+}
