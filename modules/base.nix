@@ -175,7 +175,14 @@
       Type = "oneshot";
       ExecStart = pkgs.writeShellScript "homelab-updates-check" ''
         host=$(${pkgs.coreutils}/bin/cat /proc/sys/kernel/hostname)
-        built=$(${pkgs.coreutils}/bin/stat -L -c %Y /run/current-system)
+        # NOT stat -L /run/current-system: that follows the symlink into the Nix
+        # store, and Nix normalises store mtimes to the epoch (1) for
+        # reproducibility. The check then computed 20752 days of staleness on a
+        # host deployed minutes earlier and alerted on every run, on every host.
+        # The profile symlink is re-pointed on each activation, so its OWN mtime
+        # (stat without -L) is the deploy time we actually want.
+        built=$(${pkgs.coreutils}/bin/stat -c %Y /nix/var/nix/profiles/system 2>/dev/null || echo 0)
+        [ "$built" -gt 0 ] || exit 0
         age=$(( ( $(${pkgs.coreutils}/bin/date +%s) - built ) / 86400 ))
         if [ "$age" -ge 30 ]; then
           ${pkgs.curl}/bin/curl -fsS -m 10 -X POST -H 'Content-Type: application/json' \
