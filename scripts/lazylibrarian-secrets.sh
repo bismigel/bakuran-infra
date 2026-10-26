@@ -38,6 +38,11 @@ qbt_pass="$(get qbittorrent-password)"
 [ -n "$qbt_pass" ] && [ "$qbt_pass" != "null" ] ||
   { echo "ERROR: qbittorrent-password missing from Bitwarden" >&2; exit 1; }
 
+# Usenet client for ebooks; same item media-setup uses as sabnzbd-api-key.
+sab_key="$(get sabnzbd-api-key)"
+[ -n "$sab_key" ] && [ "$sab_key" != "null" ] ||
+  { echo "ERROR: sabnzbd-api-key missing from Bitwarden" >&2; exit 1; }
+
 # LazyLibrarian's own API (32 chars). media/media-mcp already requires this key
 # as LAZYLIBRARIAN_API_KEY; the app only serves it when [API] API_ENABLED=1.
 ll_key="$(get lazylibrarian-api-key)"
@@ -55,6 +60,7 @@ data:
   prowlarr-api-key: $(b64 "$prowlarr_key")
   qbt-password: $(b64 "$qbt_pass")
   lazylibrarian-api-key: $(b64 "$ll_key")
+  sabnzbd-api-key: $(b64 "$sab_key")
 EOF
 echo "secret $NS/$NAME applied on $HOST"
 echo "now restart so the init container rewrites config.ini:"
