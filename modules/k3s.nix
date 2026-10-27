@@ -43,7 +43,14 @@
           ready=$(${pkgs.kubectl}/bin/kubectl get nodes -o json | ${pkgs.jq}/bin/jq '[.items[] | select(any(.status.conditions[]; .type=="Ready" and .status=="True"))] | length')
           [ "$ready" = "3" ] || { echo "nodes ready=$ready"; exit 1; }
           ${pkgs.kubectl}/bin/kubectl -n argocd get applications -o json | ${pkgs.jq}/bin/jq -e 'all(.items[]; .status.sync.status=="Synced" and .status.health.status=="Healthy")' >/dev/null
-          ${pkgs.kubectl}/bin/kubectl -n kube-system exec ds/cilium -c cilium-agent -- cilium-dbg status | grep -q "Cluster health:.*3/3"
+          # Do NOT pipe into `grep -q` here: grep exits on the first match, closes
+          # the pipe, and kubectl dies of SIGPIPE. Under `set -o pipefail` that
+          # makes the whole pipeline fail with 141 - which is what turned this
+          # smoke test into a flaky "BackupFailed" alert on 2026-10-27 (09:30,
+          # 11:15, 14:15) while the cluster was perfectly healthy. Capture first,
+          # then match.
+          cilium_status=$(${pkgs.kubectl}/bin/kubectl -n kube-system exec ds/cilium -c cilium-agent -- cilium-dbg status)
+          grep -q "Cluster health:.*3/3" <<<"$cilium_status"
           ${pkgs.curl}/bin/curl -fsSL -o /dev/null --max-time 15 https://bismigel.dev/
           ${pkgs.curl}/bin/curl -fsSL -o /dev/null --max-time 10 http://192.168.2.81:8096/
           echo "smoke test passed"
@@ -53,7 +60,11 @@
     systemd.timers.homelab-smoke = lib.mkIf (config.networking.hostName == "sitaw-amd") {
       description = "Run the homelab smoke test";
       wantedBy = [ "timers.target" ];
-      timerConfig = { OnCalendar = "*:0/15"; Persistent = true; };
+      # Persistent=true replays a missed run immediately at boot, which fires the
+      # smoke test while the cluster is still converging (2026-10-27 03:17, three
+      # minutes after a reboot) and pages for a lab that is simply still starting.
+      # Let the next 15-minute tick do it instead.
+      timerConfig = { OnCalendar = "*:0/15"; Persistent = false; };
     };
 
     # Enable systemd-resolved for DNS
