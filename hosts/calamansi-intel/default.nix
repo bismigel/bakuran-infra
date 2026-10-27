@@ -4,6 +4,7 @@
   imports = [
     ../../modules/base.nix
     ../../modules/k3s.nix
+    ../../modules/cni-cleanup.nix
     ../../modules/backup.nix
     ../../modules/wireguard-metrics.nix
     ../../modules/wireguard-reconcile.nix
