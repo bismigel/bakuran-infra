@@ -109,26 +109,42 @@ Still open, in the order they would bite:
 
 ## Running it
 
-On the staging host (`.83`):
+On the staging host (`.83`), with the runner for the guest you want:
 
 ```bash
-# bridge + taps (idempotent, runs at boot via staging-bridge.service)
+# bridge + taps (idempotent, at boot via staging-bridge.service)
 systemctl status staging-bridge
 
-# build the three VM runners
+# build a runner
 cd staging/cluster-3node
-nix build --impure "path:$PWD#nixosConfigurations.server.config.system.build.vm" \
-                       "path:$PWD#nixosConfigurations.agent1.config.system.build.vm" \
-                       "path:$PWD#nixosConfigurations.agent2.config.system.build.vm"
+nix build --impure "path:$PWD#nixosConfigurations.native.config.system.build.vm"
+runner=$(readlink -f result)/bin/run-server-vm
 
-# start in order; SSH on 2222/2223/2224, API on 6455
-./result/bin/run-server-vm &
-./result-1/bin/run-agent1-vm &
-./result-2/bin/run-agent2-vm &
+# start it detached, console on a file
+staging-vm native "$runner"
+tail -f /var/lib/staging/native-console.log
 ```
 
-Do not run the VM runners on a production node: they create tap devices and take
-memory that the kubelet does not account for.
+`staging-vm <name> <runner>` is installed by `host.nix` from `startvm.sh`. It stops
+any previous unit, **deletes that guest's qcow2** (staging is disposable, and a
+stale disk is how an afternoon gets spent debugging yesterday's experiment), and
+starts the runner under `systemd-run` with `StandardInput=null`.
+
+Guests that share a tap cannot run together: `server` and `native` both use
+`tap-server`, so the launcher stops the sibling. One guest at a time.
+
+Two traps that cost real time:
+
+- **Console files append across guest reboots** (qemu holds the fd), so grepping
+  from the first `NATIVE TEST begin` returns an older run. Take the last section.
+- **A guest takes minutes to reach `multi-user.target`**, because it installs
+  Cilium with Helm and pulls images. `systemctl is-active` on a target that has not
+  been reached yet is not a failure - check `systemctl is-active staging-<name>`
+  instead and read the console.
+
+Do not run VM runners on a production node: they create tap devices and take memory
+the kubelet does not account for.
+
 
 ## Rehearsal log
 
