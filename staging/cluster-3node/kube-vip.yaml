@@ -50,7 +50,11 @@ metadata:
   name: kube-vip
   namespace: kube-system
 spec:
-  replicas: 1
+  # Two of the three servers: the lease decides which one holds the address, so
+  # killing the holder must hand it over without a human. With one replica the
+  # VIP simply disappears with the guest - which is the failure the production
+  # setup is designed to survive, and therefore worth rehearsing.
+  replicas: 2
   selector:
     matchLabels:
       app: kube-vip

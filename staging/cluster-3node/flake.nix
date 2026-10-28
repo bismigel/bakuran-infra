@@ -31,7 +31,11 @@
         # br-staging uses it: the host is .1 and the guests are .10-.12.
         vip = "10.10.50.100";
 
-      mk = { host, ip, role, mac, serverAddr ? null }: nixpkgs.lib.nixosSystem {
+      mk = { host, ip, role, mac, serverAddr ? null,
+      # The tap on br-staging this guest attaches to. Decoupled from `host` so a
+      # renamed guest (agent1 -> server2) can keep using an existing tap and no
+      # host rebuild is needed.
+      tap ? host }: nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
         modules = [
           "${nixpkgs}/nixos/modules/virtualisation/qemu-vm.nix"
@@ -50,7 +54,12 @@
 
             # Same shape as production's host firewall, minus anything that would
             # hide a datapath problem.
-            networking.firewall.allowedTCPPorts = [ 22 6443 4240 10250 ];
+            # 2379/2380 are etcd's client and peer ports. Without them a second
+            # server never joins: it loops on "Adding member ... to etcd cluster"
+            # then "MemberAdd request timed out", because the peer connection is
+            # dropped by the firewall. Found 2026-10-28, the first time staging
+            # had more than one server.
+            networking.firewall.allowedTCPPorts = [ 22 6443 2379 2380 4240 10250 ];
             networking.firewall.allowedUDPPorts = [ 8472 ];
             networking.firewall.checkReversePath = false;
 
@@ -81,7 +90,14 @@
                 "--disable" "servicelb"
                 "--kubelet-arg" "container-log-max-size=10Mi"
                 "--kube-proxy-arg" "nodeport-addresses=127.0.0.1/32"
-              ] ++ (if role == "server" then [
+] ++ (if role == "server" then
+  # The FIRST server must bootstrap embedded etcd, or k3s falls back to
+  # SQLite and every additional server fails to join with "failed to
+  # bootstrap cluster data: etcd disabled" (found the hard way, 2026-10-28).
+  # Production is a 3-member etcd cluster; staging needs the same shape or
+  # quorum cannot be rehearsed at all.
+  lib.optionals (serverAddr == null) [ "--cluster-init" ]
+  ++ [
                 "--write-kubeconfig-mode=0644"
                 "--advertise-address=${ip}"
                 "--tls-san=${ip}"
@@ -149,13 +165,16 @@
               cores = 2;
               graphics = false;
               diskImage = "./${host}.qcow2";
+              # Ports are per-guest: three servers can share nothing on the host.
+              # Only the first server forwards the API (6455) - the guests are all
+              # reachable on br-staging anyway, so the others do not need it.
               forwardPorts = [
-                { from = "host"; host.port = (if host == "server" then 2222 else if host == "agent1" then 2223 else 2224); guest.port = 22; }
-              ] ++ (if role == "server" then [ { from = "host"; host.port = 6455; guest.port = 6443; } ] else [ ]);
+                { from = "host"; host.port = (if host == "server" then 2222 else if host == "server2" then 2223 else 2224); guest.port = 22; }
+              ] ++ (if host == "server" then [ { from = "host"; host.port = 6455; guest.port = 6443; } ] else [ ]);
               # eth1 is a tap on br-staging, created by staging/host.nix. Because it
               # is a real bridge, the staging host can reach the guest at ${ip}.
               qemu.options = [
-                "-netdev" "tap,id=n,ifname=tap-${host},script=no,downscript=no"
+                "-netdev" "tap,id=n,ifname=tap-${tap},script=no,downscript=no"
                 "-device" "virtio-net-pci,netdev=n,mac=${mac}"
               ];
             };
@@ -163,15 +182,22 @@
         ];
       };
     in {
+      # Three control planes, three etcd members: quorum 2/3, so one can be killed
+      # and the cluster keeps writing, and kube-vip's lease can move the VIP. This
+      # is the shape needed to rehearse control-plane failure at all - a single
+      # guest can only show that things work when nothing goes wrong.
+      #
+      # `tap` reuses the existing tap-agent1 / tap-agent2 devices, so adding two
+      # servers needs no change on the staging host.
+      nixosConfigurations.server2 = mk {
+        host = "server2"; tap = "agent1"; ip = "10.10.50.11"; role = "server"; mac = "52:54:00:12:36:11";
+        serverAddr = "https://10.10.50.10:6443";
+      };
+      nixosConfigurations.server3 = mk {
+        host = "server3"; tap = "agent2"; ip = "10.10.50.12"; role = "server"; mac = "52:54:00:12:36:12";
+        serverAddr = "https://10.10.50.10:6443";
+      };
       nixosConfigurations.server = mk { host = "server"; ip = "10.10.50.10"; role = "server"; mac = "52:54:00:12:36:10"; };
-      nixosConfigurations.agent1 = mk {
-        host = "agent1"; ip = "10.10.50.11"; role = "agent"; mac = "52:54:00:12:36:11";
-        serverAddr = "https://10.10.50.10:6443";
-      };
-      nixosConfigurations.agent2 = mk {
-        host = "agent2"; ip = "10.10.50.12"; role = "agent"; mac = "52:54:00:12:36:12";
-        serverAddr = "https://10.10.50.10:6443";
-      };
       # Boots the real production module (modules/wireguard-native.nix). Reuses
       # tap-server and the server's address, so only one guest runs at a time.
       nixosConfigurations.native =
