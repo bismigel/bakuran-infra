@@ -57,9 +57,12 @@ in
     # ordering the wg-quick override had. Without it the unit can start before the
     # secret exists and come up with no key - the same failure class as outage 7,
     # in a new place.
+    # Ordering matters twice: the key comes from SOPS, and the endpoint route
+    # needs a configured LAN device (see postSetup). network-online.target only
+    # helps if something asks for it, hence the explicit wants.
     systemd.services."wireguard-${cfg.interface}" = {
-      wants = [ "sops-nix.service" ];
-      after = [ "sops-nix.service" ];
+      wants = [ "sops-nix.service" "network-online.target" ];
+      after = [ "sops-nix.service" "network-online.target" ];
     };
     networking.wireguard.interfaces.${cfg.interface} = {
       ips = [ "10.2.0.2/32" ];
@@ -93,7 +96,26 @@ in
       #
       # Pinning the priorities makes this immune to whatever else numbers rules.
       postSetup = ''
-        ip route replace ${epIp}/32 via ${cfg.gateway} dev ${cfg.device} table main
+        # The LAN device may not have an address yet: NetworkManager/DHCP is
+        # asynchronous, and `ip route ... via GATEWAY dev DEV` fails with
+        # "Nexthop has invalid gateway". Because this unit is Type=oneshot, that
+        # failure is FINAL: the node boots with no tunnel and no egress at all.
+        # Found by rebooting .81 on 2026-10-28 - the unit had started fine during
+        # the deploy (device already configured) and failed on the very next boot.
+        #
+        # So retry the pin instead of assuming. No grep/seq: the unit's PATH is
+        # minimal and `ip` is the only tool guaranteed to be here.
+        ok=0
+        i=0
+        while [ "$i" -lt 60 ]; do
+          if ip route replace ${epIp}/32 via ${cfg.gateway} dev ${cfg.device} table main 2>/dev/null; then ok=1; break; fi
+          i=$((i + 1))
+          sleep 1
+        done
+        if [ "$ok" -ne 1 ]; then
+          echo "wireguard-native: ${cfg.device} never became usable for ${epIp} via ${cfg.gateway} - refusing to blackhole the node" >&2
+          exit 1
+        fi
         ip route replace default dev ${cfg.interface} table 51820
         ip -4 rule add pref 32765 not fwmark 51820 table 51820 2>/dev/null || true
         ip -4 rule add pref 32764 table main suppress_prefixlength 0 2>/dev/null || true
