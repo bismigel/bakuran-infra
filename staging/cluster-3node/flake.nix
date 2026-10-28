@@ -35,7 +35,20 @@
                 "--write-kubeconfig-mode=0644"
                 "--advertise-address=${ip}"
                 "--tls-san=${ip}"
+                # Rehearsal VIP: production puts the API behind a floating address
+                # (kube-vip, 192.168.2.100). 10.10.50.100 stands in for it here so
+                # the same Cilium k8sServiceHost change is tried without the lab.
+                "--tls-san=10.10.50.100"
               ] else [ ]);
+            };
+
+            # Stand-in for kube-vip: the VIP exists and answers on this node. What is
+            # being rehearsed is Cilium using it as k8sServiceHost, not election.
+            systemd.services.rehearsal-vip = nixpkgs.lib.mkIf (role == "server") {
+              wantedBy = [ "multi-user.target" ];
+              after = [ "network.target" ];
+              serviceConfig = { Type = "oneshot"; RemainAfterExit = true; };
+              script = "${pkgs.iproute2}/bin/ip addr replace 10.10.50.100/32 dev eth1";
             };
 
             virtualisation = {
