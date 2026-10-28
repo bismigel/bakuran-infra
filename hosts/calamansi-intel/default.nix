@@ -31,6 +31,15 @@
     fsType = "nfs";
     options = [ "nfsvers=4.2" "_netdev" "nofail" "soft" "timeo=30" "retrans=3" ];
   };
+  # Backup SD card lives on sitaw-amd (.82) and is exported from there; the
+  # weekly media mirror writes to it over NFS. automount so a missing disk or a
+  # rebooted .82 does not block anything.
+  fileSystems."/mnt/backup-sd" = {
+    device = "192.168.2.82:/mnt/backup-sd";
+    fsType = "nfs";
+    options = [ "nofail" "x-systemd.automount" "_netdev" "nfsvers=4.2" ];
+  };
+
   fileSystems."/mnt/remote82-sda" = {
     device = "192.168.2.82:/mnt/media-sda";
     fsType = "nfs";
