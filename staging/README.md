@@ -90,3 +90,43 @@ nix build --impure "path:$PWD#nixosConfigurations.server.config.system.build.vm"
 
 Do not run the VM runners on a production node: they create tap devices and take
 memory that the kubelet does not account for.
+
+## Rehearsal log
+
+### 2026-10-28 — Cilium `k8sServiceHost` from a node IP to the API VIP
+
+**Question.** Production runs `kube-vip` holding `192.168.2.100:6443`, but Cilium's
+`k8sServiceHost` still names one node (`.82`). Pointing it at the VIP would make the
+CNI independent of that node — but it rolls the Cilium DaemonSet, and a CNI rollout
+is not something to try first in the lab.
+
+**Setup.** The `server` VM (rebuilt with `--tls-san=10.10.50.100` and a
+`rehearsal-vip` oneshot that puts `10.10.50.100/32` on `eth1`, standing in for
+kube-vip's leader-elected address) + Cilium installed by Helm with
+`kubeProxyReplacement=false`, matching production.
+
+**Results.**
+
+| Step | Outcome |
+|---|---|
+| Baseline `k8sServiceHost=192.168.102.10` | agent Running, `KUBERNETES_SERVICE_HOST=192.168.102.10` |
+| `helm upgrade` with `k8sServiceHost=10.10.50.100` | DaemonSet rolled; agent back **Running in ~20 s**, `HOST=10.10.50.100`, node Ready |
+| VIP removed while running | agent **stayed Running (0 restarts)**, node Ready, 28 error lines in the log, recovered when the VIP returned |
+| **Cold start with no VIP** (delete the agent) | **stalls in `Init:0/6`** and retries (restart count 1 at +80 s) |
+| VIP restored | agent **Running within 10 s**, no further restarts |
+
+**Conclusion.** The change is safe *because* the VIP exists and is reachable:
+a running agent tolerates the VIP disappearing, and a starting one waits for it.
+
+**The one ordering constraint this creates:** on a cold cluster boot, Cilium agents
+cannot finish initialising until the VIP exists. `kube-vip` runs `hostNetwork`, so
+its pods start without CNI and claim the address — that is why this works, and it
+is worth knowing before changing anything about how kube-vip is scheduled.
+
+**Recovery if an agent ever stalls in `Init`:** restore the VIP, or temporarily
+patch the DaemonSet's `KUBERNETES_SERVICE_HOST` back to a node IP. Both are
+minutes, and neither requires rebuilding the cluster.
+
+**Not covered by this rehearsal:** the datapath (the VM still had flannel, so this
+tested the agent's API client, not CNI behaviour), multi-node VIP failover, and
+the `.81` egress path.
