@@ -15,6 +15,7 @@ set -uo pipefail
 
 NODE="${1:-calamansi-intel}"
 SSH_HOST="${SSH_HOST:-192.168.2.81}"
+IFACE="${IFACE:-proton0}"
 UNIT="wg-quick-proton0.service"
 
 # FragmentPath is a symlink (/etc/systemd/system/...) into the store, so resolve it
@@ -28,6 +29,20 @@ fi
 
 new="$(nix eval --raw ".#nixosConfigurations.${NODE}.config.systemd.units.\"${UNIT}\".unit" 2>/dev/null)"
 if [ -z "${new}" ]; then
+  # A generation that has no wg-quick unit at all is the networking.wireguard
+  # cutover (runbook 14). That is not a restart - it is a replacement - and it is
+  # the one deploy that must happen with physical access.
+  if nix eval --json ".#nixosConfigurations.${NODE}.config.networking.wireguard.interfaces.${IFACE}.ips" >/dev/null 2>&1; then
+    cat <<EOF2
+FAIL (intentional cutover): ${NODE} no longer defines ${UNIT}; the tunnel is owned by
+      networking.wireguard (${IFACE}). This deploy REMOVES the wg-quick unit and
+      replaces it, so the node loses egress for 1-2 minutes and, if it fails,
+      needs a power-cycle.
+      Only valid as a maintenance-window operation: physical access, power-cycle
+      available, /root/proton0-fallback.conf saved, scripts/wg-fallback.sh staged.
+EOF2
+    exit 1
+  fi
   echo "CANNOT TELL: could not evaluate the ${NODE} unit (run from the bakuran-infra checkout)"
   exit 2
 fi

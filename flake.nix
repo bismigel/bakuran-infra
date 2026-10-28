@@ -140,22 +140,29 @@
           (system: deployLib: deployLib.deployChecks self.deploy)
           deploy-rs.lib;
         ci = self.nixosConfigurations.calamansi-intel.config;
-        seed = builtins.head ci.networking.wg-quick.interfaces.proton0.peers;
-        wgOverride = ci.systemd.services."wg-quick-proton0";
-        msg = nixpkgs.lib.assertMsg;
-        wireguard-invariants =
-          assert msg (seed.allowedIPs == [ "0.0.0.0/0" "::/0" ])
-            "The wg-quick seed must keep ::/0. It has to stay byte-identical to the running generation, otherwise activation restarts wg-quick and strands .81 (7 outages). The reconciler enforces IPv4-only at runtime.";
-          assert msg (seed.endpoint == "205.142.240.210:51820")
-            "The wg-quick seed must stay on the previous endpoint; the reconciler owns the live one (176.113.74.82).";
-          assert msg (seed.publicKey == "/HvEnSU5JaswyBC/YFs74eGLXqLdzsaFeVT8SD1KYAc=")
-            "The wg-quick seed peer changed. It must match the running generation or activation restarts the tunnel.";
-          assert msg (builtins.elem "sops-nix.service" wgOverride.wants && builtins.elem "sops-nix.service" wgOverride.after)
-            "The wg-quick-proton0 sops-nix ordering is missing. Dropping it changes the unit, restarts wg-quick and strands .81 (this was outage 7).";
-          assert msg (ci.bakuran.wireguard.endpoint == "176.113.74.82:51820")
-            "bakuran.wireguard.endpoint must stay the declared/live endpoint.";
-          assert msg (ci.bakuran.wireguard.useNative == false)
-            "The networking.wireguard migration must stay inert until its maintenance window (runbook 14).";
+          peer = builtins.head ci.networking.wireguard.interfaces.proton0.peers;
+          nativeUnit = ci.systemd.services."wireguard-proton0";
+          postSetup = ci.networking.wireguard.interfaces.proton0.postSetup;
+          msg = nixpkgs.lib.assertMsg;
+          # These replace the wg-quick seed assertions. They encode the reason the
+          # seven 2026-10-25 outages happened, so a tidy-up cannot undo the fix:
+          # the policy rules MUST carry explicit priorities. Without `pref` the
+          # kernel derives a priority from the rule list, and with Cilium's rule at
+          # 9 / `local` at 100 the tunnel's rules land at 98/99 - above `local` -
+          # and the node stops answering its own IP.
+          wireguard-invariants =
+            assert msg ci.bakuran.wireguard.useNative
+              "calamansi-intel must own the tunnel via networking.wireguard; wg-quick's rules are not priority-pinned (NETWORK.md 7.1).";
+            assert msg (!(ci.networking.wg-quick.interfaces ? proton0))
+              "The wg-quick interface is back. It recreates the link on every change and its rules land above `local`: the 2026-10-25 outage.";
+            assert msg (nixpkgs.lib.hasInfix "rule add pref 32765" postSetup && nixpkgs.lib.hasInfix "rule add pref 32764" postSetup)
+              "The tunnel's policy rules lost their explicit priorities. Without `pref` they land at 98/99, above `local` at 100, and the node stops answering its own LAN address (7 outages, 2026-10-25).";
+            assert msg (peer.allowedIPs == [ "0.0.0.0/0" ])
+              "The tunnel is IPv4-only on purpose (NETWORK.md 4); ::/0 blackholes.";
+            assert msg (peer.endpoint == "176.113.74.82:51820")
+              "bakuran.wireguard.endpoint must stay the declared/live endpoint.";
+            assert msg (builtins.elem "sops-nix.service" nativeUnit.wants && builtins.elem "sops-nix.service" nativeUnit.after)
+              "The wireguard-proton0 sops-nix ordering is missing: the unit reads its key from SOPS and would start keyless (outage 7's failure class).";
           nixpkgs.legacyPackages.x86_64-linux.runCommand "wireguard-invariants-ok" { } "touch $out";
       in
       base // {

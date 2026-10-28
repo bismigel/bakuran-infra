@@ -27,6 +27,13 @@
 let
   exporter = pkgs.writeShellScript "wireguard-metrics" ''
     set -eu
+    # Declared interfaces, whichever implementation owns them. After the
+    # 2026-10-28 cutover networking.wg-quick.interfaces is empty, so keying
+    # these loops on it alone would silently stop emitting wireguard_up 0 for
+    # a missing interface - the same 'absent metric looks healthy' trap that
+    # hid every wireguard_* metric until 2026-10-25.
+    declared="${pkgs.lib.concatStringsSep " " (builtins.attrNames config.networking.wg-quick.interfaces ++ builtins.attrNames config.networking.wireguard.interfaces)}"
+    unit_prefix="${if config.bakuran.wireguard.useNative then "wireguard" else "wg-quick"}"
     out="/var/lib/node-exporter/textfile/wireguard.prom"
     tmp="$(mktemp)"
     mkdir -p "$(dirname "$out")"
@@ -43,7 +50,7 @@ let
 
     # interfaces that do not exist at all: say so explicitly, so an absent metric
     # is never mistaken for a healthy tunnel
-    for iface in ${pkgs.lib.concatStringsSep " " (builtins.attrNames config.networking.wg-quick.interfaces)}; do
+    for iface in $declared; do
       wg show "$iface" dump >/dev/null 2>&1 || echo "wireguard_up{iface=\"$iface\"} 0" >> "$tmp"
     done
 
@@ -59,8 +66,8 @@ let
     echo "wireguard_egress_ok $ok" >> "$tmp"
     echo "wireguard_egress_seconds $secs" >> "$tmp"
 
-    for iface in ${pkgs.lib.concatStringsSep " " (builtins.attrNames config.networking.wg-quick.interfaces)}; do
-      r="$(${pkgs.systemd}/bin/systemctl show "wg-quick-$iface" -p NRestarts --value 2>/dev/null || true)"
+    for iface in $declared; do
+      r="$(${pkgs.systemd}/bin/systemctl show "$unit_prefix-$iface" -p NRestarts --value 2>/dev/null || true)"
       echo "wireguard_unit_restarts{iface=\"$iface\"} ''${r:-0}" >> "$tmp"
     done
 
