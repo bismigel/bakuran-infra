@@ -157,6 +157,8 @@
               "The wg-quick interface is back. It recreates the link on every change and its rules land above `local`: the 2026-10-25 outage.";
             assert msg (nixpkgs.lib.hasInfix "rule add pref 32765" postSetup && nixpkgs.lib.hasInfix "rule add pref 32764" postSetup)
               "The tunnel's policy rules lost their explicit priorities. Without `pref` they land at 98/99, above `local` at 100, and the node stops answering its own LAN address (7 outages, 2026-10-25).";
+            assert msg (nixpkgs.lib.hasInfix "while [ \"$i\" -lt 60 ]" postSetup)
+              "postSetup lost its retry of the endpoint route. At boot the LAN device has no address yet, `ip route ... via GATEWAY` fails with 'Nexthop has invalid gateway', and because the unit is oneshot the node then boots with no tunnel and no egress (found by rebooting .81, 2026-10-28).";
             assert msg (peer.allowedIPs == [ "0.0.0.0/0" ])
               "The tunnel is IPv4-only on purpose (NETWORK.md 4); ::/0 blackholes.";
             assert msg (peer.endpoint == "176.113.74.82:51820")
