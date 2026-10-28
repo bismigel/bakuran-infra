@@ -57,7 +57,7 @@
           # 2026-10-28) and a hard-coded number fails on a healthy cluster.
           health=$(sed -n "s/.*Cluster health: *\([0-9]*\)\/\([0-9]*\) .*/\1 \2/p" <<<"$cilium_status" | head -1)
           [ -n "$health" ] || { echo "cilium health line missing"; exit 1; }
-          [ "${health% *}" = "${health#* }" ] || { echo "cilium health not full: $health"; exit 1; }
+          [ "''${health% *}" = "''${health#* }" ] || { echo "cilium health not full: $health"; exit 1; }
           ${pkgs.curl}/bin/curl -fsSL -o /dev/null --max-time 15 https://bismigel.dev/
           ${pkgs.curl}/bin/curl -fsSL -o /dev/null --max-time 10 http://192.168.2.81:8096/
           echo "smoke test passed"
