@@ -11,6 +11,42 @@ Use the Cloudflare token from SOPS. Never write it into a file or shell history.
 export TF_VAR_cloudflare_api_token="$(sudo cat /run/secrets/cloudflare_api_token)"
 ```
 
+## Where the state lives
+
+**In R2**, not on a workstation:
+
+```
+backend "s3"  bucket = homelab-backups
+              key    = opentofu/cloudflare/terraform.tfstate
+              use_lockfile = true
+```
+
+Plus an age-encrypted snapshot (`opentofu/cloudflare-*.tfstate.age`) in the same
+prefix. Credentials for the backend come from `~/.config/homelab-backup.env`
+(`R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY`), exported as
+`AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` before `tofu init`.
+
+### If `tofu init` offers to "migrate" local state
+
+**Say no.** A `terraform.tfstate` file left in this directory is a *stale copy from
+an older lineage* — it is gitignored, and it exists only because a plugin wrote it
+before the backend was configured. On 2026-10-28 one such file (serial 39, lineage
+`0b6df55c`) was offered for migration into the live state (serial 6, lineage
+`6d4a0793`, 45 resources). Accepting would have replaced the current edge state
+with a six-day-old copy.
+
+Check before you let anything move:
+
+```bash
+tofu state pull | grep -oE '"serial":[0-9]+|"lineage":"[^"]*"' | head -2
+```
+
+If a local file is in the way, move it aside rather than migrating it:
+
+```bash
+mv terraform.tfstate /tmp/terraform.tfstate.old
+```
+
 ## First import, one resource at a time
 
 The existing edge includes:
