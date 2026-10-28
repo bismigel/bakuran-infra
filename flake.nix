@@ -115,7 +115,7 @@
           };
         };
       patola-thinkcentre = {
-        hostname = "192.168.2.84";
+        hostname = "192.168.2.80";
         profiles.system = {
           user = "root";
           path = deploy-rs.lib.x86_64-linux.activate.nixos self.nixosConfigurations.patola-thinkcentre;

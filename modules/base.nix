@@ -125,14 +125,14 @@
     networking.firewall.extraCommands = ''
       # flannel SNATs cross-node pod egress to the node IP, so allow the three
       # nodes as well as the pod CIDR. Other LAN hosts stay blocked.
-      iptables -I nixos-fw 1 -p tcp -m iprange --src-range 192.168.2.81-192.168.2.84 --dport 9101 -j nixos-fw-accept
+      iptables -I nixos-fw 1 -p tcp -m iprange --src-range 192.168.2.80-192.168.2.84 --dport 9101 -j nixos-fw-accept
       iptables -I nixos-fw 1 -p tcp -s 10.42.0.0/16 --dport 9101 -j nixos-fw-accept
 
       # Control-plane ports are node-to-node only (etcd) or nodes + pods
       # (kubelet, which metrics-server and the apiserver reach). They are
       # removed from allowedTCPPorts in each host file; 6443 stays on the LAN
       # because the admin kubectl talks to the API directly.
-      iptables -I nixos-fw 1 -p tcp -m iprange --src-range 192.168.2.81-192.168.2.84 -m multiport --dports 2379,2380,10250 -j nixos-fw-accept
+      iptables -I nixos-fw 1 -p tcp -m iprange --src-range 192.168.2.80-192.168.2.84 -m multiport --dports 2379,2380,10250 -j nixos-fw-accept
       iptables -I nixos-fw 1 -p tcp -s 10.42.0.0/16 -m multiport --dports 10250 -j nixos-fw-accept
     '';
 
