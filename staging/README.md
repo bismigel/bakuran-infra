@@ -194,3 +194,52 @@ The first variant that does *not* strand names the component. Until that is know
 `networking.wireguard` must not be enabled in production: it replaces the unit,
 which stops `wg-quick` — the same link delete — and could strand the node the same
 way during the migration itself.
+
+### What the tooling actually does (and what is *not* documented)
+
+The behaviour is documented — in WireGuard's tooling, not in Cilium's. Cilium's
+docs index contains **no** mention of `wg-quick` or `rp_filter`; searching
+`docs.cilium.io/en/stable/searchindex.js` for either returns nothing.
+
+`wg-quick`'s routing, from `src/wg-quick/linux.bash` `add_default()` (and the
+`wg-quick(8)` man page, which describes `Table = auto` as "adds routes to the
+default table and enables special handling of default routes"):
+
+```text
+ip rule add not fwmark $table table $table      # unmarked traffic -> tunnel table
+ip rule add table main suppress_prefixlength 0  # everything but /0 comes from main
+ip route add <default> dev $iface table $table  # the default inside that table
+sysctl net.ipv4.conf.all.src_valid_mark=1       # mark-based reverse-path check
+```
+
+Three consequences that matter here:
+
+1. **Correctness depends on rule *order*.** `ip rule add` assigns decreasing
+   priorities, so the `suppress_prefixlength 0` rule must end up *above* the
+   fwmark rule. If anything else occupies 32764/32765 (another tunnel, leftovers
+   from a previous run, another agent's policy routing), the order can invert —
+   and then **the LAN itself goes into the tunnel**, which is exactly the
+   "ARP answers, nothing above L2" symptom.
+2. **The endpoint needs a /32 pin in the main table**, or WireGuard's own packets
+   to the endpoint recurse into the interface they are trying to establish. In the
+   staging VM, with the tunnel up, `ip route get 203.0.113.1` returned
+   `dev proton0 table 51820` — the pin was **missing**. `wg-restore.sh` in this
+   repo pins it by hand for the same reason.
+3. `wg-quick` also installs a `raw`/`PREROUTING` drop for packets destined to the
+   tunnel address arriving on other interfaces (`fib saddr type != local drop`).
+
+### The strand is *intermittent*, not certain
+
+Six attempts in the staging VM: **two stranded, four did not**. Production's
+symptom was likewise "seven times in one night", not "every time" — the
+probabilistic nature is why the fault was so hard to pin down, and why the
+invariant "any change to the unit strands the node" should be read as *often*,
+not *always*.
+
+### What is still open
+
+- Catch a **stranded** run with the in-guest loop dump (state every 8 s to the
+  console) and compare `ip rule show` and `ip route get <endpoint>` against a
+  healthy run. Both runs so far that produced a full dump were healthy.
+- Then bisect, each in the same guest: Cilium scaled to 0 → dummy link with the
+  same routes/rules → rules only → endpoint pin only.
