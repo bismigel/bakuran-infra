@@ -124,14 +124,11 @@ in
 {
   # Template unit: push a failed unit to Alertmanager (NodePort 30903, loopback).
   #
-  # Two problems fixed 2026-10-27, both visible in a single notification:
-  #
-  # 1. The alert name was hard-coded to "BackupFailed", so a failed smoke test and
-  #    a failed k3s unit both arrived labelled as a backup problem. The name now
-  #    follows the unit that failed.
-  # 2. A pushed alert carries no endsAt, so Alertmanager resolves it after its
-  #    resolve timeout (~5 min) and sends "Alerts Resolved" - which reads as "the
-  #    fault cleared" when nothing was fixed. The summary says that explicitly.
+  # The alertname has to say what actually failed. This hook is attached to
+  # anything with OnFailure = homelab-alert@%N.service, not only the backup
+  # units, and a failed smoke test used to arrive as "BackupFailed / critical"
+  # — which is how a genuine backup failure gets ignored later. Backup units
+  # keep the critical BackupFailed name; everything else is UnitFailed/warning.
   systemd.services."homelab-alert@" = {
     description = "Push a failed-unit alert to Alertmanager";
     serviceConfig = {
@@ -140,12 +137,11 @@ in
         unit="''${1:-unknown}"
         host="$(cat /proc/sys/kernel/hostname)"
         case "$unit" in
-          homelab-backup*|backup-apps*) name=BackupFailed;      sev=critical ;;
-          homelab-smoke*)               name=SmokeTestFailed;   sev=warning  ;;
-          *)                            name=SystemdUnitFailed; sev=critical ;;
+          homelab-backup*) name=BackupFailed; sev=critical ;;
+          *)               name=UnitFailed;   sev=warning  ;;
         esac
         ${pkgs.curl}/bin/curl -fsS -m 10 -X POST -H 'Content-Type: application/json' \
-          -d "[{\"labels\":{\"alertname\":\"$name\",\"severity\":\"$sev\",\"instance\":\"$host\",\"unit\":\"$unit\"},\"annotations\":{\"summary\":\"$unit failed on $host (auto-resolves in ~5 min, not a recovery)\"}}]" \
+          -d "[{\"labels\":{\"alertname\":\"$name\",\"severity\":\"$sev\",\"instance\":\"$host\",\"unit\":\"$unit\"},\"annotations\":{\"summary\":\"$unit failed on $host\",\"description\":\"systemd unit $unit entered the failed state. journalctl -u $unit -n 50 -o cat\"}}]" \
           http://127.0.0.1:30903/api/v2/alerts || true
       ''} %i";
     };
