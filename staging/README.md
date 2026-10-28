@@ -432,3 +432,47 @@ which is the whole reason this bug existed.
 Reading the console log takes care: qemu's serial file **appends across guest
 reboots**, so a `sed` from the first `NATIVE TEST begin` returns an older run. Take
 the last section.
+
+### 2026-10-28 — the API VIP, and what a cold boot costs
+
+**The question.** Production's Cilium points at `192.168.2.100`, held by
+`kube-vip`. That was the one production property staging could not rehearse at
+all: the rehearsal log below admits it ("not covered by this rehearsal"). If the
+VIP and the CNI can deadlock on a cold boot, we should know before a reboot
+finds out for us.
+
+**Setup.** `staging/cluster-3node/kube-vip.yaml` mirrors production's manifest
+(v0.8.7, `args: ["manager"]`, `cp_enable`, ARP, leader election) scaled to one
+guest, with `address: 10.10.50.100` and `vip_interface: eth1`. Cilium is now
+installed with `k8sServiceHost=${vip}` like production. The manifest is applied by
+`staging-kube-vip` **30 s after** the Cilium install, so the agents meet a cluster
+with no VIP — the production cold-boot window — instead of always finding one.
+
+**Result: it reproduces, and it is measurable.**
+
+| t | event |
+|---|---|
+| ~60 s | Cilium pod created → `Init:0/6`, no VIP to talk to |
+| 19:21:46 | kube-vip pod created — **30 s of that was the image pull** |
+| 19:21:58 | VIP acquired on `eth1`, gratuitous ARP starts |
+| 19:22:42 | Cilium **Running** |
+| 19:22:46 | node **Ready** |
+
+So the agents waited **42 s** for an address that was itself waiting on a
+scheduler *and* on an image. Verified end to end from the staging host: `ping
+10.10.50.100` answers, ARP resolves to the guest's MAC, `https://10.10.50.100:6443`
+returns `401` (TLS SAN correct), and `kubectl --server https://10.10.50.100:6443`
+lists the node.
+
+**What this means for production.** A cold boot's CNI time is gated on the kube-vip
+image being present locally: rebuilt node, new tag, or a registry that is slow, and
+every Cilium agent waits it out. Two ways out, neither urgent, both documented here
+so nobody re-derives them: pre-pull the image into the node image, or run kube-vip
+as a **static pod** (kubelet reads it from disk — no scheduler, no API, no pull
+before the VIP).
+
+**Second finding.** `native-test.nix` *cannot* rehearse this: its default route is
+the dead tunnel, so the guest has no internet and the kube-vip image never pulls —
+the pod sits in `ContainerCreating` and the VIP never appears. That is the correct
+behaviour for a kill-switch test, and the reason this rehearsal runs on the plain
+`server` guest.
