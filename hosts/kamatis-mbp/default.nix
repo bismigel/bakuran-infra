@@ -5,6 +5,7 @@
     ../../modules/base.nix
     ../../modules/k3s.nix
     ../../modules/cni-cleanup.nix
+    ../../staging/host.nix
     ./disko.nix
   ];
 
@@ -53,32 +54,10 @@
     hybrid-sleep.enable = false;
   };
 
-  # Rejoined 2026-10-28 as a WORKER, not a server: patola-thinkcentre took over
-  # the etcd membership. It stays in the cluster only because its /mnt/data holds
-  # the Immich library + postgres volumes, whose PVs are node-local and pinned
-  # here. It can be retired once Immich is migrated off this 2012 hardware.
-  services.k3s = {
-    enable = true;
-    role = "agent";
-    serverAddr = "https://192.168.2.82:6443";
-    tokenFile = config.sops.secrets."k3s_cluster_token".path;
-    # Agent-only flags: server flags (--flannel-backend, --disable,
-    # --write-kubeconfig-mode) are rejected in agent mode, which is what made the
-    # first attempt at this roll back.
-    extraFlags = toString [
-      # Container log rotation: 10Mi per file, 3 files per container, so the
-      # kubelet keeps at most ~30Mi of stdout/stderr per container on /.
-      "--kubelet-arg"
-      "container-log-max-size=10Mi"
-      "--kubelet-arg"
-      "container-log-max-files=3"
-      # Edge lock: NodePorts only on loopback, so only the local cloudflared
-      # connector (-> 127.0.0.1:32080) can reach them; LAN clients cannot
-      # bypass Cloudflare Access via NodePorts.
-      "--kube-proxy-arg"
-      "nodeport-addresses=127.0.0.1/32"
-    ];
-  };
+  # Staging host since 2026-10-28: it left the cluster when patola-thinkcentre
+  # took the etcd membership and Immich's volumes moved. It exists to run the
+  # VMs in ../../staging and to be disposable.
+  services.k3s.enable = false;
 
   networking.firewall = {
     enable = true;
