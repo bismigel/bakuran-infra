@@ -477,3 +477,53 @@ the dead tunnel, so the guest has no internet and the kube-vip image never pulls
 the pod sits in `ContainerCreating` and the VIP never appears. That is the correct
 behaviour for a kill-switch test, and the reason this rehearsal runs on the plain
 `server` guest.
+
+### 2026-10-28 — control-plane failure: quorum survives, the VIP flaps
+
+**The question.** A single guest can only show that things work when nothing goes
+wrong. Production is three control planes with embedded etcd and a VIP; if one dies,
+does the cluster keep writing, and does the address move?
+
+**Setup.** `agent1`/`agent2` became `server2`/`server3` (role `server`, joining
+`https://10.10.50.10:6443`), reusing their existing taps via a new `tap` parameter,
+so no host rebuild was needed. Three guests, 2.5 GB each, on a 15 GB host.
+
+Two things had to be fixed before a second server would join at all:
+
+1. **The first server must run `--cluster-init`.** Without it k3s uses SQLite, and
+   every joiner dies with `failed to bootstrap cluster data: etcd disabled`.
+2. **The firewall must allow 2379/2380.** Otherwise the joiner loops forever on
+   `Adding member ... to etcd cluster` → `MemberAdd request timed out`, because the
+   etcd peer connection is silently dropped. The firewall list had 6443 and 8472
+   (k3s/Cilium) but not etcd's own ports.
+
+**Result 1 — quorum survives, as designed.**
+
+```
+$ # VIP holder (10.10.50.10) powered off, then, from server3:
+$ kubectl create configmap quorum-proof -n default
+configmap/quorum-proof created
+```
+
+Two of three etcd members alive, writes accepted. That is the property production
+depends on and it had never been tested here.
+
+**Result 2 — the VIP eventually follows, but not cleanly.**
+
+`kube-vip` runs as a 2-replica Deployment with `vip_leaderelection`. After the
+holder died the address appeared on `server2` within ~9 s (ARP moved to its MAC),
+then disappeared, and did not come back until ~2-3 minutes later. Both kube-vip
+pods restarted twice in that window (`lastState.terminated.reason: Error`).
+
+Still open, and worth chasing because production relies on the same mechanism: the
+obvious suspect is that kube-vip's own API access depends on the very address it is
+supposed to be holding, so a leader that loses the lease has to recover through a
+path that no longer exists. The production lease timings (5 s / 3 s / 1 s) suggest a
+clean handover should take seconds, not minutes.
+
+Until that is understood, the honest statement is: **staging proves the cluster
+survives a control-plane loss, and does not yet prove the VIP moves promptly.**
+
+Also recorded: `kubectl` from a joining server failed against `127.0.0.1:6443` while
+that server was still completing its own apiserver start - a reminder that "k3s is
+active" and "this node's API answers" are different statements.
