@@ -19,7 +19,9 @@
 set -euo pipefail
 
 if [ "$#" -lt 2 ]; then
-  sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'
+  # Print the header comment block only: robust to a shebang or a leading blank
+  # line, which is how `sed -n '2,16p'` ended up printing "!/usr/bin/env bash".
+  sed -n '/^# Start one/,/^set -euo/p' "$0" | sed '$d' | sed 's/^# \{0,1\}//'
   exit 2
 fi
 name="$1"
