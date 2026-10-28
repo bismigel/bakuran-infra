@@ -527,3 +527,53 @@ survives a control-plane loss, and does not yet prove the VIP moves promptly.**
 Also recorded: `kubectl` from a joining server failed against `127.0.0.1:6443` while
 that server was still completing its own apiserver start - a reminder that "k3s is
 active" and "this node's API answers" are different statements.
+
+#### Follow-up: why the VIP flaps, and what to change
+
+**The guess was wrong.** kube-vip does *not* depend on the address it holds — it
+reaches the API through the service IP (`https://10.53.0.1:443`, via kube-proxy).
+The previous container's last two lines say what actually happened:
+
+```text
+20:06:21  successfully acquired lease  → GARP for 10.10.50.100/eth1
+20:06:48  Failed to update lock: Put "https://10.53.0.1:443/apis/coordination.k8s.io/..."
+20:06:48  failed to renew lease plndr-cp-lock: timed out waiting for the condition
+```
+
+The etcd leader was the node that died. While the survivors elected a new leader,
+**API writes stalled**, the leader-election client could not renew, and kube-vip
+**exits** (status 255) instead of waiting. Two consequences:
+
+1. The address is **left on the host interface**. kube-vip only removes it on a
+   clean shutdown, and this was a crash. The restarted pod does not necessarily
+   clean it up.
+2. Meanwhile another node acquires the lease and adds the same address, so for a
+   while **two nodes answer ARP for one VIP** — observed directly on `.10` and
+   `.11` at the same time.
+
+That is the flap: not a failed handover, but a crashed holder whose address never
+left, plus a second legitimate holder.
+
+**Mitigation applied: wider lease timings** (`vip_leaseduration` 15,
+`vip_renewdeadline` 10, `vip_retryperiod` 2, versus production's 5/3/1). The
+renewal now tolerates the 20-30 s of stalled writes that follow an etcd leader
+election instead of giving up.
+
+**Measured after the change.** Killing the VIP holder while the **etcd leader was
+untouched**: the VIP was served again after **45 s**, with the surviving nodes
+staying Ready and the cluster accepting writes. Same experiment earlier, with the
+etcd leader as the casualty and 5/3/1 timings: **2-3 minutes** and a duplicated
+address. (45 s is still not "seconds" — the lease has to expire before another pod
+may take it, which is the price of tolerating a slow API.)
+
+**And the boundary is where it should be.** Killing **two of three** control planes
+gives `ServiceUnavailable` — no quorum, no API, and no VIP either. That is the
+design working, not a fault.
+
+**A harness trap worth knowing about.** `staging-vm` deletes the guest's qcow2 on
+start, so restarting a *server* through it re-provisions an empty node that
+bootstraps a **new cluster with a new CA** — the first time this was tried on a
+member, `.10`/`.11` silently formed a second cluster while `.12` stayed in the
+first, and `kubectl` failed with `certificate signed by unknown authority`. To test
+a node failure on a member, reboot from **inside** the guest
+(`systemctl reboot`), or the wipe is part of the experiment.

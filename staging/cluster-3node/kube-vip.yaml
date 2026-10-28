@@ -97,12 +97,19 @@ spec:
               value: "false"
             - name: vip_leaderelection
               value: "true"
+            # Production uses 5/3/1. That is tight enough that losing the etcd
+            # leader - which stalls API writes for ~20-30s while a new leader is
+            # elected - makes the leader-election client give up, and kube-vip
+            # EXITS (status 255) rather than waiting. Its address then stays on the
+            # host interface, another node acquires the lease and adds the same
+            # address, and for a while two nodes answer ARP for one VIP.
+            # Measured in staging 2026-10-28; see staging/README.md.
             - name: vip_leaseduration
-              value: "5"
+              value: "15"
             - name: vip_renewdeadline
-              value: "3"
+              value: "10"
             - name: vip_retryperiod
-              value: "1"
+              value: "2"
             # br-staging. Without pinning the interface, ARP resolution picks
             # whichever NIC the default route points at - and on this guest the
             # default route is exercised by the tunnel tests.
