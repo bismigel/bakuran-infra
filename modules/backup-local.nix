@@ -27,7 +27,7 @@ let
 
     [ -d "$src" ] || { echo "no $src"; exit 1; }
     # A missing USB disk must not silently "succeed" with an empty backup.
-    mountpoint -q /mnt/backup-sd || { echo "backup disk not mounted"; exit 1; }
+    ${pkgs.util-linux}/bin/mountpoint -q /mnt/backup-sd || { echo "backup disk not mounted"; exit 1; }
 
     mkdir -p "$dst"
     # One log line per run, so a shrinking backup is visible over time.
@@ -46,7 +46,7 @@ let
       RCLONE_CONFIG_R2_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY" \
       RCLONE_CONFIG_R2_ENDPOINT="$R2_ENDPOINT"
 
-    mountpoint -q /mnt/backup-usb || { echo "backup stick not mounted"; exit 1; }
+    ${pkgs.util-linux}/bin/mountpoint -q /mnt/backup-usb || { echo "backup stick not mounted"; exit 1; }
     mkdir -p /mnt/backup-usb/r2
     # Keep the newest few of each dataset; the stick is small and this is the
     # offline copy, not the archive of record.
