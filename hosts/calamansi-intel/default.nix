@@ -117,37 +117,23 @@
   # was blackholing everything because of a stale key, and it "fixed" a symptom
   # that was never about address-family preference.
 
-  # NOTE: this block is deliberately the *previous* endpoint/peer. It is only the
-  # boot-time seed: the reconciler (bakuran.wireguard below) owns the live state
-  # and corrects endpoint, peer and key within 90s of boot. Keeping it identical to
-  # what systemd is already running matters - changing it makes the activation
-  # restart wg-quick-proton0, and that restart has taken this node off the network
-  # seven times (2026-10-25). Once the interface is migrated to networking.wireguard
-  # (which updates peers in place instead of deleting the link) this can be unified.
+  # The interface is owned by networking.wireguard (modules/wireguard-native.nix)
+  # since 2026-10-28. There is no wg-quick block any more, and no second "seed"
+  # peer: one declaration, one owner.
   #
-  # IMPORTANT: `allowedIPs` below still lists `::/0` *on purpose* - it matches the
-  # generation that is running, and changing it would restart the unit (see above).
-  # The reconciler sets `allowed-ips 0.0.0.0/0` at runtime, so the LIVE tunnel is
-  # IPv4-only. Do NOT "tidy" the `::/0` out of this seed: that is a restart.
-  networking.wg-quick.interfaces.proton0 = {
-    privateKeyFile = config.sops.secrets."wg_proton_private_key".path;
-    address = [ "10.2.0.2/32" ];
-    autostart = true;
-    peers = [{
-      publicKey = "/HvEnSU5JaswyBC/YFs74eGLXqLdzsaFeVT8SD1KYAc=";
-      allowedIPs = [ "0.0.0.0/0" "::/0" ];
-      endpoint = "205.142.240.210:51820";
-      persistentKeepalive = 25;
-    }];
-  };
-  # Make sure the SOPS secret exists before wg-quick reads it. This override MUST
-  # stay byte-identical to the one in the generation that is actually running
-  # (d00df62, #79): if it changes, switch-to-configuration restarts the unit, and
-  # a wg-quick restart takes this node off the network (7 outages, 2026-10-25).
-  systemd.services."wg-quick-proton0" = {
-    wants = [ "sops-nix.service" ];
-    after = [ "sops-nix.service" ];
-  };
+  # Why the migration happened: wg-quick adds its policy rules with no explicit
+  # priority, and the kernel derives that priority from the rule list. With
+  # Cilium's rule at 9 and `local` at 100 the tunnel's rules landed at 98/99 -
+  # ABOVE `local` - so packets to this node's own LAN address were routed out of
+  # the interface instead of being delivered locally. The node stopped answering
+  # its own IP, its link stayed up, and only a power-cycle recovered it: seven
+  # times on 2026-10-25, and deterministically on any restart once Cilium had
+  # numbered its rules. The native module pins `pref 32765`/`pref 32764`.
+  #
+  # The old comment here said not to remove the ::/0 allowedIPs because it would
+  # restart the unit. That is now moot: the wg-quick unit is gone, and the peer
+  # below is IPv4-only exactly like the live tunnel.
+  bakuran.wireguard.useNative = true;
 
   # ---- Cloudflare tunnel (SECOND connector — edge HA) ----
   # .82 runs one connector; this is the other. Cloudflare load-balances the
