@@ -577,3 +577,56 @@ member, `.10`/`.11` silently formed a second cluster while `.12` stayed in the
 first, and `kubectl` failed with `certificate signed by unknown authority`. To test
 a node failure on a member, reboot from **inside** the guest
 (`systemctl reboot`), or the wipe is part of the experiment.
+
+### 2026-10-28 — snapshots: golden bases, disk checkpoints, and what QEMU refuses
+
+The gap this closes: a three-attempt rehearsal cost three re-provisions (~10 min
+each), which is a tax on rehearsing at all. Worse, a re-provisioned *server* is not
+a rebooted one — it comes back empty and bootstraps a **new cluster with a new CA**.
+
+**Layer 1 — golden base + overlay.** `staging-vm golden <name>` flattens the guest's
+disk into `golden/<name>-base.qcow2`; every later start creates a thin overlay:
+
+```text
+/var/lib/staging/golden/server3-base.qcow2   1.8 G   (flattened, never edited)
+/var/lib/staging/server3.qcow2               193 K   (overlay, one per run)
+```
+
+Discarding a run is `rm` the overlay and start again — seconds of I/O, and the guest
+**keeps its cluster identity**. Verified: after `golden` + `rm` + start, `server3`
+rejoined as the same member of the same cluster (node age unchanged), instead of
+bootstrapping a second cluster (which is exactly what happened earlier when the
+launcher wiped the disk).
+
+**Layer 2 — named disk checkpoints.** `staging-snap save|list|restore|rm`.
+
+A save pauses every guest (`QMP stop`, so no writes land mid-snapshot), takes an
+internal snapshot of each disk, then resumes. Verified end to end: a file created
+*after* `save probe-2` was gone after `restore probe-2`.
+
+**What QEMU refuses, and why the design had to change.** The first implementation
+used `savevm`/`loadvm`, which is the obvious way to get a ~5 s resume. It fails for
+every guest here:
+
+```text
+Error: Migration is disabled when VirtFS export path
+'/tmp/nix-vm.XXXX/xchg' is mounted in the guest using mount_tag 'xchg'
+```
+
+The NixOS `qemu-vm` module always attaches that 9p share (it is how the guest sees
+the store), and QEMU refuses migration-shaped operations with one attached. So
+**RAM snapshots are not available on these guests at all**; the tool uses
+`blockdev-snapshot-internal-sync` over QMP, which snapshots the disk without
+migrating. Restore consequently stops the guest and leaves it stopped: start it with
+`staging-vm`.
+
+**Rules the tool enforces, because the alternative looks like a bug:**
+
+- `restore` refuses a single member unless `--force` — restoring one control plane
+  while the others keep running diverges the cluster.
+- `save` always covers every running guest or none, so the checkpoint is one instant.
+- Snapshots need the qcow2 write lock, so `qemu-img` cannot save while a guest runs;
+  that is why saving goes through QMP and restoring does not.
+
+**Not a backup.** One host, one file, no retention policy. It is a rehearsal
+accelerator; the homelab backups are elsewhere.
