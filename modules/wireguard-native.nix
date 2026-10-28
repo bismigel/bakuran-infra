@@ -26,6 +26,13 @@ let
   epIp = lib.head (lib.splitString ":" cfg.endpoint);
 in
 {
+    options.bakuran.wireguard.privateKeyFile = lib.mkOption {
+      type = lib.types.str;
+      default = config.sops.secrets."wg_proton_private_key".path;
+      defaultText = lib.literalExpression "config.sops.secrets.\"wg_proton_private_key\".path";
+      description = "Path to the tunnel private key. Staging overrides it with a throwaway key.";
+    };
+
   options.bakuran.wireguard.useNative = lib.mkOption {
     type = lib.types.bool;
     default = false;
@@ -56,7 +63,9 @@ in
     };
     networking.wireguard.interfaces.${cfg.interface} = {
       ips = [ "10.2.0.2/32" ];
-      privateKeyFile = config.sops.secrets."wg_proton_private_key".path;
+      # Overridable so this module can be booted in staging with a throwaway
+      # key. In production it stays the SOPS secret.
+      privateKeyFile = cfg.privateKeyFile;
       peers = [{
         publicKey = cfg.peerPublicKey;
         allowedIPs = [ "0.0.0.0/0" ];
