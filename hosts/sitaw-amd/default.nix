@@ -5,6 +5,7 @@
     ../../modules/base.nix
     ../../modules/k3s.nix
     ../../modules/cni-cleanup.nix
+    ../../modules/backup-local.nix
     ../../modules/backup.nix
     ../../modules/backup-apps.nix
     ../../modules/cloudflare-sync.nix
@@ -84,7 +85,26 @@
   services.nfs.server.exports = ''
     /mnt/media-nvme 192.168.2.81(rw,sync,no_subtree_check,no_root_squash)
     /mnt/media-sda  192.168.2.81(rw,sync,no_subtree_check,no_root_squash)
+    # Backup disks (USB, 2026-10-28). .81 writes the weekly media mirror to the SD
+    # card; this host writes the R2 archive copy to the stick.
+    /mnt/backup-sd  192.168.2.81(rw,sync,no_subtree_check,no_root_squash)
+    /mnt/backup-usb 192.168.2.81(rw,sync,no_subtree_check,no_root_squash)
   '';
+
+  # Two USB disks used as a *weekly* backup target, not as mergerfs branches:
+  # SD cards and USB sticks have no write cache/FUA and poor endurance, which is
+  # fine for a few tens of GB a week and wrong for a live media branch.
+  # nofail: a missing USB disk must never block boot.
+  fileSystems."/mnt/backup-sd" = {
+    device = "/dev/disk/by-uuid/541e3c05-5496-4534-8af7-cb81bc1a6522";
+    fsType = "ext4";
+    options = [ "nofail" "x-systemd.device-timeout=10s" ];
+  };
+  fileSystems."/mnt/backup-usb" = {
+    device = "/dev/disk/by-uuid/6437190e-3bab-4a20-8e82-aeb3f8b2c73b";
+    fsType = "ext4";
+    options = [ "nofail" "x-systemd.device-timeout=10s" ];
+  };
 
   # Cloudflare tunnel. NOTE: this tunnel is **remote-managed** — routing is
   # configured in the Cloudflare dashboard/API and cloudflared pulls it, so the
