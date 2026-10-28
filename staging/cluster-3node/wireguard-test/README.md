@@ -1,3 +1,16 @@
+# Superseded (2026-10-28)
+
+This was the first standalone guest, built to answer *"what does a `wg-quick`
+recreate do to a Cilium node"*. It answered it: the tunnel's policy rules landed
+above the `local` rule, so the node stopped answering its own IP while ARP kept
+working.
+
+Kept as history. The question is closed and the replacement is
+`../native-test.nix`, which boots the **real** `modules/wireguard-native.nix`
+instead of a hand-written imitation. Do not run this one expecting new answers.
+
+---
+
 # WireGuard full-tunnel activation test
 
 One disposable guest, one question:
