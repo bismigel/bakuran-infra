@@ -11,7 +11,8 @@ production.
 |---|---|---|
 | `cluster-3node/` | 3 NixOS QEMU VMs on `10.10.50.0/24` over `br-staging`, k3s with **Cilium v1.20.3** (same digest as production), kube-proxy enabled | **datapath** changes: CNI behaviour, WireGuard, egress policy, plus control-plane work |
 | `deck/` | Single-node NixOS k3s on a Steam Deck, non-overlapping pod/service CIDRs | a node you can carry, wipe and re-image without touching the rack |
-| `../staging-vm/wireguard-test` (older, kept as-is) | 1 VM with **Cilium** + WireGuard client | the WireGuard question: what a `wg-quick` recreate does to a Cilium node |
+| `cluster-3node/native-test.nix` | the `native` output: one guest booting **the real `modules/wireguard-native.nix`**, Cilium installed first | the tunnel *artifact*, not the mechanism: boot state, 10 unit restarts, stop/start, SOPS ordering, reconciler |
+| `cluster-3node/wireguard-test/` | the first standalone guest (Cilium + `wg-quick`) | **superseded** — kept as history for the 2026-10-25 investigation |
 
 `host.nix` in this directory turns a NixOS host into a **staging host**: KVM, the
 `br-staging` bridge and the tap devices the VM runners expect. The MacBook
@@ -79,15 +80,32 @@ guests were addressed `192.168.102.0/24` while the bridge is `10.10.50.0/24`
 (the host could not reach its own VMs), and the guest's default route pointed at
 the LAN instead of the WAN — so the guest had no internet and no tunnel path.
 
-## Known gaps
+## Known gaps (reviewed 2026-10-28, after the WireGuard migration)
 
-- **No WireGuard interface yet.** `cluster-3node` has the NICs and the CNI, but not
-  the `wg-quick` full-tunnel config that makes `.81` strand. That is the next piece
-  needed for the WireGuard migration rehearsal.
-- No ArgoCD, no application manifests: staging proves infrastructure, not apps.
-- No staging automation yet: no Cloudflare tunnel, no ArgoCD, no app manifests.
-  It proves *infrastructure* behaviour, not application behaviour.
-- No snapshot/restore. A broken VM is deleted, not repaired.
+Closed today: the tunnel question. `native-test.nix` boots the module production
+actually runs, so "does it work" is answered by a boot instead of an argument.
+
+Still open, in the order they would bite:
+
+- **The launcher is not in git.** `/root/startvm.sh` exists only on `.83`. Every
+  guest here is reproducible from source; the thing that starts them is not. If
+  that host is rebuilt, the knowledge goes with it.
+- **No API VIP.** Production runs `kube-vip` holding `192.168.2.100`, and Cilium's
+  `k8sServiceHost` points at it. Staging only passes `--tls-san=10.10.50.100`, so
+  the cold-boot ordering constraint in the rehearsal log cannot be rehearsed here.
+- **Control-plane failure modes are not reproducible**: one guest at a time means
+  no etcd quorum, no member replacement, no VIP failover. Today's
+  `NotReady`-for-ten-minutes bug (k3s naming itself after the tunnel's default
+  route) could only surface on real hardware.
+- **`sops-nix` is a stand-in** — a unit that sleeps 20 s. It proves the ordering
+  exists, not that the real module materialises the key in time.
+- **No ArgoCD, no app manifests, no Cloudflare tunnel** — deliberate: staging
+  proves infrastructure, not applications.
+- **No snapshot/restore.** A broken guest is deleted, not repaired: honest, but
+  slow when a rehearsal needs three attempts.
+- **Two guests share `tap-server`** (`server` and `native`), so only one runs at a
+  time. `startvm.sh` deletes the qcow2 on start, which makes the sharing safe and
+  destructive at once.
 
 ## Running it
 
