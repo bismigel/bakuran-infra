@@ -283,3 +283,57 @@ first. If something (a leftover rule, Cilium's `fwmark 0x200/0xf00 lookup 2004`
 at priority 9, another agent) shifts the numbering, the order inverts — and then
 *everything, including the LAN*, is looked up in table 51820, which contains only a
 default route. That produces exactly `GW-FAIL` while L2 still works.
+
+### ROOT CAUSE (2026-10-28) — rule priorities, not the link
+
+Found on the **first** run of the 15-boot budget. The capture, in the stranded state:
+
+```text
+ 9:    from all fwmark 0x200/0xf00 lookup 2004     ← Cilium
+98:    from all lookup main suppress_prefixlength 0   ← wg, ABOVE local
+99:    not from all fwmark 0xca6c lookup 51820        ← wg
+100:   from all lookup local                          ← local is here, not at 0
+```
+
+versus the healthy state:
+
+```text
+0:     from all lookup local
+32764: from all lookup main suppress_prefixlength 0
+32765: not from all fwmark 0xca6c lookup 51820
+```
+
+**Mechanism.** `wg-quick` calls `ip rule add` with no `pref`; the kernel's
+`fib_default_rule_pref()` (`net/core/fib_rules.c`) returns *the priority of the
+second rule in the list, minus one*.
+
+- Cilium has not created rule 9 yet → list is `[0, 32766, 32767]` → 32766−1 = 32765,
+  then 32764 → **tunnel rules sit below `local`** → works.
+- Cilium has created rule 9 and moved `local` to 100 → list is `[9, 100, …]` →
+  100−1 = 99, then 98 → **tunnel rules sit above `local`** → broken.
+
+With the tunnel rules above `local`, a packet addressed to the node's own LAN IP is
+looked up in `main` (which holds the connected /24) and sent *out the interface*,
+never delivered locally. The node stops answering its own address; ARP still works
+because it is L2; `wg-quick down` cannot repair it because the rules were added at
+the wrong priorities. Hence the power-cycle.
+
+**Proof (A/B/C on one guest, seconds apart, Cilium's rule 9 and `local@100` present):**
+
+| Step | Rules | Gateway ping |
+|---|---|---|
+| A | explicit `pref 32765` / `pref 32764` | **GW-OK** |
+| B | identical rules, no `pref` → 98/99 | **GW-FAIL** |
+| C | explicit prefs restored | **GW-OK** |
+
+**Fix.** `modules/wireguard-native.nix` now pins `pref 32765` and `pref 32764` in
+`postSetup` and deletes by the same prefs in `preShutdown`. The staged module had
+the same latent bug, so the migration would have inherited it.
+
+**Repair without a reboot**, if a node ever strands:
+
+```bash
+ip -4 rule delete pref 98 ; ip -4 rule delete pref 99
+ip -4 rule add pref 32765 not fwmark 51820 table 51820
+ip -4 rule add pref 32764 table main suppress_prefixlength 0
+```
