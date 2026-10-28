@@ -151,3 +151,46 @@ minutes, and neither requires rebuilding the cluster.
 **Not covered by this rehearsal:** the datapath (the VM still had flannel, so this
 tested the agent's API client, not CNI behaviour), multi-node VIP failover, and
 the `.81` egress path.
+
+### 2026-10-28 — the stranding reproduces in staging
+
+**The question.** On 2026-10-25 the media node went off the network seven times,
+always after a `wg-quick` link recreate: ARP still answered, nothing above L2, and
+only a power-cycle recovered it. Nobody has ever explained it.
+
+**Setup.** The `server` VM (Cilium v1.20.3, kube-proxy enabled, `10.10.50.10` on
+`br-staging`, default route on `eth0` = the WAN), plus a `wg-quick` interface
+matching production's shape: full tunnel, `0.0.0.0/0`, dead endpoint
+(`203.0.113.1:51820`), keepalive 25.
+
+**Safety.** A `systemd-run --on-active=150` timer inside the guest tears the tunnel
+down on a schedule, so a stranding cannot lock the test out — a local timer does not
+depend on the network.
+
+**Result — reproduced, first try.**
+
+| Observation | Value |
+|---|---|
+| guest process | alive (qemu running, serial console responsive) |
+| LAN reachability from the host | **dead** (ping and SSH both fail) |
+| L2 | MAC learned and present on the bridge, neighbour entry `DELAY`/`STALE` |
+| ICMP | never returns |
+| `wg-quick down` from inside (the armed timer) | **fired, and did not recover** |
+
+That is production's symptom, in a VM, on the first attempt: **the node loses L3
+while its link stays up**, and tearing the tunnel down does not bring it back.
+
+**What this changes.** The question was previously blocked on "needs hardware we do
+not have". It does not: a Cilium-bearing VM with two NICs reproduces it. The next
+steps are bisection, each one run in this same guest:
+
+1. stop Cilium (`kubectl -n kube-system scale ds/cilium --replicas=0`) → repeat
+2. remove the `proton0` interface from the equation (plain `ip link add/del` of a
+   dummy with the same routes and rules) → repeat
+3. drop the fwmark rules only → repeat
+4. drop the endpoint pin only → repeat
+
+The first variant that does *not* strand names the component. Until that is known,
+`networking.wireguard` must not be enabled in production: it replaces the unit,
+which stops `wg-quick` — the same link delete — and could strand the node the same
+way during the migration itself.
