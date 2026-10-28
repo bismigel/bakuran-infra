@@ -48,6 +48,9 @@ in
     # the guests were reproducible from source but the thing that started them
     # was not. See staging/startvm.sh.
     (writeShellScriptBin "staging-vm" (builtins.readFile ./startvm.sh))
+    # Consistent snapshots over QMP (snapshot.sh explains why qemu-img cannot do
+    # this on a live guest).
+    (writeShellScriptBin "staging-snap" (builtins.readFile ./snapshot.sh))
   ];
 
   systemd.services.staging-bridge = {
