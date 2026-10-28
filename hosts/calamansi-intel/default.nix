@@ -197,6 +197,9 @@
     serverAddr = "https://192.168.2.82:6443";
     tokenFile = config.sops.secrets."k3s_cluster_token".path;
     extraFlags = toString [
+      # The API VIP (kube-vip, gitops manifests/monitoring/kube-vip.yaml) has to be
+      # in the serving certificate or clients get a TLS name error.
+      "--tls-san=192.168.2.100"
       "--flannel-backend=none"
       "--disable-network-policy"
       "--disable"
