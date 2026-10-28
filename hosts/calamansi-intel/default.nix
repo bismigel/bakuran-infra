@@ -20,17 +20,17 @@
   #   /dev/sda     -> /mnt/media-sda
 
   # ---- Combined media pool -------------------------------------------------
-  # .82 exports its data partitions; expose them here, then mergerfs-union all
-  # four branches (2 local + 2 remote) into a single /mnt/media.
+  # .82 exports its data partitions; expose them here, then mergerfs-union the
+  # branches into a single /mnt/media.
+  #
+  # .82:/mnt/media-nvme was a branch until 2026-10-28. It held nothing, and the
+  # partition is now a dedicated Longhorn disk instead: Longhorn was at 178G
+  # scheduled against ~294G of capacity shared with the OS, and an empty 340G
+  # partition is worth more to storage than to a pool that already has 800G free.
   boot.kernelModules = [ "fuse" ];
   programs.fuse.userAllowOther = true;   # required for mergerfs allow_other
   environment.systemPackages = [ pkgs.mergerfs ];
 
-  fileSystems."/mnt/remote82-nvme" = {
-    device = "192.168.2.82:/mnt/media-nvme";
-    fsType = "nfs";
-    options = [ "nfsvers=4.2" "_netdev" "nofail" "soft" "timeo=30" "retrans=3" ];
-  };
   # Backup SD card lives on sitaw-amd (.82) and is exported from there; the
   # weekly media mirror writes to it over NFS. automount so a missing disk or a
   # rebooted .82 does not block anything.
@@ -47,7 +47,7 @@
   };
 
   fileSystems."/mnt/media" = {
-    device = "/mnt/media-nvme:/mnt/media-sda:/mnt/remote82-nvme:/mnt/remote82-sda";
+    device = "/mnt/media-nvme:/mnt/media-sda:/mnt/remote82-sda";
     fsType = "fuse.mergerfs";    options = [
       "defaults"
       "allow_other"
@@ -58,7 +58,6 @@
       "category.create=epmfs"
       "x-systemd.requires-mounts-for=/mnt/media-nvme"
       "x-systemd.requires-mounts-for=/mnt/media-sda"
-      "x-systemd.requires-mounts-for=/mnt/remote82-nvme"
       "x-systemd.requires-mounts-for=/mnt/remote82-sda"
       "nofail"
     ];
