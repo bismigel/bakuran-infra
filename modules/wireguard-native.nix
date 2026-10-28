@@ -58,16 +58,32 @@ in
       # networking.wireguard does not install kernel routes: allowedIPs only tells
       # WireGuard what to encrypt. These reproduce exactly what wg-quick did
       # (NETWORK.md §4): endpoint reachable outside the tunnel, everything else in.
+      # EXPLICIT priorities. This is the fix for the seven outages, not a detail.
+      #
+      # `ip rule add` without `pref` asks the kernel for a default priority, and
+      # net/core/fib_rules.c fib_default_rule_pref() returns "the priority of the
+      # SECOND rule in the list, minus one". Cilium installs a rule at priority 9 and
+      # leaves the `local` rule at 100, so the list is [9, 100, 32766, 32767] and the
+      # computed default is 99 - wg-quick-shaped rules then land at 98/99, ABOVE
+      # `local` at 100. Packets to the node's own LAN address get routed out the
+      # interface instead of being delivered locally: the node stops answering its own
+      # IP, ARP keeps working, and only a power-cycle recovered it.
+      #
+      # Measured in staging 2026-10-28: wg-quick's rules land at 32764/32765 (healthy)
+      # only when Cilium has not created its rule yet, and at 98/99 (stranded) when it
+      # has - a boot race, which is why it struck roughly one run in seven.
+      #
+      # Pinning the priorities makes this immune to whatever else numbers rules.
       postSetup = ''
         ip route replace ${epIp}/32 via ${cfg.gateway} dev ${cfg.device} table main
         ip route replace default dev ${cfg.interface} table 51820
-        ip -4 rule add not fwmark 51820 table 51820 2>/dev/null || true
-        ip -4 rule add table main suppress_prefixlength 0 2>/dev/null || true
+        ip -4 rule add pref 32765 not fwmark 51820 table 51820 2>/dev/null || true
+        ip -4 rule add pref 32764 table main suppress_prefixlength 0 2>/dev/null || true
       '';
 
       preShutdown = ''
-        ip -4 rule delete table 51820 2>/dev/null || true
-        ip -4 rule delete table main suppress_prefixlength 0 2>/dev/null || true
+        ip -4 rule delete pref 32765 2>/dev/null || true
+        ip -4 rule delete pref 32764 2>/dev/null || true
         ip route flush table 51820 2>/dev/null || true
       '';
     };
