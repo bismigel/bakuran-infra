@@ -31,7 +31,7 @@ let
     PEER=${cfg.peerPublicKey}
     GW=${cfg.gateway}
     DEV=${cfg.device}
-    KEY=${config.sops.secrets."wg_proton_private_key".path}
+    KEY=${cfg.privateKeyFile}
     log() { echo "wireguard-reconcile: $*"; }
 
     [ -e "/sys/class/net/$IF" ] || { log "interface $IF missing (unit not up yet)"; exit 0; }
