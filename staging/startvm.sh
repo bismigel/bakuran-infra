@@ -64,7 +64,7 @@ stop_conflicting_taps() {
   for other in "$dir"/*.meta; do
     [ -e "$other" ] || continue
     case "$other" in "$meta") continue ;; esac
-    if [ "$(cat "$other")" = "$want" ]; then
+    if [ "$(sed -n 1p "$other")" = "$want" ]; then
       say "tap $want is held by $(basename "$other" .meta); stopping it"
       stop_name "$(basename "$other" .meta)"
     fi
@@ -114,7 +114,8 @@ elif [ -f "$base" ] && [ ! -e "$disk" ]; then
 fi
 # If neither base nor disk exists, the runner creates the disk itself.
 
-echo "$tap" > "$meta"
+# line 1: tap, line 2: runner - staging-snap needs both to restart a set itself.
+printf '%s\n%s\n' "$tap" "$runner" > "$meta"
 
 # -qmp gives staging-snap a way to quiesce the guest and write a consistent
 # snapshot from inside QEMU; `qemu-img` cannot touch a live image.
