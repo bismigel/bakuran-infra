@@ -15,7 +15,7 @@
   networking.useDHCP = false;
   networking.interfaces.eno1.useDHCP = false;
   networking.interfaces.eno1.ipv4.addresses = [
-    { address = "192.168.2.84"; prefixLength = 24; }
+    { address = "192.168.2.80"; prefixLength = 24; }
   ];
   networking.defaultGateway = "192.168.2.1";
   networking.nameservers = [ "1.1.1.1" "8.8.8.8" ];
