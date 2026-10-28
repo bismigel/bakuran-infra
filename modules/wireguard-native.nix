@@ -45,6 +45,15 @@ in
       '';
     }];
 
+
+    # The native unit reads its private key from the SOPS file, so it needs the same
+    # ordering the wg-quick override had. Without it the unit can start before the
+    # secret exists and come up with no key - the same failure class as outage 7,
+    # in a new place.
+    systemd.services."wireguard-${cfg.interface}" = {
+      wants = [ "sops-nix.service" ];
+      after = [ "sops-nix.service" ];
+    };
     networking.wireguard.interfaces.${cfg.interface} = {
       ips = [ "10.2.0.2/32" ];
       privateKeyFile = config.sops.secrets."wg_proton_private_key".path;

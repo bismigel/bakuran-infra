@@ -88,7 +88,12 @@ in
   config = {
     systemd.services.wireguard-reconcile = {
       description = "Enforce the declared WireGuard peer state";
-      after = [ "wg-quick-${cfg.interface}.service" ];
+      # The unit that owns the link depends on which implementation is active.
+      # The reconciler must start after it, or it races the interface creation and
+      # logs "interface missing" on every boot.
+      after = [ "${if config.bakuran.wireguard.useNative
+                  then "wireguard"
+                  else "wg-quick"}-${cfg.interface}.service" ];
       path = with pkgs; [ wireguard-tools iproute2 gawk coreutils curl util-linux ];
       serviceConfig.Type = "oneshot";
       script = "${reconcile}";
