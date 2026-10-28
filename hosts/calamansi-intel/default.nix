@@ -186,6 +186,14 @@
     serverAddr = "https://192.168.2.82:6443";
     tokenFile = config.sops.secrets."k3s_cluster_token".path;
     extraFlags = toString [
+      # PIN the node's identity to the LAN address. k3s otherwise auto-detects it
+      # from the default route, and this node's default route is the tunnel - so on
+      # a boot where the tunnel came up first, k3s named itself 10.2.0.2 and etcd
+      # advertised that address, which the other members cannot reach. The node then
+      # never became Ready (found by rebooting .81 on 2026-10-28, right after the
+      # WireGuard migration changed the boot ordering).
+      "--node-ip=192.168.2.81"
+      "--advertise-address=192.168.2.81"
       # The API VIP (kube-vip, gitops manifests/monitoring/kube-vip.yaml) has to be
       # in the serving certificate or clients get a TLS name error.
       "--tls-san=192.168.2.100"
