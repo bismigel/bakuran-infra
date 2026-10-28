@@ -62,15 +62,10 @@
     role = "agent";
     serverAddr = "https://192.168.2.82:6443";
     tokenFile = config.sops.secrets."k3s_cluster_token".path;
+    # Agent-only flags: server flags (--flannel-backend, --disable,
+    # --write-kubeconfig-mode) are rejected in agent mode, which is what made the
+    # first attempt at this roll back.
     extraFlags = toString [
-      "--flannel-backend=none"
-      "--disable-network-policy"
-      "--disable"
-      "traefik"
-      "--disable"
-      "servicelb"
-      "--write-kubeconfig-mode"
-      "0600"
       # Container log rotation: 10Mi per file, 3 files per container, so the
       # kubelet keeps at most ~30Mi of stdout/stderr per container on /.
       "--kubelet-arg"
