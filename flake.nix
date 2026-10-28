@@ -73,6 +73,26 @@
           ./hosts/kamatis-mbp/default.nix
         ];
       };
+    # Lenovo ThinkCentre M900 Tiny (i5-6500T, 16 GB) — replaces kamatis-mbp
+    # as the 3rd k3s server / etcd member. Deliberately not tainted: schedulable.
+    patola-thinkcentre = nixpkgs.lib.nixosSystem {
+      system = "x86_64-linux";
+      specialArgs = {
+        sshPubKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIH+soIiTQA3y96cqgaPluR9i9Z9qCdypdSfH/w0KiYrb labanos@bakuran";
+
+        unstable = nixpkgs-unstable;
+      };
+        modules = [
+          ({ pkgs, ... }: {
+            sops.package = pkgs.callPackage "${sops-nix}/pkgs/sops-install-secrets" {
+              vendorHash = "sha256-SXOd+0yh0DQr3uLVQBdw07J9j5HNuFJSOajDul1B1qo=";
+            };
+          })
+          sops-nix.nixosModules.sops
+        disko.nixosModules.disko
+        ./hosts/patola-thinkcentre/default.nix
+      ];
+    };
     };
 
     # Push-based OS deploys:  nix run github:serokell/deploy-rs -- .#sitaw-amd
@@ -94,6 +114,13 @@
             path = deploy-rs.lib.x86_64-linux.activate.nixos self.nixosConfigurations.sitaw-amd;
           };
         };
+      patola-thinkcentre = {
+        hostname = "192.168.2.84";
+        profiles.system = {
+          user = "root";
+          path = deploy-rs.lib.x86_64-linux.activate.nixos self.nixosConfigurations.patola-thinkcentre;
+        };
+      };
         kamatis-mbp = {
           hostname = "192.168.2.83";
           profiles.system = {
