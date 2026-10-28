@@ -9,7 +9,7 @@ production.
 
 | Directory | Shape | Use it for |
 |---|---|---|
-| `cluster-3node/` | 3 NixOS QEMU VMs (server + 2 agents) on `192.168.102.0/24`, k3s with **flannel** | control-plane changes that are not about the CNI: k3s flags, etcd behaviour, upgrades, ArgoCD |
+| `cluster-3node/` | 3 NixOS QEMU VMs on `10.10.50.0/24` over `br-staging`, k3s with **Cilium v1.20.3** (same digest as production), kube-proxy enabled | **datapath** changes: CNI behaviour, WireGuard, egress policy, plus control-plane work |
 | `deck/` | Single-node NixOS k3s on a Steam Deck, non-overlapping pod/service CIDRs | a node you can carry, wipe and re-image without touching the rack |
 | `../staging-vm/wireguard-test` (older, kept as-is) | 1 VM with **Cilium** + WireGuard client | the WireGuard question: what a `wg-quick` recreate does to a Cilium node |
 
@@ -59,11 +59,32 @@ intermittent "which cluster am I debugging" failures that cost days.
 - **Nothing in staging is exposed publicly.** No tunnel, no Access application.
   If one is ever needed, use `*.stg.bismigel.dev` and a separate tunnel.
 
+## Production parity (2026-10-28)
+
+`cluster-3node` was rewritten to mirror production's datapath, because the
+questions that matter here are all datapath questions:
+
+| Property | Production | Staging |
+|---|---|---|
+| CNI | Cilium v1.20.3 `@sha256:95cfa5c…` | same digest |
+| Mode | tunnel / vxlan | same |
+| IPAM | kubernetes | same |
+| kube-proxy | enabled (`kubeProxyReplacement=false`) | enabled |
+| Pod / service CIDR | 10.42 / 10.43 | **10.52 / 10.53** (never overlapping) |
+| NodePorts | loopback only | same |
+| NICs | LAN + tunnel | LAN on `br-staging` + `eth0` as the WAN |
+
+Two things that were broken until then and are worth not reintroducing:
+guests were addressed `192.168.102.0/24` while the bridge is `10.10.50.0/24`
+(the host could not reach its own VMs), and the guest's default route pointed at
+the LAN instead of the WAN — so the guest had no internet and no tunnel path.
+
 ## Known gaps
 
-- `cluster-3node` uses **flannel**, production uses **Cilium**. It is fine for
-  control-plane work and wrong for CNI work — for those, start from the
-  `wireguard-test` VM's Cilium setup instead.
+- **No WireGuard interface yet.** `cluster-3node` has the NICs and the CNI, but not
+  the `wg-quick` full-tunnel config that makes `.81` strand. That is the next piece
+  needed for the WireGuard migration rehearsal.
+- No ArgoCD, no application manifests: staging proves infrastructure, not apps.
 - No staging automation yet: no Cloudflare tunnel, no ArgoCD, no app manifests.
   It proves *infrastructure* behaviour, not application behaviour.
 - No snapshot/restore. A broken VM is deleted, not repaired.
