@@ -90,9 +90,10 @@ Still open, in the order they would bite:
 - **The launcher is not in git.** `/root/startvm.sh` exists only on `.83`. Every
   guest here is reproducible from source; the thing that starts them is not. If
   that host is rebuilt, the knowledge goes with it.
-- **No API VIP.** Production runs `kube-vip` holding `192.168.2.100`, and Cilium's
-  `k8sServiceHost` points at it. Staging only passes `--tls-san=10.10.50.100`, so
-  the cold-boot ordering constraint in the rehearsal log cannot be rehearsed here.
+- ~~**No API VIP.**~~ **Closed 2026-10-28**: `kube-vip.yaml` + `staging-kube-vip`
+  give the guest a real VIP at `10.10.50.100`, and Cilium's `k8sServiceHost` points
+  at it. The cold-boot ordering constraint is now rehearsable on demand — see the
+  rehearsal-log entry, which also measures it (~42 s of `Init`).
 - **Control-plane failure modes are not reproducible**: one guest at a time means
   no etcd quorum, no member replacement, no VIP failover. Today's
   `NotReady`-for-ten-minutes bug (k3s naming itself after the tunnel's default
