@@ -83,10 +83,11 @@
   };
 
   # ---- Media storage: export the data partitions to the media box (.81) ----
+  # /mnt/media-nvme is NOT exported any more: it is a Longhorn disk since
+  # 2026-10-28 (dedicated 340G, no longer competing with the root filesystem).
   # .81 mounts these and mergerfs-unions them with its own local disks.
   services.nfs.server.enable = true;
   services.nfs.server.exports = ''
-    /mnt/media-nvme 192.168.2.81(rw,sync,no_subtree_check,no_root_squash)
     /mnt/media-sda  192.168.2.81(rw,sync,no_subtree_check,no_root_squash)
     # Backup disks (USB, 2026-10-28). .81 writes the weekly media mirror to the SD
     # card; this host writes the R2 archive copy to the stick.
