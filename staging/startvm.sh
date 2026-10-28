@@ -81,6 +81,11 @@ case "$mode" in
     systemctl stop "$unit" 2>/dev/null || true
     sleep 1
     [ -f "$disk" ] || { say "no disk at $disk"; exit 1; }
+    # `convert` flattens data and DROPS internal snapshots. Say so: promoting a
+    # guest to a base silently discards every staging-snap checkpoint on it.
+    if qemu-img snapshot -l "$disk" 2>/dev/null | grep -qE '^[0-9]+'; then
+      say "WARNING: $disk has snapshots; flattening DISCARDS them (qemu-img convert keeps data only)"
+    fi
     say "flattening $disk -> $base"
     # convert (not commit) so a base is never edited in place while overlays exist
     qemu-img convert -O qcow2 "$disk" "$base.tmp"
