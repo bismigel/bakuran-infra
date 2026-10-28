@@ -53,7 +53,11 @@
           # 11:15, 14:15) while the cluster was perfectly healthy. Capture first,
           # then match.
           cilium_status=$(${pkgs.kubectl}/bin/kubectl -n kube-system exec ds/cilium -c cilium-agent -- cilium-dbg status)
-          grep -q "Cluster health:.*3/3" <<<"$cilium_status"
+          # N/N, not "3/3": the cluster node count changes (it went 3 -> 4 on
+          # 2026-10-28) and a hard-coded number fails on a healthy cluster.
+          health=$(sed -n "s/.*Cluster health: *\([0-9]*\)\/\([0-9]*\) .*/\1 \2/p" <<<"$cilium_status" | head -1)
+          [ -n "$health" ] || { echo "cilium health line missing"; exit 1; }
+          [ "${health% *}" = "${health#* }" ] || { echo "cilium health not full: $health"; exit 1; }
           ${pkgs.curl}/bin/curl -fsSL -o /dev/null --max-time 15 https://bismigel.dev/
           ${pkgs.curl}/bin/curl -fsSL -o /dev/null --max-time 10 http://192.168.2.81:8096/
           echo "smoke test passed"
