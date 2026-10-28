@@ -18,8 +18,12 @@
 # debugging yesterday's experiment.
 set -euo pipefail
 
-name="${1:?usage: staging-vm <name> <runner>}"
-runner="${2:?usage: staging-vm <name> <runner>}"
+if [ "$#" -lt 2 ]; then
+  sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'
+  exit 2
+fi
+name="$1"
+runner="$2"
 
 dir=/var/lib/staging
 unit="staging-$name"
