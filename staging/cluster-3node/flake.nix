@@ -143,5 +143,10 @@
         host = "agent2"; ip = "10.10.50.12"; role = "agent"; mac = "52:54:00:12:36:12";
         serverAddr = "https://10.10.50.10:6443";
       };
+      # Boots the real production module (modules/wireguard-native.nix). Reuses
+      # tap-server and the server's address, so only one guest runs at a time.
+      nixosConfigurations.native =
+          (mk { host = "server"; ip = "10.10.50.10"; role = "server"; mac = "52:54:00:12:36:10"; })
+          .extendModules { modules = [ ./native-test.nix ]; };
     };
 }

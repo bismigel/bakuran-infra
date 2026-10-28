@@ -363,3 +363,38 @@ ip -4 rule delete pref 98 ; ip -4 rule delete pref 99
 ip -4 rule add pref 32765 not fwmark 51820 table 51820
 ip -4 rule add pref 32764 table main suppress_prefixlength 0
 ```
+
+### The module itself, booted (2026-10-28)
+
+The shell test above proved the *mechanism*. It says nothing about
+`modules/wireguard-native.nix`, which had never been evaluated, let alone booted.
+`staging/cluster-3node/native-test.nix` boots the real module (Cilium installed
+first, throwaway key, dead endpoint) and exercises it.
+
+Run it: `nix build .#nixosConfigurations.native.config.system.build.vm`, copy the
+closure to the staging host, `/root/startvm.sh native <runner>` (it reuses
+`tap-server`, so only one guest at a time), then read
+`/var/lib/staging/native-console.log`.
+
+Result, against the production precondition — Cilium's rule at **9**, `local` at
+**100** — verified present in the guest before the test started:
+
+| Check | Result |
+|---|---|
+| rules at boot | **32764 / 32765**, below `local` |
+| own LAN IP | `local … dev lo` (delivered locally, not routed out) |
+| internet | `dev proton0 table 51820` (tunnel still owns it) |
+| gateway | GW-OK |
+| **10 restarts of the unit** | **10/10 reachable**, rules never left 32764/32765 |
+| `stop` | 0 stale rules, `table 51820` empty |
+| `start` | rules correct, GW-OK |
+| SOPS ordering | sops-nix started 16:22:23, tunnel 16:23:47 — **it waited** |
+| reconciler | ordered after `wireguard-proton0`; ran, reported the dead endpoint, finished |
+
+Caveat worth keeping: staging's Cilium does **not** always create rule 9 promptly
+(in one boot it never did), so the test forces it when absent. Production has it,
+which is the whole reason this bug existed.
+
+Reading the console log takes care: qemu's serial file **appends across guest
+reboots**, so a `sed` from the first `NATIVE TEST begin` returns an older run. Take
+the last section.
