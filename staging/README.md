@@ -330,6 +330,32 @@ the wrong priorities. Hence the power-cycle.
 `postSetup` and deletes by the same prefs in `preShutdown`. The staged module had
 the same latent bug, so the migration would have inherited it.
 
+### Validation of the fix (2026-10-28)
+
+Ten full link-recreate cycles each, against the hostile precondition (Cilium's rule at
+9, `local` at 100):
+
+| Rule variant | Reachable |
+|---|---|
+| `pref 32765` / `pref 32764` (the fix) | **10/10** |
+| no `pref` (old module, wg-quick) | **0/10** |
+
+So at runtime it is **deterministic**, not a coin flip: with Cilium's rule present the
+unfixed rules always land at 98/99. The ~1-in-7 rate measured earlier came from
+**cold boots**, where the outcome depends on which of Cilium and `wg-quick` numbers
+its rules first. A manual restart of an already-running node should be treated as
+almost certain to strand it — which is consistent with seven outages in one night of
+deploys, and with every cold boot in staging being a lottery.
+
+The fix does not weaken the tunnel. With it applied, on the same guest:
+
+```text
+own IP       local 10.10.50.10 dev lo table local   ← delivered locally
+10.10.50.1   … dev eth1 …                            ← LAN stays local, GW-OK
+8.8.8.8      … dev proton0 table 51820               ← tunnel still owns the internet
+ping 8.8.8.8 blackholed                              ← kill-switch intact (dead endpoint)
+```
+
 **Repair without a reboot**, if a node ever strands:
 
 ```bash
