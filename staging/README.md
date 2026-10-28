@@ -243,3 +243,43 @@ not *always*.
   healthy run. Both runs so far that produced a full dump were healthy.
 - Then bisect, each in the same guest: Cilium scaled to 0 → dummy link with the
   same routes/rules → rules only → endpoint pin only.
+
+### Strand measurements, second pass (2026-10-28)
+
+**Rate:** 3 strands in ~21 attempts, roughly **1 in 7**, and it varies between
+sessions. Production's "seven times in one night" fits a rate in that range under
+repeated deploys; a single successful run is not evidence of a fix.
+
+**What a strand looks like from inside.** In the one instrumented strand the dump
+survived on the serial console:
+
+```text
+GW-FAIL        # the guest cannot ping its own LAN gateway
+```
+
+That is the important detail: the node is not "unreachable from outside" — **its own
+outbound LAN traffic is broken**. The fault is local to the guest's routing stack,
+not an inbound filter, and it is why the ARP entry still resolves on the host while
+nothing above L2 works.
+
+**Ruled out as the differentiator:** the missing endpoint `/32` pin.
+`ip route get 203.0.113.1` returns `dev proton0 table 51820` (the tunnel) in the
+**healthy** state too, so a missing pin is not what separates a strand from a
+healthy run — although it does mean WireGuard's own handshake packets recurse into
+the interface they are trying to establish, which is worth knowing independently.
+
+**Still missing:** the `ip rule` table *during* a strand. The first instrumented
+attempt lost `head`/`tr` (not on systemd-run's PATH) and later attempts did not
+strand. The console is the only channel that survives, so the next attempt must:
+
+- write only absolute-path commands (`/run/current-system/sw/bin/ip`), no pipes;
+- dump `ip rule show` every 3 s for a minute, with `===D<n>===` markers;
+- expect **~7 cold boots** to catch one, and restart the VM after a strand.
+
+The specific hypothesis to test: rule **ordering**. `wg-quick` adds
+`not fwmark 51820 table 51820` first and `main suppress_prefixlength 0` second;
+`ip rule add` assigns decreasing priorities, so the second must land above the
+first. If something (a leftover rule, Cilium's `fwmark 0x200/0xf00 lookup 2004`
+at priority 9, another agent) shifts the numbering, the order inverts — and then
+*everything, including the LAN*, is looked up in table 51820, which contains only a
+default route. That produces exactly `GW-FAIL` while L2 still works.
