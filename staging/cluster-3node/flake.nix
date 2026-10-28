@@ -27,6 +27,9 @@
   outputs = { self, nixpkgs }:
     let
       ciliumVersion = "1.20.3";
+        # The staging stand-in for production's 192.168.2.100. Nothing else on
+        # br-staging uses it: the host is .1 and the guests are .10-.12.
+        vip = "10.10.50.100";
 
       mk = { host, ip, role, mac, serverAddr ? null }: nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
@@ -104,12 +107,38 @@
                   --set routingMode=tunnel \
                   --set tunnelProtocol=vxlan \
                   --set ipam.mode=kubernetes \
-                  --set k8sServiceHost=${ip} \
+                  --set k8sServiceHost=${vip} \
                   --set k8sServicePort=6443 \
                   --set operator.replicas=1 \
                   --set prometheus.enabled=true \
                   --set updateStrategy.rollingUpdate.maxUnavailable=1
                 echo "staging-cilium: applied"
+              '';
+              serviceConfig = { Type = "oneshot"; RemainAfterExit = true; };
+            };
+
+            # The API VIP, applied deliberately AFTER the Cilium install: that is the
+            # rehearsal. Cilium's agents start with no VIP to talk to - the production
+            # cold-boot window - and the address appears 30s later, so the stall and
+            # its recovery are observable instead of theoretical.
+            systemd.services.staging-kube-vip = lib.mkIf (role == "server") {
+              description = "Apply the kube-vip manifest (API VIP ${vip})";
+              wantedBy = [ "multi-user.target" ];
+              after = [ "staging-cilium.service" ];
+              wants = [ "staging-cilium.service" ];
+              path = with pkgs; [ kubectl coreutils k3s ];
+              script = ''
+                export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+                # Pre-pull: the first boot of this guest spent 30s pulling the
+                # kube-vip image, and the Cilium agents sat in Init for all of it -
+                # the VIP is gated on the scheduler AND on the image being local.
+                # Pulling here makes the rehearsal measure the ordering, not the
+                # registry.
+                k3s ctr images pull ghcr.io/kube-vip/kube-vip:v0.8.7 >/dev/null 2>&1 || true
+                echo "staging-kube-vip: waiting 30s so Cilium meets the cluster WITHOUT the VIP"
+                sleep 30
+                kubectl apply -f ${./kube-vip.yaml}
+                echo "staging-kube-vip: applied; VIP ${vip} should appear within seconds"
               '';
               serviceConfig = { Type = "oneshot"; RemainAfterExit = true; };
             };

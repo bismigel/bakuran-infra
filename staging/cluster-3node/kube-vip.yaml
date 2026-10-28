@@ -1,0 +1,114 @@
+# Staging's API VIP — the same shape as production's
+# (bakuran-gitops/manifests/monitoring/kube-vip.yaml), scaled to one guest.
+#
+# Why this exists: production's Cilium points at 192.168.2.100, held by kube-vip.
+# That creates an ordering constraint the staging host could not rehearse at all:
+# on a cold boot the Cilium agents start before the address exists, and an agent
+# that cannot reach the API stalls in `Init` until the VIP appears. See
+# staging/README.md, "Rehearsal log".
+#
+# The manifest is applied by the `staging-kube-vip` unit, deliberately AFTER the
+# Cilium install. That ordering is the rehearsal: it recreates the window in which
+# the agents have no VIP to talk to.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kube-vip
+  namespace: kube-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kube-vip-staging
+rules:
+  - apiGroups: [""]
+    resources: ["services", "services/status", "nodes", "endpoints", "namespaces"]
+    verbs: ["list", "get", "watch", "update"]
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["list", "get", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["discovery.k8s.io"]
+    resources: ["endpointslices"]
+    verbs: ["list", "get", "watch", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: kube-vip-staging
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: kube-vip-staging
+subjects:
+  - kind: ServiceAccount
+    name: kube-vip
+    namespace: kube-system
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kube-vip
+  namespace: kube-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kube-vip
+  template:
+    metadata:
+      labels:
+        app: kube-vip
+    spec:
+      hostNetwork: true
+      serviceAccountName: kube-vip
+      # The single guest is untainted, but production tolerates everything on the
+      # control plane; keeping the toleration means the manifest is not the thing
+      # that differs when someone compares the two.
+      tolerations:
+        - operator: Exists
+      nodeSelector:
+        node-role.kubernetes.io/control-plane: "true"
+      containers:
+        - name: kube-vip
+          image: ghcr.io/kube-vip/kube-vip:v0.8.7
+          imagePullPolicy: IfNotPresent
+          # v0.8.x: the control-plane manager command. Without it the binary prints
+          # its help and exits 0, which looks like a Completed pod, not a crash.
+          args: ["manager"]
+          securityContext:
+            capabilities:
+              add: ["NET_ADMIN", "NET_RAW", "SYS_TIME"]
+          env:
+            - name: vip_arp
+              value: "true"
+            - name: port
+              value: "6443"
+            # A /32 in production because the address is routed by the LAN; staging
+            # keeps the same shape so the two manifests stay comparable.
+            - name: vip_cidr
+              value: "32"
+            - name: cp_enable
+              value: "true"
+            - name: svc_enable
+              value: "false"
+            - name: vip_leaderelection
+              value: "true"
+            - name: vip_leaseduration
+              value: "5"
+            - name: vip_renewdeadline
+              value: "3"
+            - name: vip_retryperiod
+              value: "1"
+            # br-staging. Without pinning the interface, ARP resolution picks
+            # whichever NIC the default route points at - and on this guest the
+            # default route is exercised by the tunnel tests.
+            - name: vip_interface
+              value: "eth1"
+            - name: address
+              value: "10.10.50.100"
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 64Mi
