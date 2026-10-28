@@ -44,6 +44,10 @@
   # schedulable nodes, and a 16 GB mini PC doing nothing but etcd is wasted.
   # Taint and failure tolerance get reassessed once it is carrying workloads.
   services.k3s = {
+    # Capability labels, so manifests select *why* a pod needs a node rather than
+    # which machine it happens to be. media-pool = /mnt/media lives here;
+    # qsv = Intel QuickSync available for hardware transcoding.
+    nodeLabel = [ "homelab.io/qsv=true" ];
     enable = true;
     role = "server";
     serverAddr = "https://192.168.2.82:6443";
