@@ -53,15 +53,15 @@
     hybrid-sleep.enable = false;
   };
 
-  # Join sitaw-amd's embedded etcd as a third server (control-plane only).
-  # Bootstrap: the join token is dropped at /etc/k3s-cluster-token (mode 600)
-  # by nixos-anywhere; migrate it into SOPS later.
+  # Rejoined 2026-10-28 as a WORKER, not a server: patola-thinkcentre took over
+  # the etcd membership. It stays in the cluster only because its /mnt/data holds
+  # the Immich library + postgres volumes, whose PVs are node-local and pinned
+  # here. It can be retired once Immich is migrated off this 2012 hardware.
   services.k3s = {
     enable = true;
-    role = "server";
+    role = "agent";
     serverAddr = "https://192.168.2.82:6443";
     tokenFile = config.sops.secrets."k3s_cluster_token".path;
-    nodeTaint = [ "node-role.kubernetes.io/control-plane=true:NoSchedule" ];
     extraFlags = toString [
       "--flannel-backend=none"
       "--disable-network-policy"
