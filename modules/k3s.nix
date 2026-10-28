@@ -41,7 +41,10 @@
           set -euo pipefail
           export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
           ready=$(${pkgs.kubectl}/bin/kubectl get nodes -o json | ${pkgs.jq}/bin/jq '[.items[] | select(any(.status.conditions[]; .type=="Ready" and .status=="True"))] | length')
-          [ "$ready" = "3" ] || { echo "nodes ready=$ready"; exit 1; }
+          # At least 3, not exactly 3: the cluster has had 3 and 4 nodes and will
+          # change again. An equality check turns every legitimate topology
+          # change into a permanent SmokeTestFailed (2026-10-28: 4 nodes).
+          [ "$ready" -ge 3 ] || { echo "nodes ready=$ready (need >=3)"; exit 1; }
           ${pkgs.kubectl}/bin/kubectl -n argocd get applications -o json | ${pkgs.jq}/bin/jq -e 'all(.items[]; .status.sync.status=="Synced" and .status.health.status=="Healthy")' >/dev/null
           # Do NOT pipe into `grep -q` here: grep exits on the first match, closes
           # the pipe, and kubectl dies of SIGPIPE. Under `set -o pipefail` that
