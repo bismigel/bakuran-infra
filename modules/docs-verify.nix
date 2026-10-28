@@ -19,7 +19,7 @@ let
 
     # NETWORK.md 3: node addresses and pod CIDRs
     expected="calamansi-intel 192.168.2.81 10.42.3.0/24
-patola-thinkcentre 192.168.2.84 10.42.1.0/24
+patola-thinkcentre 192.168.2.80 10.42.1.0/24
 sitaw-amd 192.168.2.82 10.42.0.0/24"
     actual="$($k get nodes -o custom-columns=NAME:.metadata.name,IP:.status.addresses[0].address,POD:.spec.podCIDR --no-headers 2>/dev/null \
       | awk '{print $1" "$2" "$3}' | sort)"
