@@ -20,6 +20,7 @@ let
     # NETWORK.md 3: node addresses and pod CIDRs
     expected="calamansi-intel 192.168.2.81 10.42.3.0/24
 kamatis-mbp 192.168.2.83 10.42.2.0/24
+patola-thinkcentre 192.168.2.84 10.42.1.0/24
 sitaw-amd 192.168.2.82 10.42.0.0/24"
     actual="$($k get nodes -o custom-columns=NAME:.metadata.name,IP:.status.addresses[0].address,POD:.spec.podCIDR --no-headers 2>/dev/null \
       | awk '{print $1" "$2" "$3}' | sort)"
@@ -29,8 +30,10 @@ sitaw-amd 192.168.2.82 10.42.0.0/24"
     [ "$($k get --raw /healthz/etcd 2>/dev/null)" = "ok" ] || note "etcd healthz is not ok"
 
     # NETWORK.md 3: Cilium agent on every node
+    # Node count changes (3 -> 4 on 2026-10-28); compare against it, not a literal.
+    nodes="$(printf '%s\n' "$actual" | grep -c .)"
     agents="$($k -n kube-system get pods -l k8s-app=cilium --no-headers 2>/dev/null | awk '$3=="Running"' | wc -l)"
-    [ "$agents" -eq 3 ] || note "Cilium running agents = $agents, expected 3"
+    [ "$agents" -eq "$nodes" ] || note "Cilium running agents = $agents, expected one per node ($nodes)"
 
     if [ "$fail" -ne 0 ]; then
       ${pkgs.curl}/bin/curl -fsS -m 10 -X POST -H 'Content-Type: application/json' \
