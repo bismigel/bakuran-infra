@@ -16,7 +16,17 @@ set -uo pipefail
 NODE="${1:-calamansi-intel}"
 SSH_HOST="${SSH_HOST:-192.168.2.81}"
 IFACE="${IFACE:-proton0}"
-UNIT="wg-quick-proton0.service"
+# The unit that owns the link depends on the implementation: since the
+# 2026-10-28 cutover it is wireguard-proton0.service, not wg-quick-proton0.
+# Ask the host which one it actually has rather than assuming.
+if [ -z "${UNIT:-}" ]; then
+  if ssh -o BatchMode=yes -o ConnectTimeout=10 "root@${SSH_HOST}" \
+       'systemctl cat wireguard-'"${IFACE}"'.service >/dev/null 2>&1'; then
+    UNIT="wireguard-${IFACE}.service"
+  else
+    UNIT="wg-quick-${IFACE}.service"
+  fi
+fi
 
 # FragmentPath is a symlink (/etc/systemd/system/...) into the store, so resolve it
 # before comparing — otherwise this always reports a false FAIL and gets ignored.
