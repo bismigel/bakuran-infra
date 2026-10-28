@@ -45,16 +45,16 @@ subjects:
     namespace: kube-system
 ---
 apiVersion: apps/v1
-kind: Deployment
+kind: DaemonSet
 metadata:
   name: kube-vip
   namespace: kube-system
 spec:
-  # Two of the three servers: the lease decides which one holds the address, so
-  # killing the holder must hand it over without a human. With one replica the
-  # VIP simply disappears with the guest - which is the failure the production
-  # setup is designed to survive, and therefore worth rehearsing.
-  replicas: 2
+  # ONE POD PER CONTROL-PLANE NODE, exactly like production - not a Deployment.
+  # This was a 2-replica Deployment until 2026-10-28, which put two kube-vip
+  # processes in the SAME host network namespace: they share the interface, so they
+  # fight over the same address (flapping VIP, one pod in CrashLoopBackOff with
+  # exit 1). Production has always been a DaemonSet; the staging copy was wrong.
   selector:
     matchLabels:
       app: kube-vip
