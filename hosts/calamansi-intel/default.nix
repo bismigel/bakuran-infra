@@ -191,6 +191,10 @@
   # also runs the media stack, so it is NOT tainted. Token bootstrapped at
   # /etc/k3s-cluster-token; migrate to SOPS later.
   services.k3s = {
+    # Capability labels, so manifests select *why* a pod needs a node rather than
+    # which machine it happens to be. media-pool = /mnt/media lives here;
+    # qsv = Intel QuickSync available for hardware transcoding.
+    nodeLabel = [ "homelab.io/media-pool=true" "homelab.io/qsv=true" ];
     enable = true;
     role = "server";
     serverAddr = "https://192.168.2.82:6443";
