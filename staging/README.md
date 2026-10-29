@@ -630,3 +630,54 @@ migrating. Restore consequently stops the guest and leaves it stopped: start it 
 
 **Not a backup.** One host, one file, no retention policy. It is a rehearsal
 accelerator; the homelab backups are elsewhere.
+
+### 2026-10-28 — ArgoCD: staging reconciles itself
+
+**The gap this closes.** Everything in staging was *declared* in git but applied
+**once at boot** (`staging-cilium` ran `helm upgrade --install`, `staging-kube-vip`
+ran `kubectl apply`). Edit the cluster and nothing corrected it until a reboot — so
+a rehearsal could pass against a cluster that no longer matched its own definition.
+
+**What runs now.** ArgoCD **v3.5.5** (the version production runs) on the bootstrap
+server, installed the way production bootstraps it: `kubectl apply` of the pinned
+upstream manifests. It is handed one Application:
+
+```text
+source:  this repo, staging/cluster-3node/manifests   (branch main)
+policy:  automated + selfHeal + prune
+manages: kube-vip (DaemonSet + RBAC) and a canary ConfigMap/Deployment
+```
+
+**Verified the only way that counts** — delete something and watch git put it back:
+
+```text
+$ kubectl -n staging-demo delete cm reconcile-canary
+configmap "reconcile-canary" deleted
+$ # 15 s later, restored by: argocd-controller
+```
+
+**Read the private repo with a deploy key, not a token.** ArgoCD needs to read
+`bakuran-infra`, which is private: a read-only key (`argocd-staging`, the same
+pattern as `argocd-calamansi`/`argocd-sitaw`) is provisioned at
+`/var/lib/argocd/deploy-key` on the guest and materialised as the `staging-repo`
+Secret at boot. **Never in git.**
+
+**Four things that only appear when you do it:**
+
+1. `kubectl apply -n argocd` refuses to run before the namespace exists — create it
+   first, the upstream `install.yaml` will not do it for you.
+2. Gate on **the CRD being established**, not on a deployment rollout: on first boot
+   Cilium is still coming up, so `kubectl rollout status` times out for reasons that
+   have nothing to do with ArgoCD.
+3. kustomize **refuses resources outside its root**, so `kube-vip.yaml` lives inside
+   `manifests/` and the boot unit applies it from there — one file, two consumers.
+4. Replacing a **Deployment with a DaemonSet by hand leaves orphaned ReplicaSet
+   pods** (`kubectl delete deploy` does not reap them). Two kube-vip processes then
+   share one host network namespace and fight over the address *and* over metrics
+   port `:2112` → `CrashLoopBackOff`. That is why staging's kube-vip is unstable as
+   of this writing: the leftover processes predate `vip_prometheus=false`.
+
+**Known state at the time of writing:** ArgoCD is `Synced` and reconciliation works,
+but kube-vip on `server3` is still `CrashLoopBackOff` from that leftover. A clean
+rebuild of the staging cluster (`staging-vm fresh …` for all three, then re-apply the
+golden base) is the honest fix; do that before trusting a VIP rehearsal.
