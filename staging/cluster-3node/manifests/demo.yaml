@@ -1,0 +1,37 @@
+# A throwaway workload whose only job is to make reconciliation observable.
+# Delete it and ArgoCD puts it back within a minute; that is how staging proves
+# its GitOps loop is actually running (and it is why this is not something
+# important - if it breaks, nothing is lost).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: reconcile-canary
+  namespace: staging-demo
+data:
+  managed-by: argocd
+  purpose: "delete me; if I do not come back, reconciliation is broken"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: reconcile-canary
+  namespace: staging-demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: reconcile-canary
+  template:
+    metadata:
+      labels:
+        app: reconcile-canary
+    spec:
+      containers:
+        - name: pause
+          image: registry.k8s.io/pause:3.9
+          resources:
+            requests:
+              cpu: 5m
+              memory: 8Mi
+            limits:
+              memory: 32Mi

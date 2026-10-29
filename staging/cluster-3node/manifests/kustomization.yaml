@@ -1,0 +1,20 @@
+# What staging's ArgoCD manages. Deliberately small: staging exists to rehearse
+# the *mechanism*, not to duplicate production's app set.
+#
+# The point of this directory: with automated+selfHeal+prune, anything edited or
+# deleted in the cluster is put back from git. That is what makes staging
+# "GitOps" rather than "Git-applied-at-boot".
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: staging-demo
+
+resources:
+  # The API VIP. It is ALSO applied once at boot by the staging-kube-vip unit,
+  # because the guest needs the address before ArgoCD can schedule anything.
+  # From here on ArgoCD owns it, so drift is corrected - the same "bootstrap
+  # applies it, ArgoCD adopts it" shape production uses.
+  - kube-vip.yaml
+  - demo.yaml
+
+commonLabels:
+  app.kubernetes.io/part-of: staging-rehearsal

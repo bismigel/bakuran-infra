@@ -1,0 +1,35 @@
+# The Application that makes staging reconcile itself.
+#
+# Repo is this one, over HTTPS, because it is public - staging holds no
+# credentials, by design. Path is the directory next to this file.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: staging-manifests
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    # SSH with a read-only deploy key (`argocd-staging`), the same way production's
+    # ArgoCD reads this repo. The key is provisioned on the guest at
+    # /var/lib/argocd/deploy-key and materialised as the `staging-repo` Secret -
+    # never in git.
+    repoURL: git@github.com:bismigel/bakuran-infra.git
+    targetRevision: main
+    path: staging/cluster-3node/manifests
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: staging-demo
+  syncPolicy:
+    automated:
+      # selfHeal: put back anything edited or deleted in the cluster.
+      # prune:    remove anything in the cluster that is no longer in git.
+      # Together they are the whole point - without them this is just
+      # "apply at boot", which is what staging already did.
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
