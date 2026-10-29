@@ -226,17 +226,15 @@
     # (hostPorts for LAN/browser access; the tunnel stays the only remote path)
     # 2379/2380/10250 are node-to-node only; base.nix allowlists them to
     # 192.168.2.81-83 (+ pod CIDR for kubelet) via firewall.extraCommands.
-    # The media UIs (Jellyfin 8096, the *arr ports, qBittorrent, SAB, Kavita 808x)
-    # are reachable only from the ingress node and from pods, not from the whole
-    # LAN: every one of them is an admin surface, and ingress already fronts them.
-    allowedTCPPorts = [ 22 6443 4240 4244 ];
+    # The media UIs are LAN-reachable **by design** through `hostPort` on this node
+    # (TV and phone clients cannot do Cloudflare Access, and the LAN NodePorts are
+    # loopback-only). Do not read this list as the exposure boundary: hostPort
+    # traffic never reaches `nixos-fw` at all, because Cilium's INPUT chain runs
+    # first (verified 2026-10-29 - `:8096` answered from the LAN while both the
+    # allowlist and the scoped rule omitted it). Protecting these UIs is app-level
+    # auth plus the NetworkPolicy, not the host firewall.
+    allowedTCPPorts = [ 22 6443 80 443 8096 8989 7878 9696 6767 8081 8082 4240 4244 ];
     allowedUDPPorts = [ 8472 ];
-    extraCommands = lib.mkAfter ''
-      iptables -I nixos-fw 1 -p tcp -s 192.168.2.82 \
-        -m multiport --dports 80,443,8096,8989,7878,9696,6767,8081,8082 -j nixos-fw-accept
-      iptables -I nixos-fw 1 -p tcp -s 10.42.0.0/16 \
-        -m multiport --dports 8096,8989,7878,9696,6767,8081,8082 -j nixos-fw-accept
-    '';
   };
 
   # ---- VPN kill switch -----------------------------------------------------
