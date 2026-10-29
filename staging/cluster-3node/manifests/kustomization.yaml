@@ -16,5 +16,12 @@ resources:
   - kube-vip.yaml
   - demo.yaml
 
-commonLabels:
-  app.kubernetes.io/part-of: staging-rehearsal
+# NO commonLabels. It rewrites `spec.selector` on workload objects, and a
+# DaemonSet's selector is immutable - so the apply fails, ArgoCD keeps reporting
+# the app "Synced" against its own normalised copy, and the change never lands.
+# That is exactly how the kube-vip `vip_prometheus` change sat unapplied here on
+# 2026-10-28 while the pods kept crash-looping on a port collision.
+labels:
+  - includeSelectors: false
+    pairs:
+      app.kubernetes.io/part-of: staging-rehearsal
