@@ -747,3 +747,38 @@ starting a guest again brings back the same cluster.
   apply the API rejects can look healthy. Two nights were lost to that warning being
   literal: `commonLabels` rewriting an immutable `spec.selector`, and a
   kustomization-level `namespace:` overriding kube-vip's real namespace.
+
+### Trap: a guest can run without a systemd unit tracking it
+
+`staging-vm` starts guests with `systemd-run --unit=staging-<name> --collect`. If the
+**first** start fails (a bad runner, a port already taken), `--collect` removes the
+unit immediately — but a qemu from a *later* attempt can stay alive. The guest then
+runs, its node is `Ready`, and `systemctl` knows nothing about it.
+
+That is not cosmetic, because the tools stop guests through systemd:
+
+```text
+staging-vm stop <name>      → systemctl stop  → succeeds, stops nothing
+staging-snap restore <tag>  → systemctl stop  → then qemu-img touches the disks
+```
+
+Observed 2026-10-29 on `staging-server2`: the runner embedded the *old* port map
+(`2224`+`6455`) so qemu exited in the first attempt, the unit was collected, and a
+second attempt with the correct runner (`2223`) came up untracked.
+
+Both ends are now guarded:
+
+- `staging-vm` checks `systemctl is-active` three seconds after starting and **fails
+  loudly** with the log path and a `pkill -f 'ifname=<tap>'` hint.
+- `stop_name()` falls back to `pkill -f "ifname=$tap"` using the tap recorded in the
+  guest's meta file, so a stop works whether or not a unit exists.
+
+Two related things worth knowing from the same restart:
+
+- **The port map is baked into the runner**, so choosing one by mtime is unsafe —
+  grep `hostfwd=tcp::` in the runner to see what a build will claim.
+- **`https://` vs `git@github.com:` in an ArgoCD Application looks like a broken
+  deploy key.** An unauthenticated clone of a private repo returns "Repository not
+  found", so a URL that does not match the credential's URL reads as an auth failure
+  with no auth in it. When the repo credential and the Application disagree, check
+  the Application's `spec.source.repoURL` first.

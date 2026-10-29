@@ -53,8 +53,18 @@ say() { echo "staging-vm: $*"; }
 # Guests that share a tap cannot run together. The tap name is recorded at start
 # time because it no longer matches the guest name (server2 borrows tap-agent1).
 stop_name() {
-  systemctl stop "staging-$1" 2>/dev/null || true
-  [ -f "$dir/$1.meta" ] && rm -f "$dir/$1.meta"
+  local name="$1" tap=""
+  # Read the tap BEFORE the meta is removed, so the pkill below can find the VM.
+  [ -f "$dir/$name.meta" ] && tap="$(sed -n 1p "$dir/$name.meta")"
+  systemctl stop "staging-$name" 2>/dev/null || true
+  # Fallback: `systemd-run --collect` removes a unit whose FIRST start failed, but a
+  # qemu from a later attempt can keep running untracked. `systemctl stop` then
+  # succeeds and stops nothing - which silently breaks `staging-snap restore`, whose
+  # whole contract is "stop the guests, then touch the disks".
+  if [ -n "$tap" ]; then
+    pkill -f "ifname=$tap" 2>/dev/null || true
+  fi
+  [ -f "$dir/$name.meta" ] && rm -f "$dir/$name.meta"
   return 0
 }
 
@@ -127,5 +137,14 @@ systemd-run --unit="$unit" --collect --working-directory="$dir" \
   "$runner" -serial "file:$dir/$name-console.log" -display none \
   -qmp "unix:$qmp,server=on,wait=off"
 
+# A unit that exits while qemu keeps running leaves the guest alive but untracked:
+# `staging-vm stop` and `staging-snap restore` would both then act on a VM they
+# cannot stop. Say so immediately instead of discovering it at restore time.
+sleep 3
+if ! systemctl is-active --quiet "$unit"; then
+  say "WARNING: $unit is not active although a qemu may be running."
+  say "  check $dir/$name.log; stop it with: pkill -f 'ifname=$tap'"
+  exit 1
+fi
 say "started $unit (tap $tap, disk $(basename "$disk"))"
 say "console: $dir/$name-console.log  (qemu APPENDS across guest reboots - take the last section)"
