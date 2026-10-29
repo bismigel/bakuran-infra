@@ -100,19 +100,13 @@
     enable = true;
     name = "iqn.2026-10.dev.bismigel:${config.networking.hostName}";
   };
-  # Longhorn network ports (iSCSI engine + manager + instance-manager), plus
-  # node-exporter (9100): it runs hostNetwork, so Prometheus on another node
-  # scrapes it over the LAN at <node>:9100 — open it on every host (incl. the
-  # MacBook).
-  networking.firewall.allowedTCPPorts = [
-    3260 3261 3262 3263 3264
-    9500 9501 9502 9503 9504 9505
-    9100               # node-exporter (scraped cross-node)
-    9102               # kepler (hostNetwork power exporter, scraped cross-node)
-    9962               # Cilium agent metrics (hostNetwork, scraped cross-node)
-    9963               # Cilium operator metrics (hostNetwork, on sitaw-amd)
-    9964               # cilium-envoy metrics (hostNetwork, scraped cross-node)
-  ];
+    # The iSCSI targets, the Longhorn instance-manager ports and the hostNetwork
+    # exporters are NOT allowlisted here any more (2026-10-29).
+    # `allowedTCPPorts` accepts from ANY source, so every device on the LAN - a
+    # printer, a TV, a compromised container - could reach the iSCSI targets that
+    # back the media pool and every Longhorn volume. They are scoped to the nodes
+    # and the pod CIDR in `extraCommands` below, as 2379/2380 already were.
+    networking.firewall.allowedTCPPorts = [ ];
 
   # Cilium native routing forwards pod traffic through the host. Trust the
   # veth interfaces and relax reverse-path filtering, as the Cilium NixOS
@@ -134,10 +128,33 @@
       # because the admin kubectl talks to the API directly.
       iptables -I nixos-fw 1 -p tcp -m iprange --src-range 192.168.2.80-192.168.2.84 -m multiport --dports 2379,2380,10250 -j nixos-fw-accept
       iptables -I nixos-fw 1 -p tcp -s 10.42.0.0/16 -m multiport --dports 10250 -j nixos-fw-accept
+  
+      # iSCSI targets (Longhorn engines live here) - NODES ONLY. An open 3260 is
+      # the port that lets something mount, and then corrupt, a volume.
+      iptables -I nixos-fw 1 -p tcp -m iprange --src-range 192.168.2.80-192.168.2.84 \
+        -m multiport --dports 3260,3261,3262,3263,3264 -j nixos-fw-accept
+  
+      # Longhorn instance-manager + the hostNetwork exporters (node-exporter,
+      # kepler, Cilium agent/operator/envoy). Prometheus runs as a pod, so the
+      # sources are the pod CIDR and the nodes themselves.
+      iptables -I nixos-fw 1 -p tcp -s 10.42.0.0/16 \
+        -m multiport --dports 9500,9501,9502,9503,9504,9505,9100,9102,9962,9963,9964 -j nixos-fw-accept
+      iptables -I nixos-fw 1 -p tcp -m iprange --src-range 192.168.2.80-192.168.2.84 \
+        -m multiport --dports 9500,9501,9502,9503,9504,9505,9100,9102,9962,9963,9964 -j nixos-fw-accept
     '';
 
     # Longhorn's containers nsenter into the host and call iscsiadm from PATH;
   # NixOS keeps it in /run/current-system/sw/bin, so expose it under /usr/bin too.
+    # No LSM confinement beyond seccomp, and no kernel audit trail, until
+    # 2026-10-29. auditd is the one that matters: it turns "the volumes
+    # disappeared" into a timestamped record of who did it.
+    security.auditd.enable = true;
+    security.apparmor.enable = true;
+    # Do not kill unconfined-but-confinable processes: k3s and Cilium are not
+    # AppArmor-confined, and killing them to enforce a profile would take the
+    # node down.
+    security.apparmor.killUnconfinedConfinables = false;
+  
   systemd.tmpfiles.rules = [
     "L+ /usr/bin/iscsiadm  - - - - ${pkgs.openiscsi}/bin/iscsiadm"
     "L+ /usr/sbin/iscsiadm - - - - ${pkgs.openiscsi}/bin/iscsiadm"

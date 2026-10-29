@@ -78,8 +78,23 @@
     # 2379/2380 = etcd client/peer (k3s HA join), 10250 = kubelet
     # 2379/2380/10250 are node-to-node only; base.nix allowlists them to
     # 192.168.2.81-83 (+ pod CIDR for kubelet) via firewall.extraCommands.
-    allowedTCPPorts = [ 22 6443 80 443 32080 2049 111 4240 4244 ];
-    allowedUDPPorts = [ 8472 2049 111 ];
+    # 2049 (NFS) and 111 (rpcbind) are scoped to the nodes and the pod CIDR in
+    # extraCommands below: only .81's mergerfs and in-cluster consumers need them,
+    # and an open NFS export is a write path into the media pool.
+    # 32080 is gone from here on purpose - cloudflared reaches the ingress over
+    # loopback, and an allowlisted NodePort let anything on the LAN bypass
+    # Cloudflare and the WAF with a Host header.
+    allowedTCPPorts = [ 22 6443 80 443 4240 4244 ];
+    allowedUDPPorts = [ 8472 ];
+    # `extraCommands` is defined in modules/base.nix; mkAfter appends instead of
+    # conflicting with it.
+    extraCommands = lib.mkAfter ''
+      iptables -I nixos-fw 1 -p tcp -m iprange --src-range 192.168.2.80-192.168.2.84 \
+        -m multiport --dports 2049,111 -j nixos-fw-accept
+      iptables -I nixos-fw 1 -p tcp -s 10.42.0.0/16 -m multiport --dports 2049 -j nixos-fw-accept
+      iptables -I nixos-fw 1 -p udp -m iprange --src-range 192.168.2.80-192.168.2.84 \
+        -m multiport --dports 2049,111 -j nixos-fw-accept
+    '';
   };
 
   # ---- Media storage: export the data partitions to the media box (.81) ----
