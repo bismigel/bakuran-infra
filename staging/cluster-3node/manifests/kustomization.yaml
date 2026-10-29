@@ -16,12 +16,8 @@ resources:
   - kube-vip.yaml
   - demo.yaml
 
-# NO commonLabels. It rewrites `spec.selector` on workload objects, and a
-# DaemonSet's selector is immutable - so the apply fails, ArgoCD keeps reporting
-# the app "Synced" against its own normalised copy, and the change never lands.
-# That is exactly how the kube-vip `vip_prometheus` change sat unapplied here on
-# 2026-10-28 while the pods kept crash-looping on a port collision.
-labels:
-  - includeSelectors: false
-    pairs:
-      app.kubernetes.io/part-of: staging-rehearsal
+# No labels block at all. `commonLabels` rewrites `spec.selector`, which is
+# immutable on a DaemonSet/Deployment, and even `labels[].includeSelectors: false`
+# still produced an immutable-selector rejection on ArgoCD's render here. Staging
+# does not need inventory labels badly enough to fight an immutable field: the
+# Application name already says what owns these objects.
