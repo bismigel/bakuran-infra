@@ -681,3 +681,69 @@ Secret at boot. **Never in git.**
 but kube-vip on `server3` is still `CrashLoopBackOff` from that leftover. A clean
 rebuild of the staging cluster (`staging-vm fresh …` for all three, then re-apply the
 golden base) is the honest fix; do that before trusting a VIP rehearsal.
+
+## Turning staging on and off
+
+**Guests do not start themselves.** They are `systemd-run` transient units on `.83`,
+not enabled services, so a host reboot leaves staging **off** — which is usually what
+you want, and it means nothing runs when you are not rehearsing.
+
+```bash
+# --- ON -------------------------------------------------------------------
+# one guest; <tap> only when it differs from the guest name
+staging-vm server /nix/store/…-nixos-vm/bin/run-server-vm  tap-server
+staging-vm server2 /nix/store/…-nixos-vm/bin/run-server2-vm tap-agent1
+staging-vm server3 /nix/store/…-nixos-vm/bin/run-server3-vm tap-agent2
+
+# --- OFF ------------------------------------------------------------------
+staging-vm stop server2 server3 server     # waiting guests first
+# or bluntly:
+systemctl stop staging-server staging-server2 staging-server3
+```
+
+Order matters when turning **on**: with persistent 3-member etcd, one member alone
+has **no quorum**, so do not wait for the API between starts — start all three and
+then wait for `kubectl get nodes` to show 3 Ready. (A single-node guest is the
+exception: its API answers once k3s is up.)
+
+When turning **off**, there is no ordering constraint.
+
+**Rebuild the runners after any flake change** — the store path is baked in:
+
+```bash
+cd staging/cluster-3node
+nix build --impure "path:$PWD#nixosConfigurations.server.config.system.build.vm"
+# … server2, server3 likewise
+```
+
+`nix-collect-garbage` will delete those store paths; rebuild rather than hunt for
+them.
+
+**Reset to the checkpoint instead of rebuilding** (this is why `staging-snap` exists):
+
+```bash
+staging-snap tags                    # what exists, and which guests it covers
+staging-snap restore clean-3node     # stop all members, apply, restart, self-check
+```
+
+**The bridge stays up** (`staging-bridge.service`, a NixOS service). It is inert
+without guests; stop it with `systemctl stop staging-bridge` only if you want the
+`10.10.50.0/24` network gone entirely.
+
+**What survives a reboot of `.83`:** nothing that runs — but the guest **disks**
+(`/var/lib/staging/*.qcow2`), golden bases, checkpoints and the deploy key do, so
+starting a guest again brings back the same cluster.
+
+### Traps that cost time (all learned the hard way on 2026-10-28)
+
+- **`staging-vm fresh` is a re-provision, not a reboot.** A fresh *server* bootstraps
+  a **new cluster with a new CA**; two "restarted" members then form a different
+  cluster from the third, and kubectl fails with `certificate signed by unknown
+  authority`. To test a member failure, reboot from inside the guest.
+- **A fresh guest has no ArgoCD deploy key.** `/var/lib/argocd/deploy-key` lives on
+  the disk; after `fresh`, copy it back from `/var/lib/staging/deploy-key` on the
+  host (or recreate the `staging-repo` Secret by hand and restart the repo-server).
+- **ArgoCD "Synced" is not "applied".** It compares against its own rendering, so an
+  apply the API rejects can look healthy. Two nights were lost to that warning being
+  literal: `commonLabels` rewriting an immutable `spec.selector`, and a
+  kustomization-level `namespace:` overriding kube-vip's real namespace.
