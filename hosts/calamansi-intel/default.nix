@@ -226,8 +226,17 @@
     # (hostPorts for LAN/browser access; the tunnel stays the only remote path)
     # 2379/2380/10250 are node-to-node only; base.nix allowlists them to
     # 192.168.2.81-83 (+ pod CIDR for kubelet) via firewall.extraCommands.
-    allowedTCPPorts = [ 22 6443 80 443 8096 8989 7878 9696 6767 8081 8082 4240 4244 ];
+    # The media UIs (Jellyfin 8096, the *arr ports, qBittorrent, SAB, Kavita 808x)
+    # are reachable only from the ingress node and from pods, not from the whole
+    # LAN: every one of them is an admin surface, and ingress already fronts them.
+    allowedTCPPorts = [ 22 6443 4240 4244 ];
     allowedUDPPorts = [ 8472 ];
+    extraCommands = lib.mkAfter ''
+      iptables -I nixos-fw 1 -p tcp -s 192.168.2.82 \
+        -m multiport --dports 80,443,8096,8989,7878,9696,6767,8081,8082 -j nixos-fw-accept
+      iptables -I nixos-fw 1 -p tcp -s 10.42.0.0/16 \
+        -m multiport --dports 8096,8989,7878,9696,6767,8081,8082 -j nixos-fw-accept
+    '';
   };
 
   # ---- VPN kill switch -----------------------------------------------------
