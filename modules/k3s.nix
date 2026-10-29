@@ -45,7 +45,13 @@
           # change again. An equality check turns every legitimate topology
           # change into a permanent SmokeTestFailed (2026-10-28: 4 nodes).
           [ "$ready" -ge 3 ] || { echo "nodes ready=$ready (need >=3)"; exit 1; }
-          ${pkgs.kubectl}/bin/kubectl -n argocd get applications -o json | ${pkgs.jq}/bin/jq -e 'all(.items[]; .status.sync.status=="Synced" and .status.health.status=="Healthy")' >/dev/null
+          # Say WHICH app is unhealthy. A bare `jq -e` exits 1 with no output, so a
+          # lone degraded app surfaced only as "homelab-smoke failed" every 15
+          # minutes all night (2026-10-29, books/kavita-scan) and cost an
+          # investigation to identify. An alert must name its cause.
+          unhealthy=$(${pkgs.kubectl}/bin/kubectl -n argocd get applications -o json \
+            | ${pkgs.jq}/bin/jq -r '[.items[] | select(.status.sync.status!="Synced" or .status.health.status!="Healthy") | "\(.metadata.name)(\(.status.sync.status)/\(.status.health.status))"] | join(" ")')
+          [ -z "$unhealthy" ] || { echo "apps not Synced+Healthy: $unhealthy"; exit 1; }
           # Do NOT pipe into `grep -q` here: grep exits on the first match, closes
           # the pipe, and kubectl dies of SIGPIPE. Under `set -o pipefail` that
           # makes the whole pipeline fail with 141 - which is what turned this
@@ -58,8 +64,10 @@
           health=$(sed -n "s/.*Cluster health: *\([0-9]*\)\/\([0-9]*\) .*/\1 \2/p" <<<"$cilium_status" | head -1)
           [ -n "$health" ] || { echo "cilium health line missing"; exit 1; }
           [ "''${health% *}" = "''${health#* }" ] || { echo "cilium health not full: $health"; exit 1; }
-          ${pkgs.curl}/bin/curl -fsSL -o /dev/null --max-time 15 https://bismigel.dev/
-          ${pkgs.curl}/bin/curl -fsSL -o /dev/null --max-time 10 http://192.168.2.81:8096/
+          ${pkgs.curl}/bin/curl -fsSL -o /dev/null --max-time 15 https://bismigel.dev/ \
+            || { echo "public edge unreachable (https://bismigel.dev/)"; exit 1; }
+          ${pkgs.curl}/bin/curl -fsSL -o /dev/null --max-time 10 http://192.168.2.81:8096/ \
+            || { echo "jellyfin unreachable (http://192.168.2.81:8096/)"; exit 1; }
           echo "smoke test passed"
         '';
       };
