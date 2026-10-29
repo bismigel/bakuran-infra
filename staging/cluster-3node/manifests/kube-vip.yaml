@@ -113,6 +113,14 @@ spec:
             # br-staging. Without pinning the interface, ARP resolution picks
             # whichever NIC the default route points at - and on this guest the
             # default route is exercised by the tunnel tests.
+            # No Prometheus endpoint. kube-vip binds :2112 in the HOST network
+            # namespace, so any second process on the same node (a leftover from a
+            # Deployment->DaemonSet change, or a restart before the old socket is
+            # released) fails with "bind: address already in use" and crash-loops
+            # forever - which is what happened in staging on 2026-10-28. Staging does
+            # not scrape kube-vip, so the port buys nothing here.
+            - name: vip_prometheus
+              value: "false"
             - name: vip_interface
               value: "eth1"
             - name: address
