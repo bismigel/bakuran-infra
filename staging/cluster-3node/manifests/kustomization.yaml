@@ -6,7 +6,10 @@
 # "GitOps" rather than "Git-applied-at-boot".
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
-namespace: staging-demo
+# NO `namespace:` here. It would override the namespace of EVERY resource,
+# including kube-vip.yaml (which belongs in kube-system) - so ArgoCD managed a
+# phantom kube-vip in staging-demo while the real one in kube-system kept its old
+# spec. Each file declares its own namespace instead.
 
 resources:
   # The API VIP. It is ALSO applied once at boot by the staging-kube-vip unit,
