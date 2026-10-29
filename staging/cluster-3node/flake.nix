@@ -27,6 +27,10 @@
   outputs = { self, nixpkgs }:
     let
       ciliumVersion = "1.20.3";
+        # Pinned to the version production runs, so staging rehearses the same
+        # control plane rather than a generic one.
+        argocdVersion = "v3.5.5";
+
         # The staging stand-in for production's 192.168.2.100. Nothing else on
         # br-staging uses it: the host is .1 and the guests are .10-.12.
         vip = "10.10.50.100";
@@ -117,7 +121,13 @@
               script = ''
                 export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
                 helm repo add cilium https://helm.cilium.io/ >/dev/null 2>&1 || true
-                helm upgrade --install cilium cilium/cilium --namespace kube-system \
+                # A release record can outlive the agents it describes (staging's
+                # etcd gets snapshotted and restored), and `upgrade --install` then
+                # fails with "UPGRADE FAILED: release: already exists". Recreate the
+                # record rather than refusing to boot: Cilium is the CNI, so this
+                # unit failing means the guest has no pod network at all.
+                if ! helm status cilium -n kube-system >/dev/null 2>&1; then
+                  helm install cilium cilium/cilium --namespace kube-system \
                   --version ${ciliumVersion} \
                   --set kubeProxyReplacement=false \
                   --set routingMode=tunnel \
@@ -128,7 +138,63 @@
                   --set operator.replicas=1 \
                   --set prometheus.enabled=true \
                   --set updateStrategy.rollingUpdate.maxUnavailable=1
+                else
+                  helm upgrade cilium cilium/cilium --namespace kube-system \
+                  --version ${ciliumVersion} \
+                  --reuse-values
+                fi
                 echo "staging-cilium: applied"
+              '';
+              serviceConfig = { Type = "oneshot"; RemainAfterExit = true; };
+            };
+
+            # ArgoCD, installed the way production bootstraps it (kubectl against the
+            # upstream manifests for a pinned release), then handed the Application in
+            # ./argocd/application.yaml. From that point the cluster reconciles itself
+            # against this repo: staging-manifests has selfHeal+prune, so anything
+            # edited or deleted in the cluster comes back from git.
+            #
+            # It runs only on the bootstrap server (serverAddr == null): one instance,
+            # like production's single in-cluster ArgoCD.
+            systemd.services.staging-argocd = lib.mkIf (role == "server" && serverAddr == null) {
+              description = "Install ArgoCD ${argocdVersion} and hand it the staging Application";
+              wantedBy = [ "multi-user.target" ];
+              after = [ "staging-kube-vip.service" ];
+              wants = [ "staging-kube-vip.service" ];
+              path = with pkgs; [ kubectl curl coreutils ];
+              script = ''
+                export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+                echo "staging-argocd: installing ${argocdVersion}"
+                # The upstream install.yaml is namespaced to argocd but kubectl
+                # refuses namespaced applies before the namespace exists.
+                kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
+                kubectl apply -n argocd --server-side --force-conflicts \
+                  -f https://raw.githubusercontent.com/argoproj/argo-cd/${argocdVersion}/manifests/install.yaml
+                # Wait for the Application CRD to be served, not for deployments to
+                # roll out: the first boot has Cilium still coming up, so a rollout
+                # gate times out for reasons that have nothing to do with ArgoCD.
+                kubectl wait --for condition=established --timeout=900s \
+                  crd/applications.argoproj.io
+                # The repo is private; ArgoCD reads it with a read-only deploy key
+                # provisioned on this guest (/var/lib/argocd/deploy-key). Never in
+                # git. Recreate the Secret if it is missing, so a restored guest
+                # keeps working.
+                if [ -r /var/lib/argocd/deploy-key ]; then
+                  kubectl -n argocd create secret generic staging-repo \
+                    --from-literal=type=git \
+                    --from-literal=url=git@github.com:bismigel/bakuran-infra.git \
+                    --from-file=sshPrivateKey=/var/lib/argocd/deploy-key \
+                    --dry-run=client -o yaml \
+                    | kubectl label --local -f - argocd.argoproj.io/secret-type=repository -o yaml \
+                    | kubectl apply -f -
+                else
+                  echo "staging-argocd: WARNING no deploy key at /var/lib/argocd/deploy-key - the private repo will not sync" >&2
+                fi
+                echo "staging-argocd: applying the staging Application"
+                # --validate=false: the Application CRD may still be being served when
+                # this runs; the API accepts the object either way.
+                kubectl apply --validate=false -f ${./argocd/application.yaml}
+                echo "staging-argocd: applied; reconciliation is now the cluster's job"
               '';
               serviceConfig = { Type = "oneshot"; RemainAfterExit = true; };
             };
@@ -153,14 +219,16 @@
                 k3s ctr images pull ghcr.io/kube-vip/kube-vip:v0.8.7 >/dev/null 2>&1 || true
                 echo "staging-kube-vip: waiting 30s so Cilium meets the cluster WITHOUT the VIP"
                 sleep 30
-                kubectl apply -f ${./kube-vip.yaml}
+                kubectl apply -f ${./manifests/kube-vip.yaml}
                 echo "staging-kube-vip: applied; VIP ${vip} should appear within seconds"
               '';
               serviceConfig = { Type = "oneshot"; RemainAfterExit = true; };
             };
 
             virtualisation = {
-              memorySize = 2560;
+              # 3GiB for the bootstrap server: ArgoCD's full manifest set is
+              # ~1GiB in production, on top of k3s + Cilium (~1.1GiB here).
+              memorySize = if (role == "server" && serverAddr == null) then 3072 else 2560;
               diskSize = 16384;
               cores = 2;
               graphics = false;
