@@ -64,6 +64,9 @@ spec:
         app: kube-vip
     spec:
       hostNetwork: true
+      # So orphan-guard can see whether the kube-vip container's process is alive;
+      # that is the entire signal it acts on (see orphan-guard below).
+      shareProcessNamespace: true
       serviceAccountName: kube-vip
       # The single guest is untainted, but production tolerates everything on the
       # control plane; keeping the toleration means the manifest is not the thing
@@ -131,3 +134,38 @@ spec:
               memory: 32Mi
             limits:
               memory: 64Mi
+        - name: orphan-guard
+          image: alpine:3.20
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -u
+              strikes=0
+              while :; do
+                if ! grep -qsx 'kube-vip' /proc/[0-9]*/comm \
+                   && ip -4 -o addr show | grep -q "inet $VIP/"; then
+                  strikes=$((strikes + 1))
+                else
+                  strikes=0
+                fi
+                if [ "$strikes" -ge 3 ]; then
+                  addr=$(ip -4 -o addr show | awk -v v="$VIP" '$4 ~ "^" v "/" {print $4; exit}')
+                  iface=$(ip -4 -o addr show | awk -v v="$VIP" '$4 ~ "^" v "/" {print $2; exit}')
+                  echo "orphan-guard: no kube-vip process here; removing orphaned $addr from $iface"
+                  ip addr del "$addr" dev "$iface" 2>/dev/null || true
+                  strikes=0
+                fi
+                sleep 3
+              done
+          env:
+            - name: VIP
+              value: "10.10.50.100"
+          securityContext:
+            capabilities:
+              add: ["NET_ADMIN"]
+          resources:
+            requests:
+              cpu: 5m
+              memory: 16Mi
+            limits:
+              memory: 32Mi
