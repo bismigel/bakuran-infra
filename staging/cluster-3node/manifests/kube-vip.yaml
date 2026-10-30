@@ -135,13 +135,15 @@ spec:
             limits:
               memory: 64Mi
         - name: orphan-guard
-          image: alpine:3.20
+          image: alpine:3.20@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc
           command: ["/bin/sh", "-c"]
           args:
             - |
               set -u
               strikes=0
+              misses=0
               while :; do
+                # Ours but unwanted: the address is here and no kube-vip process holds it.
                 if ! grep -qsx 'kube-vip' /proc/[0-9]*/comm \
                    && ip -4 -o addr show | grep -q "inet $VIP/"; then
                   strikes=$((strikes + 1))
@@ -155,7 +157,38 @@ spec:
                   ip addr del "$addr" dev "$iface" 2>/dev/null || true
                   strikes=0
                 fi
-                sleep 3
+
+                # Not ours, but pointing at a node that no longer answers for it. The
+                # mirror case, found 2026-10-30: after the lease moved (.82 -> .81) this
+                # node kept an ARP entry for the OLD holder's MAC, so every packet to the
+                # VIP went to a node that had already given it up. The visible damage is
+                # indirect - cilium here cannot reach the API, so it never programs
+                # endpoints, so cross-node traffic to this node is punted.
+                #
+                # The test is deliberately dumb: if this node does not hold the address and
+                # the address does not answer, the neighbour entry is suspect. Deleting it
+                # costs nothing - the kernel re-resolves on the next packet - and it
+                # self-heals whether the cause was a stale MAC, a moved lease or a flapping
+                # interface. Two consecutive misses (~60s) so a single dropped ICMP does
+                # not churn the cache.
+                if ! ip -4 -o addr show | grep -q "inet $VIP/"; then
+                  if ping -c1 -W2 "$VIP" >/dev/null 2>&1; then
+                    misses=0
+                  else
+                    misses=$((misses + 1))
+                    if [ "$misses" -ge 2 ]; then
+                      iface=$(ip route get "$VIP" 2>/dev/null | awk '{for(i=1;i<NF;i++) if ($i=="dev") {print $(i+1); exit}}')
+                      if [ -n "${iface:-}" ] && ip neigh show "$VIP" dev "$iface" 2>/dev/null | grep -q .; then
+                        echo "orphan-guard: $VIP does not answer and this node is not its holder; flushing stale neighbour entry on $iface"
+                        ip neigh del "$VIP" dev "$iface" 2>/dev/null || true
+                      fi
+                      misses=0
+                    fi
+                  fi
+                else
+                  misses=0
+                fi
+                sleep 5
               done
           env:
             - name: VIP
