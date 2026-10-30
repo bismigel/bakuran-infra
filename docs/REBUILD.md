@@ -99,17 +99,26 @@ systemd service (hostPath mounts surface these at `/mnt/media/{...}`).
 
 ## 6. Media stack wiring (declarative)
 
-The media cluster has **no External Secrets operator**, so two Secrets are seeded
-out of band from Bitwarden, then one script wires everything:
+Two Secrets are still seeded out of band from Bitwarden, then one script wires
+everything:
 
 ```bash
 # from the admin box (has the BWS token):
 ./scripts/media-usenet-secret.sh    # usenet-frugal  (Frugal provider creds)
 ./scripts/media-setup-secret.sh     # media-setup    (qbt pass, NZBGeek key, jellyfin creds)
-./scripts/lazylibrarian-secrets.sh  # books/lazylibrarian-secrets (Prowlarr key for the books indexer)
 # then on the media box (or over ssh):
 HOST=127.0.0.1 KUBECTL="k3s kubectl" ./scripts/media-stack-setup.sh
 ```
+
+`books` needs no seeding step any more. Its two Secrets — `kavita-secrets` and
+`lazylibrarian-secrets` — are **ExternalSecrets** in
+`bakuran-gitops/manifests/overlays/prod/books/`, reconciled from Bitwarden by the
+`bitwarden` ClusterSecretStore. Until 2026-10-29 a script
+(`scripts/lazylibrarian-secrets.sh`, now deleted) pulled those five keys and
+`kubectl apply`-ed them by hand, which meant nothing recorded whether the cluster
+still matched Bitwarden — a silent-rot failure, not a loud one. A ClusterSecretStore
+is usable from every namespace, so the old comment here ("the books namespace has no
+External Secrets operator") was never a real constraint.
 
 `media-stack-setup.sh` re-creates: qBittorrent save path + categories, Sonarr/Radarr
 root folders + download clients (**qBittorrent and SABnzbd**), Prowlarr apps,
