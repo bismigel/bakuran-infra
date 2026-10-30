@@ -150,6 +150,82 @@
     # disappeared" into a timestamped record of who did it.
     security.auditd.enable = true;
     security.apparmor.enable = true;
+    # enable = true turns the LSM on and loads NOTHING, which is worse than it
+    # sounds: it looks like confinement until you count the profiles. Verified
+    # 2026-10-29: /sys/kernel/security/apparmor/profiles held 0 entries, and a pod
+    # asking for `appArmorProfile: {type: RuntimeDefault}` failed with
+    # CreateContainerError because the runtime's default profile was not there to
+    # apply. The upstream set (151 profiles: ping, tcpdump, man, chrome, buildah,
+    # ...) gives the host binaries something to match. It is inert until a binary
+    # matches a profile name, so loading it cannot break a running service.
+    security.apparmor.packages = [ pkgs.apparmor-profiles ];
+    # k8s `appArmorProfile: {type: RuntimeDefault}` does not invent a profile: it asks
+    # containerd to apply `cri-containerd.apparmor.d`, which the runtime loads from
+    # /etc/apparmor.d. Neither nixpkgs nor the k3s package ships it.
+    #
+    # THIS IS NOT SUFFICIENT. Verified 2026-10-29: the profile loads and is enforced
+    # (`cri-containerd.apparmor.d (enforce)` in /sys/kernel/security/apparmor/profiles,
+    # and `apparmor_parser -Q` accepts it), but a pod asking for RuntimeDefault still
+    # fails with CreateContainerError and the runtime logs
+    #   "apparmor spec opts: apparmor is not supported"
+    # because NixOS's k3s containerd is built WITHOUT the apparmor tag:
+    #   strings .../bin/containerd-shim-runc-v2 | grep -ci apparmor   -> 0
+    # The shim that builds the runc spec is what drops the profile, so no manifest can
+    # opt in until the runtime is rebuilt with `-tags apparmor` (or an external
+    # containerd is used). The profile is kept because it is the other half of the
+    # prerequisite and costs nothing while unrequested.
+    #
+    # Copied verbatim from containerd's own template
+    # (github.com/containerd/containerd, contrib/apparmor/template.go), with the Go
+    # template resolved for this cluster: Name=cri-containerd.apparmor.d,
+    # DaemonProfile=unconfined, no abi line, no rootlesskit, and the base abstraction
+    # import. `<tunables/global>` is prepended because the body uses @{PROC} and the
+    # parser rejects it otherwise ("Found reference to variable PROC, but is never
+    # declared"). Validated with `apparmor_parser -Q` against the apparmor-profiles
+    # tree before it was committed.
+    security.apparmor.policies."cri-containerd.apparmor.d".profile = ''
+      #include <tunables/global>
+      profile cri-containerd.apparmor.d flags=(attach_disconnected,mediate_deleted) {
+        #include <abstractions/base>
+        network,
+        # Disallow AF_ALG (Linux kernel crypto API); see https://copy.fail/
+        deny network alg,
+        # Disallow AF_VSOCK to prevent host/guest communication.
+        deny network vsock,
+        capability,
+        file,
+        umount,
+        # Host (privileged) processes may send signals to container processes.
+        signal (receive) peer=unconfined,
+        # runc may send signals to container processes.
+        signal (receive) peer=runc,
+        # crun may send signals to container processes.
+        signal (receive) peer=crun,
+        # Manager may send signals to container processes.
+        signal (receive) peer=unconfined,
+        # Container processes may send signals amongst themselves.
+        signal (send,receive) peer=cri-containerd.apparmor.d,
+        deny @{PROC}/* w,   # deny write for all files directly in /proc (not in a subdir)
+        # deny write to files not in /proc/<number>/** or /proc/sys/**
+        deny @{PROC}/{[^1-9/],[^1-9/][^0-9/],[^1-9s/][^0-9y/][^0-9s/],[^1-9/][^0-9/][^0-9/][^0-9/]*}/** w,
+        deny @{PROC}/sys/[^k]** w,  # deny /proc/sys except /proc/sys/k* (effectively /proc/sys/kernel)
+        deny @{PROC}/sys/kernel/{?,??,[^s][^h][^m]**} w,  # deny everything except shm* in /proc/sys/kernel/
+        deny @{PROC}/sysrq-trigger rwklx,
+        deny @{PROC}/kcore rwklx,
+        deny mount,
+        deny /sys/[^f]*/** wklx,
+        deny /sys/f[^s]*/** wklx,
+        deny /sys/fs/[^c]*/** wklx,
+        deny /sys/fs/c[^g]*/** wklx,
+        deny /sys/fs/cg[^r]*/** wklx,
+        deny /sys/firmware/** rwklx,
+        deny /sys/devices/virtual/powercap/** rwklx,
+        deny /sys/kernel/security/** rwklx,
+        # allow processes within the container to trace each other,
+        # provided all other LSM and yama setting allow it.
+        ptrace (trace,tracedby,read,readby) peer=cri-containerd.apparmor.d,
+      }
+    '';
     # Do not kill unconfined-but-confinable processes: k3s and Cilium are not
     # AppArmor-confined, and killing them to enforce a profile would take the
     # node down.
