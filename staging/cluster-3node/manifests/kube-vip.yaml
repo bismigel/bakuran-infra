@@ -1,5 +1,5 @@
 # Staging's API VIP — the same shape as production's
-# (bakuran-gitops/manifests/monitoring/kube-vip.yaml), scaled to one guest.
+# (bakuran-gitops/manifests/base/monitoring/kube-vip.yaml), scaled to one guest.
 #
 # Why this exists: production's Cilium points at 192.168.2.100, held by kube-vip.
 # That creates an ordering constraint the staging host could not rehearse at all:
