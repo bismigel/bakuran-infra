@@ -34,19 +34,49 @@ sitaw-amd 192.168.2.82 10.42.0.0/24"
     agents="$($k -n kube-system get pods -l k8s-app=cilium --no-headers 2>/dev/null | awk '$3=="Running"' | wc -l)"
     [ "$agents" -eq "$nodes" ] || note "Cilium running agents = $agents, expected one per node ($nodes)"
 
+    # Storage: the Longhorn disk inventory documented in runbook page 21 and the
+    # 2026-10-30 KNOWN-ISSUES entry.
+    #
+    # This is the one piece of cluster state ArgoCD cannot reconcile: a disk is
+    # registered in the nodes.longhorn.io CR, not in git. A disko reinstall, a
+    # hand-added disk or a renamed path stays invisible until that disk fills —
+    # which is how 105G of replicas ended up on the root filesystems while two
+    # dedicated partitions sat unused. Compare *paths*, never disk names:
+    # `default-disk-<hash>` changes on re-registration.
+    #
+    # The "no replicas on the root filesystem" rule is deliberately NOT an alert.
+    # LonghornDataOnRootFilesystem existed for part of 2026-10-30 and was removed: every
+    # node here keeps replicas under /var/lib/longhorn, so it fired on all three the
+    # moment it deployed and would have stayed red until the migration finished. A
+    # condition that is permanently true is a panel, not a page - it lives on the
+    # Longhorn dashboard, the decision is in homelab-context/NEXT-STEPS.md, and what
+    # pages is LonghornDiskSchedulingHeadroomLow/OverCommitted (> 0.9 / > 1.0), which
+    # say when the situation starts costing redundancy rather than merely existing.
+    expected_disks="calamansi-intel /var/lib/longhorn
+patola-thinkcentre /mnt/data
+patola-thinkcentre /var/lib/longhorn
+sitaw-amd /mnt/media-nvme
+sitaw-amd /var/lib/longhorn"
+    actual_disks="$($k -n longhorn-system get nodes.longhorn.io -o json 2>/dev/null \
+      | ${pkgs.jq}/bin/jq -r '.items[] | (.metadata.name as $n | (.spec.disks // {} | to_entries[]) | "\($n) \(.value.path)")' \
+      | sed -E 's#/+$##' | sort)"
+    [ -n "$actual_disks" ] || note "no Longhorn disks registered (longhorn-system unreachable?)"
+    [ "$actual_disks" = "$(printf '%s\n' "$expected_disks" | sort)" ] \
+      || note "Longhorn disk inventory differs from runbook page 21: $(printf '%s' "$actual_disks" | tr '\n' ';')"
+
     if [ "$fail" -ne 0 ]; then
       ${pkgs.curl}/bin/curl -fsS -m 10 -X POST -H 'Content-Type: application/json' \
-        -d "[{\"labels\":{\"alertname\":\"DocsDrift\",\"severity\":\"warning\",\"instance\":\"$host\"},\"annotations\":{\"summary\":\"NETWORK.md no longer matches the cluster\",\"description\":\"Run docs-verify on $host and update NETWORK.md\"}}]" \
+        -d "[{\"labels\":{\"alertname\":\"DocsDrift\",\"severity\":\"warning\",\"instance\":\"$host\"},\"annotations\":{\"summary\":\"documented facts no longer match the cluster\",\"description\":\"docs-verify on $host found drift: either NETWORK.md's network claims or the Longhorn disk inventory. Fix the doc, or the state it describes. Re-run the unit on that host for the DRIFT lines.\"}}]" \
         http://127.0.0.1:30903/api/v2/alerts || true
       exit 1
     fi
-    echo "docs-verify: NETWORK.md cluster facts still match"
+    echo "docs-verify: NETWORK.md cluster facts and the Longhorn disk inventory still match"
   '';
 in
 {
   systemd.services.homelab-docs-verify = {
     description = "Verify NETWORK.md's cluster-network claims against the live cluster";
-    path = with pkgs; [ coreutils gawk curl k3s ];
+    path = with pkgs; [ coreutils gawk curl jq k3s ];
     serviceConfig = {
       Type = "oneshot";
       ExecStart = verify;
