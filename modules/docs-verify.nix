@@ -44,8 +44,14 @@ sitaw-amd 192.168.2.82 10.42.0.0/24"
     # dedicated partitions sat unused. Compare *paths*, never disk names:
     # `default-disk-<hash>` changes on re-registration.
     #
-    # The "no replicas on the root filesystem" rule is not checked here; that is
-    # LonghornDataOnRootFilesystem in bakuran-gitops, which watches it hourly.
+    # The "no replicas on the root filesystem" rule is deliberately NOT an alert.
+    # LonghornDataOnRootFilesystem existed for part of 2026-10-30 and was removed: every
+    # node here keeps replicas under /var/lib/longhorn, so it fired on all three the
+    # moment it deployed and would have stayed red until the migration finished. A
+    # condition that is permanently true is a panel, not a page - it lives on the
+    # Longhorn dashboard, the decision is in homelab-context/NEXT-STEPS.md, and what
+    # pages is LonghornDiskSchedulingHeadroomLow/OverCommitted (> 0.9 / > 1.0), which
+    # say when the situation starts costing redundancy rather than merely existing.
     expected_disks="calamansi-intel /var/lib/longhorn
 patola-thinkcentre /mnt/data
 patola-thinkcentre /var/lib/longhorn
