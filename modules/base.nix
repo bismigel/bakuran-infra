@@ -148,6 +148,33 @@
     # No LSM confinement beyond seccomp, and no kernel audit trail, until
     # 2026-10-29. auditd is the one that matters: it turns "the volumes
     # disappeared" into a timestamped record of who did it.
+    # --- idle power -----------------------------------------------------------
+    # sitaw-amd runs amd-pstate-epp, where the *governor* says "powersave" but the
+    # energy/performance preference was `performance` - which pins the CPU's response
+    # to any wakeup, and is why a 12-core box doing 4% work still drew ~8.9W of package
+    # power (Kepler, 24h average, 2026-10-31). `power` tells the hardware to prefer the
+    # lowest frequency that finishes the work.
+    #
+    # Deliberately not touching the governor: `powersave` with amd-pstate-epp already
+    # means "use the EPP to decide", and forcing `performance`/`ondemand` here would
+    # undo it.
+    powerManagement.cpuFreqGovernor = "powersave";
+    systemd.services.cpu-energy-preference = {
+      description = "Bias CPU energy/performance preference toward idle power";
+      wantedBy = [ "multi-user.target" ];
+      # Re-applied at every boot because the setting lives in the CPU, not in a file.
+      serviceConfig = { Type = "oneshot"; RemainAfterExit = true; };
+      script = ''
+        set -eu
+        n=0
+        for f in /sys/devices/system/cpu/cpu*/cpufreq/energy_performance_preference; do
+          [ -e "$f" ] || continue
+          echo power > "$f" 2>/dev/null && n=$((n + 1)) || true
+        done
+        echo "cpu-energy-preference: set on $n cpu(s)"
+      '';
+    };
+
     security.auditd.enable = true;
     security.apparmor.enable = true;
     # enable = true turns the LSM on and loads NOTHING, which is worse than it
