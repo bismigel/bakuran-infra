@@ -2,7 +2,7 @@
 
 Owns **one** thing: `quality_definition` sizes for Radarr and Sonarr.
 
-    recyclarr (bakuran-gitops manifests/media/recyclarr.yaml)
+    recyclarr (bakuran-gitops manifests/base/media/recyclarr.yaml)
         -> quality_profiles + custom_format scores
     this module
         -> quality_definitions: min/max/preferred MB per minute
