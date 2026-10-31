@@ -194,7 +194,7 @@
       # WireGuard migration changed the boot ordering).
       "--node-ip=192.168.2.81"
       "--advertise-address=192.168.2.81"
-      # The API VIP (kube-vip, gitops manifests/monitoring/kube-vip.yaml) has to be
+      # The API VIP (kube-vip, gitops manifests/base/monitoring/kube-vip.yaml) has to be
       # in the serving certificate or clients get a TLS name error.
       "--tls-san=192.168.2.100"
       "--flannel-backend=none"

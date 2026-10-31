@@ -6,7 +6,7 @@
   # node, and whether an egress policy behaves. A flannel cluster answers neither.
   #
   # Matched deliberately (see bakuran-infra/hosts/calamansi-intel/default.nix and
-  # applications/sitaw/cilium.yaml):
+  # clusters/prod/apps/platform/cilium.yaml):
   #   * k3s with --flannel-backend=none and NO --disable-kube-proxy (production
   #     runs kubeProxyReplacement=false, so kube-proxy owns iptables)
   #   * Cilium v1.20.3, tunnel/vxlan, ipam=kubernetes, prometheus on

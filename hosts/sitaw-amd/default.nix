@@ -48,7 +48,7 @@
     role = "server";
     clusterInit = true;
     extraFlags = toString [
-      # The API VIP (kube-vip, gitops manifests/monitoring/kube-vip.yaml) has to be
+      # The API VIP (kube-vip, gitops manifests/base/monitoring/kube-vip.yaml) has to be
       # in the serving certificate or clients get a TLS name error.
       "--tls-san=192.168.2.100"
       "--flannel-backend=none"

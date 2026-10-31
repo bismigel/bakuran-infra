@@ -67,7 +67,7 @@ remote. Admin apps behind Access use a **24h** session; media **730h**.
 ## Media stack
 
 Deployments are **GitOps-managed**: the manifests live in `bakuran-gitops`
-(`manifests/media/`, apps under `applications/calamansi-intel/`) and are reconciled
+(`manifests/base/media/` + `manifests/overlays/prod/media/`, driven by `clusters/prod/apps/workloads/media.yaml`) and are reconciled
 by ArgoCD on **sitaw-amd** (.82). `.81` is media-only; the sites run on `.82`.
 
 The *arr apps keep their config in SQLite, so the wiring (root folders,
