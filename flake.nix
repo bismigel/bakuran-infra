@@ -73,7 +73,7 @@
           ./hosts/kamatis-mbp/default.nix
         ];
       };
-    # Lenovo ThinkCentre M900 Tiny (i5-6500T, 16 GB) — replaces kamatis-mbp
+    # Lenovo ThinkCentre M700 Tiny (i5-6500T, 16 GB) — replaces kamatis-mbp
     # as the 3rd k3s server / etcd member. Deliberately not tainted: schedulable.
     patola-thinkcentre = nixpkgs.lib.nixosSystem {
       system = "x86_64-linux";
