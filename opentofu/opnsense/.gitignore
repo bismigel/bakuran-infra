@@ -1,0 +1,16 @@
+# OpenTofu state and caches — state is sensitive (contains resource attributes)
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl.bak
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Device config exports must never be committed: an OPNsense config.xml contains the
+# WebGUI TLS private key and root's password hash (ROUTER.md §7).
+*.xml
+router-backups/
