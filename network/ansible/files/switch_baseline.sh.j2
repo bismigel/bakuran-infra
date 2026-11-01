@@ -1,0 +1,96 @@
+#!/bin/sh
+# Idempotent baseline for the OpenWrt switch (Netgear GS108T v3).
+#
+# Runs ON the switch via Ansible's `script` module, because OpenWrt has no Python and
+# there is no OpenWrt Terraform/OpenTofu provider (checked 2026-11-01), so Ansible at the
+# shell level is the honest tool.
+#
+#   switch_baseline.sh            apply the baseline, print what changed
+#   switch_baseline.sh --audit    change nothing, exit 2 if anything differs
+#
+# Values come from group_vars/all.yml, rendered into the environment by the playbook.
+set -u
+
+# Desired state, rendered by Ansible from group_vars/all.yml. Values are quoted here so
+# the script is self-contained on a target with no Python and no Ansible runtime.
+SW_HOSTNAME='{{ switch_baseline.hostname }}'
+SW_ZONENAME='{{ switch_baseline.zonename }}'
+SW_TIMEZONE='{{ switch_baseline.timezone }}'
+SW_NTP='{{ switch_baseline.ntp_servers | join(" ") }}'
+SW_LAN_IPADDR='{{ switch_baseline.lan_ipaddr }}'
+SW_LAN_GATEWAY='{{ switch_baseline.lan_gateway }}'
+SW_LAN_DNS='{{ switch_baseline.lan_dns }}'
+SW_STP='{{ 1 if switch_baseline.stp else 0 }}'
+SW_IGMP='{{ 1 if switch_baseline.igmp_snooping else 0 }}'
+SW_DNSMASQ_ENABLED='{{ "true" if switch_baseline.dnsmasq_enabled else "false" }}'
+SW_ODHCPD_ENABLED='{{ "true" if switch_baseline.odhcpd_enabled else "false" }}'
+
+AUDIT=0
+[ "${1:-}" = "--audit" ] && AUDIT=1
+
+CHANGED=0
+DRIFT=""
+
+# want <uci-path> <desired> [list]
+check_set() {
+  path="$1"; want="$2"; list="${3:-}"
+  have="$(uci -q get "$path" 2>/dev/null || true)"
+  if [ "$have" = "$want" ]; then return 0; fi
+  DRIFT="$DRIFT
+  $path: '${have:-<unset>}' -> '$want'"
+  CHANGED=1
+  [ "$AUDIT" = "1" ] || { uci set "$path=$want"; }
+}
+
+# same, for a list option that must equal a specific sequence
+check_list() {
+  path="$1"; want="$2"
+  have="$(uci -q get "$path" 2>/dev/null | tr '\n' ' ' | sed 's/ *$//')"
+  wantn="$(printf '%s' "$want" | sed 's/ *$//')"
+  if [ "$have" = "$wantn" ]; then return 0; fi
+  DRIFT="$DRIFT
+  $path: '${have:-<unset>}' -> '$wantn'"
+  CHANGED=1
+  [ "$AUDIT" = "1" ] || {
+    uci -q delete "$path"
+    for v in $wantn; do uci add_list "$path=$v"; done
+  }
+}
+
+check_set system.@system[0].hostname       "${SW_HOSTNAME}"
+check_set system.@system[0].zonename       "${SW_ZONENAME}"
+check_set system.@system[0].timezone       "${SW_TIMEZONE}"
+check_list system.ntp.server               "${SW_NTP}"
+check_set network.lan.ipaddr               "${SW_LAN_IPADDR}"
+check_set network.lan.gateway              "${SW_LAN_GATEWAY}"
+check_list network.lan.dns                 "${SW_LAN_DNS}"
+check_set network.@device[1].stp           "${SW_STP}"
+check_set network.@device[1].igmp_snooping "${SW_IGMP}"
+
+# Service enablement is state, not a uci value.
+for svc in dnsmasq odhcpd; do
+  want_enabled="$(eval echo \"\${SW_$(echo "$svc" | tr a-z A-Z)_ENABLED}\")"
+  if [ "$want_enabled" = "false" ]; then
+    if [ -x "/etc/init.d/$svc" ] && /etc/init.d/"$svc" enabled 2>/dev/null; then
+      DRIFT="$DRIFT
+  service $svc: enabled -> disabled"
+      CHANGED=1
+      [ "$AUDIT" = "1" ] || { /etc/init.d/"$svc" stop 2>/dev/null; /etc/init.d/"$svc" disable 2>/dev/null; }
+    fi
+  fi
+done
+
+if [ "$CHANGED" = "0" ]; then
+  echo "OK: baseline matches; nothing to change."
+  exit 0
+fi
+
+if [ "$AUDIT" = "1" ]; then
+  echo "DRIFT:$DRIFT"
+  exit 2
+fi
+
+uci commit system; uci commit network
+/etc/init.d/network reload >/dev/null 2>&1
+/etc/init.d/sysntpd restart >/dev/null 2>&1
+echo "CHANGED:$DRIFT"
