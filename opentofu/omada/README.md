@@ -81,3 +81,27 @@ one node is the right availability target, not HA.
 **Migration order:** adopt the AP against the current controller first (so the wireless config
 exists), then move the controller, then repoint `omada.internal` and the provider's URL. Moving it
 first would mean adopting twice.
+
+---
+
+## Parked 2026-11-01
+
+The controller was removed from the laptop and this root was **not** applied beyond
+`omada_network.clients`. The wireless side is being configured by hand on the AP instead.
+
+What was learned, so it is not re-learned:
+
+- **The provider needs the site name exactly.** A site at the controller is often not *primary*,
+  and the provider refuses to guess. The log truncates names, so it read `bakuran` when the site
+  was `bakuransite` — an hour lost to a guess that looked confirmed.
+- **Site listing came back empty until the site existed.** Fine now, but it made "no site named"
+  look like an auth failure when the credentials were valid all along.
+- **`wlan_group` cannot be created when the site already has a `Default` group**
+  (`omada api error -33200`), and importing it needs `<site>/<group-uuid>` — the uuid is not
+  exposed by any data source, so it has to come from the browser's network tab or the Open API.
+  The Open API needs its **own** app credential (Client ID + Secret, mode *Client Credentials*),
+  which the UI shows only at creation.
+- **Mongo is wire version 6** (MongoDB ≤ 4.0), and every `mongosh` in nixpkgs refuses it, so the
+  controller's database cannot be read for ids either.
+- If this is ever revived: **run the controller in the cluster** (hostNetwork, node pin, Longhorn
+  PVC) rather than on a laptop — the address moved three times in one day and took the UI with it.
