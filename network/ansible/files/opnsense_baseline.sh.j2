@@ -1,0 +1,148 @@
+#!/bin/sh
+# Idempotent identity/access baseline for OPNsense.
+#
+# Runs ON the router over SSH (key auth). The OpenTofu provider has no resource for
+# `system` settings, so SSH keys, password-auth policy and the WebGUI session policy can only be
+# managed by editing the config through OPNsense's own library - which is what this does.
+#
+#   opnsense_baseline.sh            apply, print what changed
+#   opnsense_baseline.sh --audit    change nothing, exit 2 if anything differs
+#
+# Deliberately NOT handled here:
+#   - TOTP. A seed has to be enrolled in a human's authenticator; automating it would either
+#     lock someone out or write a secret we cannot verify. Documented in ROUTER.md instead.
+#   - The VLAN/interface objects. Writing them here produces something OPNsense does not
+#     enumerate (see ROUTER.md §7c) - they must be created through the UI.
+#
+# The one dangerous thing this DOES do - turn password auth off - is interlocked: it will not
+# run unless at least one authorized key is already present in the config.
+set -u
+
+AUDIT=0
+[ "${1:-}" = "--audit" ] && AUDIT=1
+
+CHANGED=0
+DRIFT=""
+
+add_drift() {
+  DRIFT="$DRIFT
+  $1"
+  CHANGED=1
+}
+
+# ---- what we want, rendered by Ansible ---------------------------------------
+WANT_KEYS='{{ opnsense_baseline.ssh_authorized_keys | join("\n") }}'
+WANT_PW_OFF='{{ "1" if opnsense_baseline.disable_password_auth else "0" }}'
+WANT_SESSION='{{ opnsense_baseline.webgui_session_timeout }}'
+WANT_AUTH='{{ opnsense_baseline.webgui_auth_timeout }}'
+
+export WANT_KEYS WANT_PW_OFF WANT_SESSION WANT_AUTH
+
+# ---- one PHP pass: read, compare, write only if different --------------------
+cat > /tmp/opn_base.php <<'PHP'
+<?php
+require_once("/usr/local/etc/inc/config.inc");
+require_once("/usr/local/etc/inc/util.inc");
+global $config;
+
+$wantKeys  = trim(getenv('WANT_KEYS') ?: '');
+$pwOff     = getenv('WANT_PW_OFF') === '1';
+$wantSess  = getenv('WANT_SESSION') ?: '';
+$wantAuth  = getenv('WANT_AUTH') ?: '';
+$audit     = getenv('AUDIT') === '1';
+
+$drift = [];
+$changed = false;
+
+# --- root user index ---
+$idx = null;
+foreach ($config['system']['user'] as $i => $u) {
+    if (($u['name'] ?? '') === 'root') { $idx = $i; break; }
+}
+if ($idx === null) { echo "NO_ROOT_USER\n"; exit(3); }
+
+# --- authorized keys: the union, never a replacement ---
+$have = (string)($config['system']['user'][$idx]['authorizedkeys'] ?? '');
+$lines = preg_split('/\r?\n/', $have, -1, PREG_SPLIT_NO_EMPTY);
+$missing = [];
+foreach (preg_split('/\r?\n/', $wantKeys, -1, PREG_SPLIT_NO_EMPTY) as $k) {
+    if (!in_array($k, $lines, true)) { $missing[] = $k; }
+}
+if ($missing) {
+    $drift[] = "authorizedkeys: " . count($missing) . " key(s) missing";
+    if (!$audit) {
+        foreach ($missing as $k) { $lines[] = $k; }
+        $config['system']['user'][$idx]['authorizedkeys'] = implode("\n", $lines);
+        $changed = true;
+    }
+}
+
+# --- password auth, interlocked on the presence of a key ---
+$wantPw = $pwOff ? 'off' : 'on';
+# if we are being asked to turn it off, a key must already exist (or be added above)
+$keysAfter = $missing ? array_merge($lines, $missing) : $lines;
+if ($pwOff && count(array_filter($keysAfter)) === 0) {
+    $drift[] = "REFUSING to disable password auth: no authorized key would remain";
+    $wantPw = 'on';
+}
+$curPw = isset($config['system']['ssh']['passwordauth']) ? 'on' : 'off';
+if ($curPw !== $wantPw) {
+    $drift[] = "ssh.passwordauth: $curPw -> $wantPw";
+    if (!$audit) {
+        if ($wantPw === 'on') { $config['system']['ssh']['passwordauth'] = '1'; }
+        else { unset($config['system']['ssh']['passwordauth']); }
+        $changed = true;
+    }
+}
+
+# --- WebGUI session policy ---
+if ($wantSess !== '') {
+    $cur = (string)($config['system']['webgui']['session_timeout'] ?? '');
+    if ($cur !== $wantSess) {
+        $drift[] = "webgui.session_timeout: '" . ($cur ?: '<unset>') . "' -> '$wantSess'";
+        if (!$audit) { $config['system']['webgui']['session_timeout'] = $wantSess; $changed = true; }
+    }
+}
+if ($wantAuth !== '') {
+    $cur = (string)($config['system']['webgui']['auth_timeout'] ?? '');
+    if ($cur !== $wantAuth) {
+        $drift[] = "webgui.auth_timeout: '" . ($cur ?: '<unset>') . "' -> '$wantAuth'";
+        if (!$audit) { $config['system']['webgui']['auth_timeout'] = $wantAuth; $changed = true; }
+    }
+}
+
+if (!$drift) { echo "OK\n"; exit(0); }
+
+if ($audit) {
+    echo "DRIFT\n";
+    foreach ($drift as $d) { echo "  $d\n"; }
+    exit(2);
+}
+
+if ($changed) {
+    write_config('bakuran: identity/access baseline (keys, password auth, session policy)');
+}
+echo "CHANGED\n";
+foreach ($drift as $d) { echo "  $d\n"; }
+
+# apply the sshd config if the auth policy moved
+$sshd = '/usr/local/etc/ssh/sshd_config';
+$want = $wantPw === 'on' ? 'yes' : 'no';
+$cur = 'none';
+foreach (@file($sshd) ?: [] as $l) { if (preg_match('/^PasswordAuthentication\s+(\w+)/', $l, $m)) { $cur = $m[1]; } }
+if ($cur !== $want) {
+    echo "  restarting openssh to apply PasswordAuthentication=$want\n";
+    @exec('configctl openssh restart 2>&1');
+}
+PHP
+
+AUDIT="$AUDIT" php /tmp/opn_base.php
+rc=$?
+rm -f /tmp/opn_base.php
+
+case "$rc" in
+  0) [ "$AUDIT" = "1" ] && echo "OK: identity/access baseline matches; nothing to change." ;;
+  2) echo "DRIFT detected (audit mode): rerun without --audit to correct it." ;;
+  *) echo "FAILED (rc=$rc)" ;;
+esac
+exit $rc
