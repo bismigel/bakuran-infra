@@ -16,6 +16,25 @@ switch_baseline:
   odhcpd_enabled: false
   stp: true
   igmp_snooping: true
+  # 802.1Q, DSA-style (OpenWrt 21+). VLAN 1 is the management/infra network and stays
+  # untagged on every port, so nothing that already works changes when a tagged VLAN is
+  # added. VLAN 20 is the *clients* network and is only tagged where it must travel:
+  # lan1 (OPNsense) and lan2 (the AP). The cluster's ports never see it.
+  #
+  # 2026-11-01: added so segmentation stops being a graph on paper. A tagged VLAN that
+  # no port carries is inert; this one is carried to the two devices that need it.
+  vlans:
+    - vlan: 1
+      ports: ["lan1", "lan2", "lan3", "lan4", "lan5", "lan6", "lan7", "lan8"]
+    - vlan: 20
+      ports: ["lan1:t", "lan2:t"]
+  # The key that must exist BEFORE password auth is turned off. Public keys are not secrets,
+  # so this belongs in git - and it has to, because the alternative is unreproducible: after a
+  # factory reset (2026-11-01, recovering the switch from failsafe) the key was gone while the
+  # baseline would still have disabled passwords, which locks everyone out of the device.
+  ssh_authorized_keys:
+    - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAILj/syjQTnLwTGNHC4IKec2QXJpzXOExBQKGJI6/p4Mz nix-station-opencode"
+
   # Management plane. Verified on the device 2026-11-01: PasswordAuth and RootPasswordAuth
   # were both 'on' and LuCI redirected nothing, despite ROUTER.md claiming key-only SSH.
   # That matters more now that Wi-Fi clients share this L2 island and can reach .3.
