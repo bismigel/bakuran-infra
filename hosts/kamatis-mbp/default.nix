@@ -19,7 +19,13 @@
     { address = "192.168.2.83"; prefixLength = 24; }
   ];
   networking.defaultGateway = "192.168.2.1";
-  networking.nameservers = [ "1.1.1.1" "8.8.8.8" ];
+  # DNS via the router's unbound, NOT 1.1.1.1 through the WireGuard tunnel.
+  # Resolving through the tunnel means an egress fault becomes a DNS fault: on
+  # 2026-11-01 wireguard-proton0 did not start, so `lookup ghcr.io` failed and
+  # forty pods landed in ImagePullBackOff. The router is on the LAN; if it is
+  # unreachable nothing else works either. Verified 2026-11-01: unbound on .1
+  # answers for example.com with NOERROR and two records.
+  networking.nameservers = [ "192.168.2.1" ];
 
   # MacBookPro9,2 (13" Mid-2012) hardware.
   boot.initrd.availableKernelModules = [
