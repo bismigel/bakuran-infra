@@ -86,6 +86,17 @@ for svc in dnsmasq odhcpd; do
   fi
 done
 
+# A previous run - or one interrupted between `uci set` and `uci commit` - leaves a pending
+# delta. `uci get` reports pending values, so every check above sees the desired state while
+# the device still runs the old one. Treat a pending delta as drift, or the audit certifies a
+# device that was never changed.
+PENDING="$(uci changes 2>/dev/null | tr '\n' ' ' | sed 's/ *$//')"
+if [ -n "$PENDING" ]; then
+  DRIFT="$DRIFT
+  pending uci changes never committed: $PENDING"
+  CHANGED=1
+fi
+
 if [ "$CHANGED" = "0" ]; then
   echo "OK: baseline matches; nothing to change."
   exit 0
@@ -96,7 +107,15 @@ if [ "$AUDIT" = "1" ]; then
   exit 2
 fi
 
-uci commit system; uci commit network
+# Commit every config this script touches. Missing one is invisible: `uci get` still
+# reports the pending value (so a re-audit passes) while the running service keeps the old
+# one - the same "looks applied, isn't" failure as a probe that cannot fail. Verified
+# 2026-11-01: without `uci commit dropbear`/`uhttpd` the hardening below sat in the delta
+# and uhttpd kept serving plaintext on :80.
+uci commit system; uci commit network; uci commit dropbear; uci commit uhttpd
 /etc/init.d/network reload >/dev/null 2>&1
 /etc/init.d/sysntpd restart >/dev/null 2>&1
+# reload, not restart: this script is running over the very ssh session dropbear serves.
+/etc/init.d/dropbear reload >/dev/null 2>&1
+/etc/init.d/uhttpd reload >/dev/null 2>&1
 echo "CHANGED:$DRIFT"
