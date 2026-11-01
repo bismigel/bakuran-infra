@@ -15,7 +15,7 @@ reservations are otherwise live-only).
 | `calamansi-intel` | 192.168.2.81 | `10:62:e5:18:d9:43` | `eno1` |
 | `kamatis-mbp` | 192.168.2.83 | `40:6c:8f:4c:7f:0c` | `enp1s0f0` |
 | `nix-station` (admin box) | 192.168.2.245 | — | — |
-| Ollama host (homelab agent fallback) | 192.168.2.12 | — | — |
+| Ollama host (the gaming PC; Hermes fallback) | **192.168.2.151** | `d8:5e:d3:8d:51:d2` | switch `lan8` — **inside the DHCP pool, reserve it** (`192.168.2.12` is dead) |
 
 > The three cluster hosts set their IP **statically** in NixOS (`hosts/*/default.nix`),
 > so the reservations are belt-and-braces (keep the router DHCP pool from handing
