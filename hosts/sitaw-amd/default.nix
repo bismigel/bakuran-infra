@@ -10,6 +10,7 @@
     ../../modules/backup-apps.nix
     ../../modules/cloudflare-sync.nix
     ../../modules/docs-verify.nix
+    ../../modules/service-resilience.nix
     ./disko.nix
   ];
 
@@ -23,7 +24,13 @@
     { address = "192.168.2.82"; prefixLength = 24; }
   ];
   networking.defaultGateway = "192.168.2.1";
-  networking.nameservers = [ "1.1.1.1" "8.8.8.8" ];
+  # DNS via the router's unbound, NOT 1.1.1.1 through the WireGuard tunnel.
+  # Resolving through the tunnel means an egress fault becomes a DNS fault: on
+  # 2026-11-01 wireguard-proton0 did not start, so `lookup ghcr.io` failed and
+  # forty pods landed in ImagePullBackOff. The router is on the LAN; if it is
+  # unreachable nothing else works either. Verified 2026-11-01: unbound on .1
+  # answers for example.com with NOERROR and two records.
+  networking.nameservers = [ "192.168.2.1" ];
 
   # Hardware (Ryzen 5 4600G / B450 / NVMe root). File systems come from disko.
   boot.initrd.availableKernelModules = [
@@ -97,17 +104,92 @@
     '';
   };
 
-  # ---- Media storage: export the data partitions to the media box (.81) ----
-  # /mnt/media-nvme is NOT exported any more: it is a Longhorn disk since
-  # 2026-10-28 (dedicated 340G, no longer competing with the root filesystem).
-  # .81 mounts these and mergerfs-unions them with its own local disks.
+  # ---- Media library: the 2 TB disk lives here and is exported to .81 ----
+  # Since 2026-11-01 this host holds the library itself, on a btrfs volume, and .81
+  # mounts it over NFS. That replaces the mergerfs union on .81, which failed three
+  # separate ways in one week: a branch on NFS failing closed at 06:00:06 took the
+  # whole pool down, one branch hit ENOSPC while the union advertised 789G free, and a
+  # union cannot be snapshotted at all. See STORAGE-PLAN.md in homelab-context.
+  #
+  # btrfs, not ext4, because this is the one disk where snapshots earn their keep: the
+  # 1.6G of books and audiobooks is not re-downloadable, and `btrfs send` gives
+  # incremental, checksummed copies to the backup disk and to R2.
+  #
+  # -d single / -m dup: one device means no data redundancy, but btrfs keeps TWO copies
+  # of metadata, so a bad sector costs a file rather than the tree.
+  fileSystems."/mnt/media" = {
+    device = "/dev/disk/by-uuid/bda38db8-bda8-4503-b7a6-c3969b021e68";
+    fsType = "btrfs";
+    options = [ "subvol=@media" "noatime" "space_cache=v2" "nofail" ];
+  };
+  # Separate subvolumes for the two irreplaceable collections, so each can be
+  # snapshotted and sent independently. zstd only on text: video does not compress and
+  # the CPU is better spent on QSV.
+  fileSystems."/mnt/media/books" = {
+    device = "/dev/disk/by-uuid/bda38db8-bda8-4503-b7a6-c3969b021e68";
+    fsType = "btrfs";
+    options = [ "subvol=@books" "noatime" "compress=zstd:1" "nofail" ];
+  };
+  fileSystems."/mnt/media/audiobooks" = {
+    device = "/dev/disk/by-uuid/bda38db8-bda8-4503-b7a6-c3969b021e68";
+    fsType = "btrfs";
+    options = [ "subvol=@audiobooks" "noatime" "compress=zstd:1" "nofail" ];
+  };
+  fileSystems."/mnt/media-snapshots" = {
+    device = "/dev/disk/by-uuid/bda38db8-bda8-4503-b7a6-c3969b021e68";
+    fsType = "btrfs";
+    options = [ "subvol=@snapshots" "noatime" "nofail" ];
+  };
+
+  environment.systemPackages = [ pkgs.btrfs-progs ];
+
+  # Snapshot the irreplaceable collections every 6h, keep 7 days of them. Read-only
+  # snapshots are cheap (metadata) and protect against rm, a bad import, and an app
+  # writing garbage over a database.
+  systemd.services.btrfs-snapshot-books = {
+    description = "Read-only btrfs snapshots of books and audiobooks";
+    after = [ "mnt-media-books.mount" "mnt-media-audiobooks.mount" ];
+    requires = [ "mnt-media-books.mount" "mnt-media-audiobooks.mount" ];
+    serviceConfig.Type = "oneshot";
+    script = ''
+      set -eu
+      stamp=$(date +%Y-%m-%dT%H%M)
+      for sv in books audiobooks; do
+        ${pkgs.btrfs-progs}/bin/btrfs subvolume snapshot -r /mnt/media/$sv \
+          /mnt/media-snapshots/$sv-$stamp
+      done
+      # Keep 7 days: filenames sort lexicographically by timestamp.
+      for sv in books audiobooks; do
+        ls -1d /mnt/media-snapshots/$sv-* 2>/dev/null | sort | head -n -28 | while read -r old; do
+          ${pkgs.btrfs-progs}/bin/btrfs subvolume delete "$old" >/dev/null
+        done
+      done
+    '';
+  };
+  systemd.timers.btrfs-snapshot-books = {
+    wantedBy = [ "timers.target" ];
+    timerConfig = {
+      OnCalendar = "*-*-* 00/6:20";
+      Persistent = true;
+    };
+  };
+
+  # Exports. The nested subvolumes are exported EXPLICITLY, not via `crossmnt`:
+  # NFS does not cross mountpoints, so exporting /mnt/media alone would present empty
+  # directories where books and audiobooks actually live - a silent, plausible-looking
+  # way to lose the two collections that cannot be re-downloaded.
   services.nfs.server.enable = true;
   services.nfs.server.exports = ''
-    /mnt/media-sda  192.168.2.81(rw,sync,no_subtree_check,no_root_squash)
+    /mnt/media            192.168.2.81(rw,sync,no_subtree_check,no_root_squash)
+    /mnt/media/books      192.168.2.81(rw,sync,no_subtree_check,no_root_squash)
+    /mnt/media/audiobooks 192.168.2.81(rw,sync,no_subtree_check,no_root_squash)
+    /mnt/media-snapshots  192.168.2.81(ro,sync,no_subtree_check,no_root_squash)
+    # Retired when .81 stops using mergerfs; keep until the rollback week is over.
+    /mnt/media-sda        192.168.2.81(rw,sync,no_subtree_check,no_root_squash)
     # Backup disks (USB, 2026-10-28). .81 writes the weekly media mirror to the SD
     # card; this host writes the R2 archive copy to the stick.
-    /mnt/backup-sd  192.168.2.81(rw,sync,no_subtree_check,no_root_squash)
-    /mnt/backup-usb 192.168.2.81(rw,sync,no_subtree_check,no_root_squash)
+    /mnt/backup-sd        192.168.2.81(rw,sync,no_subtree_check,no_root_squash)
+    /mnt/backup-usb       192.168.2.81(rw,sync,no_subtree_check,no_root_squash)
   '';
 
   # Two USB disks used as a *weekly* backup target, not as mergerfs branches:
