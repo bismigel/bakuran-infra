@@ -43,7 +43,7 @@ resource "opnsense_firewall_filter" "clients_dns" {
     action      = "pass"
     direction   = "in"
     ip_protocol = "inet"
-    protocol    = "TCP/UDP"  # one rule for both; a bare 'any' cannot carry a destination port
+    protocol    = "TCP/UDP" # one rule for both; a bare 'any' cannot carry a destination port
     source      = { net = local.clients_net }
     destination = { net = "192.168.2.1", port = "53" }
   }
