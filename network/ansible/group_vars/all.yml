@@ -59,3 +59,12 @@ opnsense_baseline:
   # 60 minutes idle, 5 minutes to finish a login (both unset by default = effectively unbounded).
   webgui_session_timeout: "60"
   webgui_auth_timeout: "5"
+
+  # The two facts OpenTofu cannot express, so they live here instead. Both are load-bearing: lose
+  # either and VLAN 20 has no address and no DHCP while every declarative resource still matches.
+  kea_interfaces: "lan,opt1"
+  vlan_interface:
+    handle: "opt1"
+    descr: "CLIENTS"
+    ipaddr: "192.168.20.1"
+    subnet: "24"
