@@ -1,10 +1,22 @@
-# The switch, post-OpenWrt. No Python on the target, so tasks are `script`/`raw` only.
+# Network devices that have no Terraform/OpenTofu resource for the settings we need.
+#
+# Both use the `script` module: OpenWrt has no Python at all, and on OPNsense the
+# identity/access values live in config.xml, which is edited through OPNsense's own library
+# (see files/opnsense_baseline.sh.j2). Idempotency lives in the scripts, not in Ansible.
 all:
   children:
     openwrt:
       hosts:
         gs108tv3:
           ansible_host: 192.168.2.3
+          ansible_user: root
+          ansible_ssh_private_key_file: ~/.ssh/id_ed25519
+          ansible_connection: ssh
+          ansible_ssh_common_args: "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10"
+    opnsense:
+      hosts:
+        gw-opnsense:
+          ansible_host: 192.168.2.1
           ansible_user: root
           ansible_ssh_private_key_file: ~/.ssh/id_ed25519
           ansible_connection: ssh

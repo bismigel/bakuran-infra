@@ -44,3 +44,18 @@ switch_baseline:
   ssh_password_auth: false
   ssh_root_password_auth: false
   luci_redirect_https: true
+
+# Identity/access state for the router. The OpenTofu provider has no `system` resource, so this is
+# its only declarative home. Applied by playbooks/opnsense.yml.
+#
+# NOT here: TOTP (a seed has to be enrolled in a human's authenticator — automating it either
+# locks someone out or writes a secret that cannot be verified), and the VLAN interface objects
+# (writing them produces something OPNsense does not enumerate — ROUTER.md 7c).
+opnsense_baseline:
+  ssh_authorized_keys:
+    - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAILj/syjQTnLwTGNHC4IKec2QXJpzXOExBQKGJI6/p4Mz nix-station-opencode"
+  # Interlocked: the baseline refuses to disable passwords unless a key would remain.
+  disable_password_auth: true
+  # 60 minutes idle, 5 minutes to finish a login (both unset by default = effectively unbounded).
+  webgui_session_timeout: "60"
+  webgui_auth_timeout: "5"
