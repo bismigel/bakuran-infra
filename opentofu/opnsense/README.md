@@ -35,6 +35,38 @@ and a second CI/secret path for no isolation benefit.
 tofu init -backend=false   # provider only; no credentials needed for validate
 tofu validate
 tofu plan                  # needs state (backend) + credentials
+
+### The backend now works — state lives in R2
+
+`tofu init` initially failed with `no EC2 IMDS role found` because the S3 backend had no
+credentials. It needs the **same R2 key the backup job already uses** (`homelab-backups` bucket,
+same endpoint) mapped onto the AWS variable names:
+
+```sh
+set -a; . ~/.config/opentofu/r2.env; set +a      # R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY
+export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID" AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
+export AWS_DEFAULT_REGION=auto
+```
+
+Verified 2026-11-01: `init` succeeds, `plan` locks and unlocks state in R2, and a second `plan`
+reports **no changes** (idempotent).
+
+### Two provider limitations worth knowing before writing rules
+
+1. **`dns_servers` is a `Set`, so order is not preserved.** Asking for
+   `["192.168.2.1", "1.1.1.1"]` applies as `1.1.1.1,192.168.2.1`, and Kea sends them in that
+   order — clients try `1.1.1.1` first, which on `.81` is routed inside the WireGuard tunnel.
+   There is no ordered alternative in the provider (no `opnsense_kea_dhcpv4_option` resource),
+   so the subnet hands out a **single** resolver and the fallback lives in unbound's upstreams.
+2. **`auto_collect` must be `false`** or `routers`, `dns_servers` and `ntp_servers` are ignored
+   while the apply reports success — a change that cannot fail is a change that never happened.
+
+### Adoption is `import`, not `create`
+
+The subnet and its four reservations already existed; `import` blocks take them into state so
+the first apply is a no-op plus the intended change. Read the first plan: it named the live
+`description` (`"homelab LAN"`) and normalised the pool format to the provider's spaced style —
+both worth knowing rather than discovering later.
 ```
 
 **Never** `tofu apply -auto-approve`. The workflow is in `NETWORK-AS-CODE.md` §6:
