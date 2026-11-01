@@ -27,6 +27,13 @@ SW_ODHCPD_ENABLED='{{ "true" if switch_baseline.odhcpd_enabled else "false" }}'
 SW_SSH_PW='{{ "on" if switch_baseline.ssh_password_auth else "off" }}'
 SW_SSH_ROOT_PW='{{ "on" if switch_baseline.ssh_root_password_auth else "off" }}'
 SW_LUCI_HTTPS='{{ 1 if switch_baseline.luci_redirect_https else 0 }}'
+# Desired 802.1Q layout, one "vlan:ports" record per LINE. The separator is a newline in the
+# template itself, deliberately: the first version separated records with ";" and then split on
+# newlines, so the whole string was read as a single record - vlan 1 got the ports
+# "lan1 .. lan8;20:lan1:t lan2:t", which added lan2 as TAGGED in VLAN 1 and dropped the AP's
+# untagged traffic. That took the only Wi-Fi on the OPNsense island offline.
+SW_VLANS='{% for v in switch_baseline.vlans %}{{ v.vlan }}:{{ v.ports | join(" ") }}
+{% endfor %}'
 
 AUDIT=0
 [ "${1:-}" = "--audit" ] && AUDIT=1
@@ -72,6 +79,59 @@ check_set network.@device[1].igmp_snooping "${SW_IGMP}"
 check_set dropbear.main.PasswordAuth        "${SW_SSH_PW}"
 check_set dropbear.main.RootPasswordAuth    "${SW_SSH_ROOT_PW}"
 check_set uhttpd.main.redirect_https        "${SW_LUCI_HTTPS}"
+
+# Bridge VLANs. Each desired VLAN must exist on the `switch` device with exactly the listed
+# ports ("lan1" untagged, "lan1:t" tagged). A tagged VLAN nobody carries is inert, so this
+# is what makes the segmentation real rather than documented.
+ensure_bridge_vlan() {
+  want_vlan="$1"; want_ports="$2"
+  found=""
+  for sec in $(uci show network | grep "bridge-vlan" | grep -v "device=" | cut -d. -f2 | cut -d= -f1); do
+    [ "$(uci -q get "network.$sec.vlan")" = "$want_vlan" ] && found="$sec" && break
+  done
+  if [ -z "$found" ]; then
+    DRIFT="$DRIFT
+    vlan $want_vlan: absent -> '$want_ports'"
+    CHANGED=1
+    [ "$AUDIT" = "1" ] || {
+      uci add network bridge-vlan >/dev/null
+      found=$(uci show network | grep "bridge-vlan" | tail -1 | cut -d. -f2 | cut -d= -f1)
+      uci set "network.$found.device=switch"
+      uci set "network.$found.vlan=$want_vlan"
+      for p in $want_ports; do uci add_list "network.$found.ports=$p"; done
+    }
+    return 0
+  fi
+  # uci returns list values with single quotes ('lan1:t' 'lan2:t'), so strip them before
+  # comparing - otherwise every audit reports drift on a value that matches.
+  have=$(uci -q get "network.$found.ports" | tr '\n' ' ' | tr -d "'" | sed 's/ *$//')
+  norm=$(printf '%s' "$want_ports" | sed 's/ *$//')
+  if [ "$have" != "$norm" ]; then
+    DRIFT="$DRIFT
+    vlan $want_vlan ports: '$have' -> '$norm'"
+    CHANGED=1
+    [ "$AUDIT" = "1" ] || {
+      uci -q delete "network.$found.ports"
+      for p in $want_ports; do uci add_list "network.$found.ports=$p"; done
+    }
+  fi
+}
+
+# NOT `echo ... | while read`: a pipeline runs the loop in a SUBSHELL, so DRIFT and CHANGED
+# set inside it are thrown away. The first version of this block did exactly that and the audit
+# passed while the device was missing a VLAN - the same "check that cannot fail" shape as the
+# rest of this file's history. Iterate with IFS instead, which stays in the current shell.
+_old_ifs=$IFS
+IFS='
+'
+for rec in $SW_VLANS; do
+  [ -n "$rec" ] || continue
+  IFS=':' read -r v p <<EOF
+$rec
+EOF
+  ensure_bridge_vlan "$v" "$p"
+done
+IFS=$_old_ifs
 
 # Service enablement is state, not a uci value.
 for svc in dnsmasq odhcpd; do
