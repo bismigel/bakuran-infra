@@ -15,8 +15,18 @@ variable "omada_password" {
   sensitive = true
 }
 
+variable "omada_site" {
+  type        = string
+  default     = "Bakuran"
+  description = "Site name in the controller (a new site is not marked primary, so it must be named)"
+}
+
+# The site has to be named explicitly. A freshly created site is not reported as *primary*, and the
+# provider refuses to guess ("no site specified and no primary site found") - which is the right
+# call: adopting a network into the wrong site would be worse than failing.
 provider "omada" {
   url      = var.omada_url
   username = var.omada_username
   password = var.omada_password
+  site     = var.omada_site
 }
