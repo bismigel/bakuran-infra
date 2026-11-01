@@ -63,7 +63,21 @@ let
     #    the one line that would tell you the tunnel is really dead. Any HTTP status
     #    at all proves the path; only a total absence of a response means it is broken.
     sleep 3
-    age=$(( $(date +%s) - $(wg show "$IF" latest-handshakes | awk '{print $2}' | sort -n | tail -1) ))
+    # A restart leaves NO handshake record for a few seconds, so `latest-handshakes` is
+    # empty. Arithmetic on an empty value is a syntax error, and under `set -u` the next
+    # `[ "$age" -gt 180 ]` aborts the unit - which fails the activation transaction and
+    # makes deploy-rs roll the whole deploy back. That is exactly what happened on
+    # 2026-11-01: a deploy that changed the wireguard unit could never survive its own
+    # restart, so the tunnel was undeployable in practice. "No handshake yet" is normal;
+    # say so once and let the next minute's run judge.
+    hs=$(wg show "$IF" latest-handshakes 2>/dev/null | awk '{print $2}' | sort -n | tail -1)
+    case "${hs:-}" in
+      ""|0)
+        log "no handshake yet ($IF has just come up) - nothing to judge, re-checking in 60s"
+        exit 0
+        ;;
+    esac
+    age=$(( $(date +%s) - hs ))
     if [ "$age" -gt 180 ]; then
       log "ERROR: no handshake for ''${age}s - the endpoint or key is dead; fetch a new Proton config"
       exit 0
