@@ -25,13 +25,25 @@ let
     src=/mnt/media
     dst=/mnt/backup-sd/media
 
-    [ -d "$src" ] || { echo "no $src"; exit 1; }
+    # The pool is a *mount*, so a directory test is not a guard: if mergerfs failed to
+    # mount, /mnt/media still exists and is empty, and --delete would erase the whole
+    # mirror. On 2026-11-01 exactly that happened at 06:00:06 (branch mount exit 32);
+    # the mirror had run at 04:30, two hours earlier, and survived by luck.
+    ${pkgs.util-linux}/bin/mountpoint -q "$src" || { echo "$src is not a mountpoint - refusing to mirror"; exit 1; }
     # A missing USB disk must not silently "succeed" with an empty backup.
     ${pkgs.util-linux}/bin/mountpoint -q /mnt/backup-sd || { echo "backup disk not mounted"; exit 1; }
 
+    srcGiB=$(du -s --block-size=1G "$src" | ${pkgs.coreutils}/bin/cut -f1)
+    if [ "$srcGiB" -lt 100 ]; then
+      echo "$src is only $srcGiB G (expected 250G+): refusing to --delete against it"
+      exit 1
+    fi
+    [ -n "$(find "$src" -maxdepth 2 -type f -print -quit)" ] || { echo "$src has no files - refusing to mirror"; exit 1; }
+
     mkdir -p "$dst"
-    # One log line per run, so a shrinking backup is visible over time.
-    ${pkgs.rsync}/bin/rsync -aH --delete --partial \
+    # One log line per run, so a shrinking backup is visible over time. --max-delete
+    # turns a mass deletion into a failure that pages a human, not a quiet fact.
+    ${pkgs.rsync}/bin/rsync -aH --delete --delete-delay --max-delete=2000 --partial \
       --exclude 'lost+found' \
       --stats "$src/" "$dst/"
   '';
@@ -55,8 +67,54 @@ let
     ${pkgs.rclone}/bin/rclone --config /dev/null sync "r2:$R2_BUCKET/credentials/" /mnt/backup-usb/r2/credentials/ \
       --max-age 14d --delete-after --stats-one-line
   '';
+
+  # Irreplaceable book data is 1.6G and is *not* re-downloadable, and it lives on the
+  # mergerfs pool, so nothing above protects it: the weekly mirror is --delete and the
+  # SD card has no history. This is a second copy in a different failure domain,
+  # nightly, because rclone only uploads what changed.
+  booksMirror = pkgs.writeShellScript "books-mirror" ''
+    set -euo pipefail
+    env_file=/root/.config/homelab-backup.env
+    [ -s "$env_file" ] || { echo "missing $env_file"; exit 1; }
+    set -a; . "$env_file"; set +a
+    export RCLONE_CONFIG_R2_TYPE=s3 RCLONE_CONFIG_R2_PROVIDER=Cloudflare \
+      RCLONE_CONFIG_R2_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID" \
+      RCLONE_CONFIG_R2_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY" \
+      RCLONE_CONFIG_R2_ENDPOINT="$R2_ENDPOINT"
+
+    ${pkgs.util-linux}/bin/mountpoint -q /mnt/media || { echo "/mnt/media not mounted - refusing"; exit 1; }
+    for d in books audiobooks; do
+      find "/mnt/media/$d" -type f -print -quit | grep -q . || { echo "/mnt/media/$d is empty - refusing"; exit 1; }
+    done
+
+    for d in books audiobooks; do
+      ${pkgs.rclone}/bin/rclone --config /dev/null sync "/mnt/media/$d" "r2:$R2_BUCKET/books/$d" \
+        --stats-one-line --log-level INFO
+    done
+  '';
 in
 {
+  # ---- .81: irreplaceable books, nightly ----
+  systemd.services.homelab-backup-books = lib.mkIf (config.networking.hostName == "calamansi-intel") {
+    description = "Nightly copy of books and audiobooks to R2 (not re-downloadable)";
+    unitConfig.OnFailure = [ "homelab-alert@%N.service" ];
+    serviceConfig = {
+      Type = "oneshot";
+      TimeoutStartSec = "2h";
+      Nice = 15;
+      IOSchedulingClass = "idle";
+    };
+    script = "${booksMirror}";
+  };
+  systemd.timers.homelab-backup-books = lib.mkIf (config.networking.hostName == "calamansi-intel") {
+    wantedBy = [ "timers.target" ];
+    timerConfig = {
+      OnCalendar = "*-*-* 01:40";
+      RandomizedDelaySec = "20m";
+      Persistent = true;
+    };
+  };
+
   # ---- .81: media mirror ----
   systemd.services.homelab-backup-media = lib.mkIf (config.networking.hostName == "calamansi-intel") {
     description = "Weekly rsync of /mnt/media to the SD card on sitaw-amd";
