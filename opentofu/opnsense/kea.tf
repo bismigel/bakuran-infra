@@ -52,3 +52,36 @@ resource "opnsense_kea_dhcpv4_subnet" "lan" {
   # docs, 0.26.0: "When set, values for routers, dns_servers and ntp_servers will be ignored."
   auto_collect = false
 }
+
+# ---- VLAN 20: the clients network ------------------------------------------------
+#
+# Delivered on em0 tag 20 as `opt1`, 192.168.20.1/24 (the interface itself is created by
+# config.xml — the provider has no resource for interface assignment, which is the one
+# declarative gap left on this device).
+#
+# This subnet is what segmentation needs: Wi-Fi clients get addresses here and cannot reach
+# 192.168.2.0/24 (the management/infra network) except for the one laptop that administers
+# the estate, which is identified by a fixed reservation and allowed by the rule in
+# firewall-clients.tf.
+resource "opnsense_kea_dhcpv4_subnet" "clients" {
+  subnet      = "192.168.20.0/24"
+  description = "CLIENTS (Wi-Fi) - cannot reach 192.168.2.0/24 except the admin laptop"
+
+  # .150-.200 for ordinary clients; .50 is held for the admin laptop's reservation below.
+  pools = ["192.168.20.150 - 192.168.20.200"]
+
+  routers     = ["192.168.20.1"]
+  dns_servers = ["192.168.2.1"]
+
+  # Load-bearing, same as the LAN subnet: with auto_collect on, routers/dns/ntp are ignored
+  # while the apply reports success.
+  auto_collect = false
+}
+
+resource "opnsense_kea_dhcpv4_reservation" "admin_laptop" {
+  subnet_id   = opnsense_kea_dhcpv4_subnet.clients.id
+  ip_address  = "192.168.20.50"
+  mac_address = "fc:b0:de:18:16:5b"
+  hostname    = "admin-laptop"
+  description = "the one device allowed to reach management from the clients VLAN (2026-11-01)"
+}
