@@ -1,0 +1,36 @@
+# Apply (or audit) the switch baseline.
+#
+#   ansible-playbook playbooks/switch.yml              # apply, report what changed
+#   ansible-playbook playbooks/switch.yml -e audit=1   # read-only drift report, fails on drift
+#
+# OpenWrt has no Python, so this uses `script` (Ansible copies it over SSH and runs it —
+# no interpreter needed on the target). Idempotency lives in the script: it compares every
+# uci value before writing, and prints CHANGED:/DRIFT:/OK: lines.
+- name: gw-opnsense — identity and access
+  hosts: opnsense
+  gather_facts: false
+  tasks:
+    - name: render the baseline with this group's values
+      ansible.builtin.template:
+        src: ../files/opnsense_baseline.sh.j2
+        dest: "{{ lookup('env', 'TMPDIR') | default('/tmp', true) }}/opnsense_baseline_gw.sh"
+        mode: "0755"
+      delegate_to: localhost
+      changed_when: false
+      register: rendered
+
+    - name: run it on the router (apply, or audit when -e audit=1)
+      ansible.builtin.script:
+        cmd: "{{ rendered.dest }}{{ ' --audit' if (audit | default('0')) == '1' else '' }}"
+      register: result
+      changed_when: "'CHANGED:' in result.stdout"
+      failed_when: result.rc not in [0, 2]
+
+    - name: report
+      ansible.builtin.debug:
+        msg: "{{ result.stdout_lines }}"
+
+    - name: fail when auditing and drift was found
+      ansible.builtin.fail:
+        msg: "drift detected — rerun without -e audit=1 to correct it"
+      when: (audit | default('0')) == '1' and result.rc == 2
