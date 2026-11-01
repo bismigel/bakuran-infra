@@ -16,3 +16,12 @@ switch_baseline:
   odhcpd_enabled: false
   stp: true
   igmp_snooping: true
+  # Management plane. Verified on the device 2026-11-01: PasswordAuth and RootPasswordAuth
+  # were both 'on' and LuCI redirected nothing, despite ROUTER.md claiming key-only SSH.
+  # That matters more now that Wi-Fi clients share this L2 island and can reach .3.
+  # Disabling password auth is safe *because* the ed25519 key is in
+  # /etc/dropbear/authorized_keys (1 line, verified) and every access since the flash has
+  # been key-based.
+  ssh_password_auth: false
+  ssh_root_password_auth: false
+  luci_redirect_https: true
