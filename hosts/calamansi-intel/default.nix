@@ -10,10 +10,18 @@
     ../../modules/wireguard-metrics.nix
     ../../modules/wireguard-reconcile.nix
     ../../modules/wireguard-native.nix
+    ../../modules/service-resilience.nix
     ./disko.nix
   ];
 
   networking.hostName = "calamansi-intel";
+  # DNS via the router's unbound, NOT 1.1.1.1 through the WireGuard tunnel.
+  # Resolving through the tunnel means an egress fault becomes a DNS fault: on
+  # 2026-11-01 wireguard-proton0 did not start, so `lookup ghcr.io` failed and
+  # forty pods landed in ImagePullBackOff. The router is on the LAN; if it is
+  # unreachable nothing else works either. Verified 2026-11-01: unbound on .1
+  # answers for example.com with NOERROR and two records.
+  networking.nameservers = [ "192.168.2.1" ];
 
   # File systems come from disko.nix:
   #   /dev/nvme0n1 -> /boot, / (100G) and /mnt/media-nvme (rest)
