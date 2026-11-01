@@ -68,3 +68,15 @@ resource "opnsense_kea_dhcpv4_reservation" "eap650" {
   hostname    = "eap650"
   description = "Omada AP - was floating at .151 because no reservation ever applied"
 }
+
+# The Omada controller runs on the admin laptop, so its address has to be predictable before the AP
+# can be pointed at it. A reservation fixes it; a name (below, in unbound.tf) is what the AP is
+# actually configured with, so a change of address costs one record instead of a trip to the AP's
+# web UI - the one interface in this estate with no automation path.
+resource "opnsense_kea_dhcpv4_reservation" "omada_controller" {
+  subnet_id   = local.kea_lan_subnet_id
+  ip_address  = "192.168.2.60"
+  mac_address = "fc:b0:de:18:16:5b"
+  hostname    = "omada-controller"
+  description = "Omada controller (admin laptop) - the AP is told to find it at omada.internal"
+}
