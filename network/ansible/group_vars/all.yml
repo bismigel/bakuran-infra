@@ -1,0 +1,18 @@
+# The desired state of the switch. One source of truth for both the baseline script and
+# the audit, which is what makes "audit" meaningful: they read the same values.
+switch_baseline:
+  hostname: gs108tv3
+  zonename: America/Toronto
+  timezone: EST5EDT,M3.2.0,M11.1.0
+  ntp_servers:
+    - 192.168.2.1              # the router runs ntpd; keeps time right with the WAN down
+    - 0.openwrt.pool.ntp.org   # fallback only
+  lan_ipaddr: 192.168.2.3/24
+  lan_gateway: 192.168.2.1
+  lan_dns: 192.168.2.1
+  # A switch must not hand out addresses: this device bridges the OPNsense LAN, so a
+  # DHCP server here would be a rogue one.
+  dnsmasq_enabled: false
+  odhcpd_enabled: false
+  stp: true
+  igmp_snooping: true

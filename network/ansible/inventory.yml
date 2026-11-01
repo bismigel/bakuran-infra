@@ -1,0 +1,11 @@
+# The switch, post-OpenWrt. No Python on the target, so tasks are `script`/`raw` only.
+all:
+  children:
+    openwrt:
+      hosts:
+        gs108tv3:
+          ansible_host: 192.168.2.3
+          ansible_user: root
+          ansible_ssh_private_key_file: ~/.ssh/id_ed25519
+          ansible_connection: ssh
+          ansible_ssh_common_args: "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10"
