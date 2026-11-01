@@ -27,6 +27,7 @@ SW_ODHCPD_ENABLED='{{ "true" if switch_baseline.odhcpd_enabled else "false" }}'
 SW_SSH_PW='{{ "on" if switch_baseline.ssh_password_auth else "off" }}'
 SW_SSH_ROOT_PW='{{ "on" if switch_baseline.ssh_root_password_auth else "off" }}'
 SW_LUCI_HTTPS='{{ 1 if switch_baseline.luci_redirect_https else 0 }}'
+SW_AUTH_KEYS='{{ switch_baseline.ssh_authorized_keys | join("\n") }}'
 # Desired 802.1Q layout, one "vlan:ports" record per LINE. The separator is a newline in the
 # template itself, deliberately: the first version separated records with ";" and then split on
 # newlines, so the whole string was read as a single record - vlan 1 got the ports
@@ -76,6 +77,53 @@ check_set network.lan.gateway              "${SW_LAN_GATEWAY}"
 check_list network.lan.dns                 "${SW_LAN_DNS}"
 check_set network.@device[1].stp           "${SW_STP}"
 check_set network.@device[1].igmp_snooping "${SW_IGMP}"
+# The key must exist before passwords are turned off. This runs FIRST and is the reason the
+# ordering matters: on 2026-11-01 a factory reset removed the key while the baseline would have
+# disabled password auth in the same run - a device nobody could log into.
+install_keys() {
+  want="$SW_AUTH_KEYS"
+  [ -n "$want" ] || { DRIFT="$DRIFT
+  ssh_authorized_keys: empty in group_vars - refusing to manage"; CHANGED=1; return 0; }
+  mkdir -p /etc/dropbear
+  have="$(cat /etc/dropbear/authorized_keys 2>/dev/null || true)"
+  missing=0
+  oldifs=$IFS; IFS='
+'
+  for k in $want; do
+    [ -n "$k" ] || continue
+    printf '%s' "$have" | grep -qF "$k" || missing=$((missing+1))
+  done
+  IFS=$oldifs
+  if [ "$missing" -gt 0 ]; then
+    DRIFT="$DRIFT
+  authorized_keys: $missing key(s) missing"
+    CHANGED=1
+    [ "$AUDIT" = "1" ] || {
+      touch /etc/dropbear/authorized_keys
+      chmod 600 /etc/dropbear/authorized_keys
+      oldifs=$IFS; IFS='
+'
+      for k in $want; do
+        [ -n "$k" ] || continue
+        grep -qF "$k" /etc/dropbear/authorized_keys || printf '%s\n' "$k" >> /etc/dropbear/authorized_keys
+      done
+      IFS=$oldifs
+    }
+  fi
+}
+
+install_keys
+
+# Safety interlock: never disable password auth on a device with no key. If the key step failed
+# for any reason, keep passwords on and say so loudly rather than lock the device.
+if [ "${SW_SSH_PW}" = "off" ] && [ ! -s /etc/dropbear/authorized_keys ]; then
+  DRIFT="$DRIFT
+  REFUSING to disable password auth: no authorized key present"
+  CHANGED=1
+  SW_SSH_PW=on
+  SW_SSH_ROOT_PW=on
+fi
+
 check_set dropbear.main.PasswordAuth        "${SW_SSH_PW}"
 check_set dropbear.main.RootPasswordAuth    "${SW_SSH_ROOT_PW}"
 check_set uhttpd.main.redirect_https        "${SW_LUCI_HTTPS}"
