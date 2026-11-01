@@ -24,6 +24,9 @@ SW_STP='{{ 1 if switch_baseline.stp else 0 }}'
 SW_IGMP='{{ 1 if switch_baseline.igmp_snooping else 0 }}'
 SW_DNSMASQ_ENABLED='{{ "true" if switch_baseline.dnsmasq_enabled else "false" }}'
 SW_ODHCPD_ENABLED='{{ "true" if switch_baseline.odhcpd_enabled else "false" }}'
+SW_SSH_PW='{{ "on" if switch_baseline.ssh_password_auth else "off" }}'
+SW_SSH_ROOT_PW='{{ "on" if switch_baseline.ssh_root_password_auth else "off" }}'
+SW_LUCI_HTTPS='{{ 1 if switch_baseline.luci_redirect_https else 0 }}'
 
 AUDIT=0
 [ "${1:-}" = "--audit" ] && AUDIT=1
@@ -66,6 +69,9 @@ check_set network.lan.gateway              "${SW_LAN_GATEWAY}"
 check_list network.lan.dns                 "${SW_LAN_DNS}"
 check_set network.@device[1].stp           "${SW_STP}"
 check_set network.@device[1].igmp_snooping "${SW_IGMP}"
+check_set dropbear.main.PasswordAuth        "${SW_SSH_PW}"
+check_set dropbear.main.RootPasswordAuth    "${SW_SSH_ROOT_PW}"
+check_set uhttpd.main.redirect_https        "${SW_LUCI_HTTPS}"
 
 # Service enablement is state, not a uci value.
 for svc in dnsmasq odhcpd; do
