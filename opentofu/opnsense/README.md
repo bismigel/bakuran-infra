@@ -78,3 +78,25 @@ export `config.xml` → edit → plan (expect exactly N changes) → apply → v
 This root currently contains **no resources** — provider, variables and the credential
 wrapper only. It is phase 2 of the plan (read-only inventory); resources get adopted in
 phase 3 with `import` blocks, and the first `plan` must be empty before anything is owned.
+
+### What OpenTofu can and cannot own here
+
+`tofu plan` must report **No changes** — that covers everything the provider owns. Two things on
+this router are outside it and are load-bearing, so they get their own check:
+
+```sh
+./verify-state.sh      # exit 0 = complete, 1 = something needs the UI (runbook 23)
+```
+
+| checked | why it is not in code |
+|---|---|
+| VLAN 20 device exists with tag 20 | the object is (`opnsense_interfaces_vlan`), the *assignment* is not |
+| `192.168.20.1` on that interface | no provider resource for interface addresses |
+| an interface is assigned to it | same |
+| Kea serves the VLAN interface | the model's selection flag, UI-only (`/api/kea/dhcpv4/set` returns `Unexpected error`) |
+| Kea has the clients subnet | covered by tofu — checked here because it is cheap |
+
+Lose any of the middle three and every declarative resource still looks correct while the VLAN has
+no address and no DHCP. The script exists so that failure is visible rather than discovered by a
+phone that will not connect. Verified in both directions: it passes against the live router and
+fails cleanly against an address that is not it.
