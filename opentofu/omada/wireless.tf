@@ -25,12 +25,13 @@ resource "omada_wireless_network" "clients" {
   vlan_id        = 20
   lan_network_id = omada_network.clients.id
 
-  # Write-only: supplied on apply, never read back, never in state or plan. Pass it as an
-  # ephemeral env var rather than a literal.
-  psk = var.wifi_psk
+  # Write-only: supplied on apply, never read back, never in state or plan. Null means "leave the
+  # controller's existing key alone" - which is what we want for an SSID that is already serving.
+  psk = var.wifi_psk != "" ? var.wifi_psk : null
 }
 
 variable "wifi_psk" {
   type      = string
   sensitive = true
+  default   = ""
 }
