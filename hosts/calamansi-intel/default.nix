@@ -23,6 +23,28 @@
   # answers for example.com with NOERROR and two records.
   networking.nameservers = [ "192.168.2.1" ];
 
+  # The clients VLAN (192.168.20.0/24) lives behind the router, not on this host's
+  # wire, so the main table has no route for it. Combined with the tunnel's policy
+  # rule (`pref 32764: from all lookup main suppress_prefixlength 0`), that made
+  # replies to a Wi-Fi client leave through proton0 instead of eno1 — the SYN
+  # arrived, the SYN-ACK went into the VPN, and nothing on this node's hostPorts
+  # (Jellyfin, the *arrs) ever answered a phone or TV on the clients VLAN.
+  # Verified 2026-11-02 with tcpdump on the node itself.
+  #
+  # A oneshot rather than networking.interfaces: NetworkManager owns eno1 here, so
+  # declarative interface routes do not apply. `ip route replace` is idempotent, and
+  # NM does not remove routes it did not add.
+  systemd.services.vlan20-route = {
+    description = "Route the clients VLAN via the router instead of the VPN tunnel";
+    after = [ "NetworkManager-wait-online.service" ];
+    wants = [ "NetworkManager-wait-online.service" ];
+    wantedBy = [ "multi-user.target" ];
+    serviceConfig = { Type = "oneshot"; RemainAfterExit = true; };
+    script = ''
+      ${pkgs.iproute2}/bin/ip route replace 192.168.20.0/24 via 192.168.2.1 dev eno1
+    '';
+  };
+
   # File systems come from disko.nix:
   #   /dev/nvme0n1 -> /boot, / (100G) and /mnt/media-nvme (rest)
   #   /dev/sda     -> /mnt/media-sda
@@ -265,7 +287,14 @@
           chain output {
             type filter hook output priority 0; policy accept;
             oifname "lo" return
-            ip daddr { 192.168.2.0/24, 10.0.0.0/8, 100.64.0.0/10, 127.0.0.0/8, 169.254.0.0/16 } return
+            # 192.168.20.0/24 = the clients VLAN. It is an internal network, and
+            # leaving it out of this list was a real breakage (2026-11-02): the
+            # killswitch dropped every REPLY from this host to a Wi-Fi client, so
+            # Jellyfin, the *arrs and qBittorrent on their hostPorts never answered
+            # a phone or TV on the clients VLAN, while the same clients could reach
+            # everything on .82. Internal subnets return here; anything else is
+            # forced through the tunnel below.
+            ip daddr { 192.168.2.0/24, 192.168.20.0/24, 10.0.0.0/8, 100.64.0.0/10, 127.0.0.0/8, 169.254.0.0/16 } return
             ip6 daddr { fe80::/10, fc00::/7, ::1/128 } return
             oifname "proton0" return
             udp dport 51820 return
