@@ -48,6 +48,10 @@ let
     dump downloads sabnzbd     /config        sabnzbd
     dump default   jellyfin    /config        jellyfin
     dump monitoring grafana    /var/lib/grafana grafana
+    # Forgejo is a *mirror* of GitHub: the repositories are reproducible, so a plain
+    # tar of /data is proportionate. What it protects is the state GitHub does not
+    # have - users, mirror definitions and their stored credentials.
+    dump forgejo   forgejo     /data           forgejo
     dump monitoring prometheus /prometheus    prometheus
     dump_live duwende hermes   /opt/data      hermes
     # Immich — the DB must be dumped (never file-copied) and the photo library
