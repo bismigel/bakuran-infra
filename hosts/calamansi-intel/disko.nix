@@ -1,8 +1,14 @@
 {
   # Wipe BOTH disks on calamansi-intel:
-  #   /dev/nvme0n1 — ESP (1G) + root (100G) + data (rest) at /mnt/media-nvme
-  #   /dev/sda     — single ext4 at /mnt/media-sda
-  # media-nvme + media-sda + .82's exported partitions are merged into /mnt/media
+  #   /dev/nvme0n1 — ESP (1G) + root (100G) + data (rest) at /mnt/scratch
+  #   /dev/sda     — single ext4 at /mnt/longhorn
+  #
+  # Both were media branches of the mergerfs union until 2026-11-02. After the
+  # cutover the library is served from .82 over NFS, so these partitions were
+  # repurposed (STORAGE-PLAN.md section 4c):
+  #   nvme -> /mnt/scratch   incomplete downloads and transcode temp, off the root fs
+  #   sda  -> /mnt/longhorn  a dedicated Longhorn disk (~230G), which is what lets the
+  #                          four volumes stuck at 2 replicas take a third copy
   # by mergerfs (see hosts/calamansi-intel/default.nix).
   disko.devices = {
     disk = {
@@ -35,7 +41,7 @@
               content = {
                 type = "filesystem";
                 format = "ext4";
-                mountpoint = "/mnt/media-nvme";
+                mountpoint = "/mnt/scratch";
               };
             };
           };
@@ -52,7 +58,7 @@
               content = {
                 type = "filesystem";
                 format = "ext4";
-                mountpoint = "/mnt/media-sda";
+                mountpoint = "/mnt/longhorn";
               };
             };
           };
