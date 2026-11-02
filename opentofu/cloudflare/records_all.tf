@@ -1,3 +1,13 @@
+resource "cloudflare_dns_record" "r_git_bismigel" {
+  zone_id = var.zone_id
+  name    = "git.bismigel.dev"
+  type    = "CNAME"
+  content = "8dcc83bd-eb95-4c0d-8f71-b92a27d37649.cfargotunnel.com"
+  proxied = true
+  ttl     = 1
+  comment = null
+}
+
 resource "cloudflare_dns_record" "r_5c8ee45dec" {
   zone_id = var.zone_id
   name    = "agent.bismigel.dev"
