@@ -35,9 +35,6 @@
   # partition is now a dedicated Longhorn disk instead: Longhorn was at 178G
   # scheduled against ~294G of capacity shared with the OS, and an empty 340G
   # partition is worth more to storage than to a pool that already has 800G free.
-  boot.kernelModules = [ "fuse" ];
-  programs.fuse.userAllowOther = true;   # required for mergerfs allow_other
-  environment.systemPackages = [ pkgs.mergerfs ];
 
   # Backup SD card lives on sitaw-amd (.82) and is exported from there; the
   # weekly media mirror writes to it over NFS. automount so a missing disk or a
@@ -48,52 +45,53 @@
     options = [ "nofail" "x-systemd.automount" "_netdev" "nfsvers=4.2" ];
   };
 
-  fileSystems."/mnt/remote82-sda" = {
-    device = "192.168.2.82:/mnt/media-sda";
+  # ---- Media library: NFS from .82, which holds the 1.8 TB btrfs ----------
+  # Cut over from the mergerfs union on 2026-11-02. The union had three failure
+  # modes in one week: the NFS branch failing at 06:00:06 took the whole pool
+  # down, a 99%-full branch made every create fail with ENOSPC while the union
+  # reported 789G free, and a union cannot be snapshotted. See STORAGE-PLAN.md.
+  #
+  # The 2 TB disk lives in .82, so this is the NFS shape the plan argues for
+  # (§4b), not a local btrfs mount on this host.
+  #
+  # NFS DOES NOT CROSS MOUNTPOINTS: .82 mounts @books and @audiobooks as separate
+  # subvolumes under /mnt/media, so exporting /mnt/media alone would present both
+  # as EMPTY directories. They are exported and mounted separately, ordered after
+  # the parent - mount them in the other order and the parent hides them.
+  #
+  # soft/timeo/retrans: a dead .82 must fail reads quickly rather than hang every
+  # media pod for minutes, exactly as the backup-sd mount already does.
+  fileSystems."/mnt/media" = {
+    device = "192.168.2.82:/mnt/media";
     fsType = "nfs";
     options = [ "nfsvers=4.2" "_netdev" "nofail" "soft" "timeo=30" "retrans=3" ];
   };
 
-  fileSystems."/mnt/media" = {
-    device = "/mnt/media-nvme:/mnt/media-sda:/mnt/remote82-sda";
-    fsType = "fuse.mergerfs";    options = [
-      "defaults"
-      "allow_other"
-      "use_ino"
-      "nonempty"
-      "cache.files=partial"
-      "dropcacheonclose=true"
-      "category.create=epmfs"
-      "x-systemd.requires-mounts-for=/mnt/media-nvme"
-      "x-systemd.requires-mounts-for=/mnt/media-sda"
-      "x-systemd.requires-mounts-for=/mnt/remote82-sda"
-      "nofail"
-    ];
+  fileSystems."/mnt/media/books" = {
+    device = "192.168.2.82:/mnt/media/books";
+    fsType = "nfs";
+    options = [ "nfsvers=4.2" "_netdev" "nofail" "soft" "timeo=30" "retrans=3"
+                "x-systemd.requires-mounts-for=/mnt/media" ];
   };
 
-  # Pin the library/download dirs to the LOCAL branches (media-sda + media-nvme) so
-  # they don't depend on the NFS export from .82. With category.create=epmfs a
-  # file goes to the branch that already holds its directory, *if that branch is
-  # above mergerfs' minfreespace* (4G). Create the dirs on BOTH local branches:
-  # 2026-10-24 media-sda hit 99% and every create under /books,/tv,/movies failed
-  # with ENOSPC while the pool reported 789G free, so books imports silently fell
-  # back to /config. With both branches populated, new dirs/files land on the
-  # roomier one (nvme), and the pool keeps itself usable.
-  # Runs after local filesystems are mounted.
-  systemd.services.media-dirs = {
-    description = "Create media library dirs on the local branches";
-    after = [ "local-fs.target" ];
-    wants = [ "local-fs.target" ];
-    wantedBy = [ "multi-user.target" ];
-    serviceConfig.Type = "oneshot";
-    serviceConfig.RemainAfterExit = true;
-    script = ''
-        for b in /mnt/media-sda /mnt/media-nvme; do
-          mkdir -p "$b"/tv "$b"/movies "$b"/downloads "$b"/temp "$b"/books "$b"/complete "$b"/audiobooks
-          chmod 0777 "$b"/tv "$b"/movies "$b"/downloads "$b"/temp "$b"/books "$b"/complete "$b"/audiobooks
-        done
-    '';
+  fileSystems."/mnt/media/audiobooks" = {
+    device = "192.168.2.82:/mnt/media/audiobooks";
+    fsType = "nfs";
+    options = [ "nfsvers=4.2" "_netdev" "nofail" "soft" "timeo=30" "retrans=3"
+                "x-systemd.requires-mounts-for=/mnt/media" ];
   };
+
+  # Read-only snapshots of the books/audiobooks subvolumes, taken on .82.
+  fileSystems."/mnt/media-snapshots" = {
+    device = "192.168.2.82:/mnt/media-snapshots";
+    fsType = "nfs";
+    options = [ "nfsvers=4.2" "ro" "_netdev" "nofail" "soft" "timeo=30" "retrans=3"
+                "x-systemd.requires-mounts-for=/mnt/media" ];
+  };
+
+  # The old union branches stay MOUNTED and untouched for a week: they are the
+  # rollback. Reverting this file restores the mergerfs pool exactly as it was.
+  # /mnt/media-nvme and /mnt/media-sda are declared in disko.nix and stay there.
 
   # ---- ProtonVPN WireGuard egress (key from SOPS) ----
   sops.defaultSopsFile = ../../secrets/homelab.yaml;
