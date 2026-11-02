@@ -12,6 +12,7 @@ resource "cloudflare_zero_trust_tunnel_cloudflared_config" "main" {
       { hostname = "status.bismigel.dev", service = "http://127.0.0.1:32080" },
       { hostname = "jellyfin.bismigel.dev", service = "http://127.0.0.1:32080" },
       { hostname = "immich.bismigel.dev", service = "http://127.0.0.1:32080" },
+      { hostname = "git.bismigel.dev", service = "http://127.0.0.1:32080" },
       { hostname = "kavita.bismigel.dev", service = "http://127.0.0.1:32080" },
       { hostname = "audiobookshelf.bismigel.dev", service = "http://127.0.0.1:32080" },
       { hostname = "karakeep.bismigel.dev", service = "http://127.0.0.1:32080" },
