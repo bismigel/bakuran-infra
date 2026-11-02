@@ -9,7 +9,12 @@
 # volume.
 #
 # What is where, and why:
-#   .81  /mnt/media                -> .82:/mnt/backup-sd/media    (938G SD card)
+#   .82  /mnt/media (LOCAL)        -> .82:/mnt/backup-sd/media     (938G SD card)
+#
+# Both media jobs moved from .81 to .82 on 2026-11-02, when the library cut over to
+# .82's 1.8 TB btrfs. On .81 they read /mnt/media over NFS from .82 and wrote it back
+# to .82's SD card - a pointless round trip over the wire, and it made the backup
+# depend on the network path that serves the apps.
 #   .82  R2 appdata/credentials    -> .82:/mnt/backup-usb/        (452G USB stick)
 #
 # The media mirror runs on .81 because that is where the mergerfs union lives;
@@ -95,7 +100,7 @@ let
 in
 {
   # ---- .81: irreplaceable books, nightly ----
-  systemd.services.homelab-backup-books = lib.mkIf (config.networking.hostName == "calamansi-intel") {
+  systemd.services.homelab-backup-books = lib.mkIf (config.networking.hostName == "sitaw-amd") {
     description = "Nightly copy of books and audiobooks to R2 (not re-downloadable)";
     unitConfig.OnFailure = [ "homelab-alert@%N.service" ];
     serviceConfig = {
@@ -106,7 +111,7 @@ in
     };
     script = "${booksMirror}";
   };
-  systemd.timers.homelab-backup-books = lib.mkIf (config.networking.hostName == "calamansi-intel") {
+  systemd.timers.homelab-backup-books = lib.mkIf (config.networking.hostName == "sitaw-amd") {
     wantedBy = [ "timers.target" ];
     timerConfig = {
       OnCalendar = "*-*-* 01:40";
@@ -116,8 +121,8 @@ in
   };
 
   # ---- .81: media mirror ----
-  systemd.services.homelab-backup-media = lib.mkIf (config.networking.hostName == "calamansi-intel") {
-    description = "Weekly rsync of /mnt/media to the SD card on sitaw-amd";
+  systemd.services.homelab-backup-media = lib.mkIf (config.networking.hostName == "sitaw-amd") {
+    description = "Weekly rsync of /mnt/media to the SD card (both local on this host)";
     unitConfig.OnFailure = [ "homelab-alert@%N.service" ];
     serviceConfig = {
       Type = "oneshot";
@@ -128,7 +133,7 @@ in
     };
     script = "${mediaMirror}";
   };
-  systemd.timers.homelab-backup-media = lib.mkIf (config.networking.hostName == "calamansi-intel") {
+  systemd.timers.homelab-backup-media = lib.mkIf (config.networking.hostName == "sitaw-amd") {
     wantedBy = [ "timers.target" ];
     timerConfig = {
       # Sunday 04:30, jittered so it does not collide with the nightly R2 run.
