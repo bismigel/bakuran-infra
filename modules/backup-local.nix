@@ -124,6 +124,12 @@ in
   systemd.services.homelab-backup-media = lib.mkIf (config.networking.hostName == "sitaw-amd") {
     description = "Weekly rsync of /mnt/media to the SD card (both local on this host)";
     unitConfig.OnFailure = [ "homelab-alert@%N.service" ];
+    # If the disk disappears mid-run, stop the job instead of letting rsync write into
+    # the now-empty mountpoint, which is a directory on the root filesystem. The
+    # `mountpoint -q` check in the script only runs at start; on 2026-11-02 a USB stick
+    # dropped four minutes into a copy and 12G of partial files landed on /. A unit
+    # ordered against the mount is torn down when the mount is.
+    unitConfig.RequiresMountsFor = [ "/mnt/backup-sd" ];
     serviceConfig = {
       Type = "oneshot";
       # Long: 260G over a 480 Mbps USB bus on the first seed.
@@ -147,6 +153,10 @@ in
   systemd.services.homelab-backup-r2-copy = lib.mkIf (config.networking.hostName == "sitaw-amd") {
     description = "Weekly copy of the newest R2 backups to the USB stick";
     unitConfig.OnFailure = [ "homelab-alert@%N.service" ];
+    # This is the unit that actually did it: the stick vanished four minutes in, rclone
+    # kept writing to /mnt/backup-usb (by then a plain directory on /) and put 12G
+    # there before the copy was stopped by hand.
+    unitConfig.RequiresMountsFor = [ "/mnt/backup-usb" ];
     serviceConfig = {
       Type = "oneshot";
       TimeoutStartSec = "2h";
