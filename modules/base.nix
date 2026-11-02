@@ -95,7 +95,12 @@
 
   # ---- Longhorn (distributed storage) prerequisites ----
   # open-iscsi initiator + iscsid; Longhorn attaches volumes over iSCSI.
-  boot.kernelModules = [ "iscsi_tcp" "msr" "cpuid" ];
+  # dm_crypt: Longhorn's node condition ("KernelModulesLoaded") lists it as required
+  # on every node and reported False on all three until 2026-11-02. We run no
+  # encrypted or LUKS volumes, so nothing here used it - but a node condition that is
+  # permanently false is one more red light that trains people to ignore the UI, and
+  # loading a module costs a few KiB.
+  boot.kernelModules = [ "iscsi_tcp" "dm_crypt" "msr" "cpuid" ];
   services.openiscsi = {
     enable = true;
     name = "iqn.2026-10.dev.bismigel:${config.networking.hostName}";
