@@ -133,6 +133,14 @@
       # because the admin kubectl talks to the API directly.
       iptables -I nixos-fw 1 -p tcp -m iprange --src-range 192.168.2.80-192.168.2.84 -m multiport --dports 2379,2380,10250 -j nixos-fw-accept
       iptables -I nixos-fw 1 -p tcp -s 10.42.0.0/16 -m multiport --dports 10250 -j nixos-fw-accept
+
+      # The router is the estate's dead-man's switch: it polls Alertmanager every
+      # 15 minutes and shouts if the monitoring pipeline stops answering. That is
+      # the one check outside the cluster's failure domain, so it needs one inbound
+      # path - scoped to the router's address, matching the treatment above rather
+      # than adding to allowedTCPPorts (which accepts from any LAN host).
+      iptables -I nixos-fw 1 -p tcp -s 192.168.2.1 --dport 30903 -j nixos-fw-accept
+      iptables -I nixos-fw 1 -p tcp -s 192.168.2.1 --dport 30909 -j nixos-fw-accept
   
       # iSCSI targets (Longhorn engines live here) - NODES ONLY. An open 3260 is
       # the port that lets something mount, and then corrupt, a volume.
