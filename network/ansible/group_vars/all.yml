@@ -52,6 +52,9 @@ switch_baseline:
 # locks someone out or writes a secret that cannot be verified), and the VLAN interface objects
 # (writing them produces something OPNsense does not enumerate — ROUTER.md 7c).
 opnsense_baseline:
+  # The ISP gateway drops ICMP, so monitoring it reports a permanent outage.
+  # Verified 2026-11-03: 100% loss to 142.124.37.107, replies from 1.1.1.1.
+  gateway_monitor_ip: "1.1.1.1"
   ssh_authorized_keys:
     - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAILj/syjQTnLwTGNHC4IKec2QXJpzXOExBQKGJI6/p4Mz nix-station-opencode"
   # Interlocked: the baseline refuses to disable passwords unless a key would remain.
