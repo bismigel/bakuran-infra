@@ -75,8 +75,11 @@ sitaw-amd /var/lib/longhorn"
     if [ ! -r "$key" ]; then
       note "backup age key is not readable at $key"
     else
+      # The requirement is "not readable by group or others", not a specific mode: the live
+      # key is 400 (read-only, owner), which is stricter than 600. Assert the property,
+      # not the spelling - the first version of this check failed on a correct key.
       perms=$(stat -c "%a" "$key")
-      [ "$perms" = "600" ] || note "backup age key has mode '$perms', expected 600"
+      [ $(( 0$perms & 077 )) -eq 0 ] || note "backup age key has mode '$perms' - readable by group or others"
       actual=$(${pkgs.age}/bin/age-keygen -y "$key" 2>/dev/null)
       [ "$actual" = "$expected_recipient" ] || \
         note "backup age key recipient is '$actual', but runbook 07 records '$expected_recipient' - cold copies no longer decrypt"
