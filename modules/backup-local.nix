@@ -78,7 +78,6 @@ let
       --max-age 14d --delete-after --stats-one-line
     ${pkgs.rclone}/bin/rclone --config /dev/null sync "r2:$R2_BUCKET/credentials/" "$dst/credentials/" \
       --max-age 14d --delete-after --stats-one-line
-      --max-age 14d --delete-after --stats-one-line
   '';
 
   # Irreplaceable book data is 1.6G and is *not* re-downloadable, and it lives on the
