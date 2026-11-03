@@ -226,11 +226,20 @@ ensure_cron() { # <path> <content>
     return 3
 }
 
-ensure_cron /etc/cron.d/dnsbl \
-    '15 3 * * * root /usr/local/opnsense/scripts/unbound/blocklists.py update > /dev/null 2>&1'
+# The content below is compared byte-for-byte, so it must be the *whole* file, comments
+# included - that is how they exist on the box, and the comments are what tell the next
+# person how to verify each one. Lines start at column 0 inside the quotes on purpose.
+CRON_DNSBL="# Refresh the Unbound DNSBL cache (adblock). OPNsense ships no GUI cron for this.
+# Verify: date -r /var/unbound/data/dnsbl.json   (mtime should move daily ~03:15)
+15 3 * * * root /usr/local/opnsense/scripts/unbound/blocklists.py update > /dev/null 2>&1"
+
+CRON_HEARTBEAT="# Dead-man's switch: poll the cluster from outside its failure domain.
+# Verify: tail /var/log/homelab-heartbeat.log
+*/5 * * * * root /usr/local/etc/homelab-heartbeat.sh >/dev/null 2>&1"
+
+ensure_cron /etc/cron.d/dnsbl "$CRON_DNSBL"
 drc=$?
-ensure_cron /etc/cron.d/homelab-heartbeat \
-    '*/5 * * * * root /usr/local/etc/homelab-heartbeat.sh >/dev/null 2>&1'
+ensure_cron /etc/cron.d/homelab-heartbeat "$CRON_HEARTBEAT"
 hrc=$?
 [ "$drc" = "4" ] || [ "$hrc" = "4" ] && rc=1
 [ "$drc" = "2" ] || [ "$hrc" = "2" ] && rc=2
