@@ -8,6 +8,18 @@ keys:
   - &admin age1ehhdvs0pmvyf7lecwgwn2yleasdwzgs3a0au53teuz9u44tksp9s3jjvuy
 
 creation_rules:
+  # Router and switch configuration exports. They contain password hashes, Wi-Fi PSKs,
+  # the WireGuard key and API keys, so they are encrypted at rest in the repo rather than
+  # living only on an admin laptop (2026-11-03).
+  - path_regex: network/exports/.*$
+    key_groups:
+      - age:
+          - *calamansi-intel
+          - *sitaw-amd
+          - *patola-thinkcentre
+          - *kamatis-mbp
+          - *admin
+
   - path_regex: secrets/.*\.yaml$
     key_groups:
       - age:
