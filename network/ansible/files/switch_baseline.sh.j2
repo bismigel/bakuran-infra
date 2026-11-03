@@ -146,12 +146,24 @@ ensure_bridge_vlan() {
       found=$(uci show network | grep "bridge-vlan" | tail -1 | cut -d. -f2 | cut -d= -f1)
       uci set "network.$found.device=switch"
       uci set "network.$found.vlan=$want_vlan"
+      # IFS is newline-only while the record loop runs (so records split correctly), which
+      # means `for p in $want_ports` does NOT split "lan1:t lan2:t" and stores one malformed
+      # list item. Every VLAN added by this script hit that; VLAN 20 escaped it only because
+      # it was adopted by hand. Found on 2026-11-03 while adding VLAN 30.
+      _pifs=$IFS; IFS=' '
       for p in $want_ports; do uci add_list "network.$found.ports=$p"; done
+      IFS=$_pifs
     }
     return 0
   fi
   # uci returns list values with single quotes ('lan1:t' 'lan2:t'), so strip them before
   # comparing - otherwise every audit reports drift on a value that matches.
+  # uci stores a bridge-vlan's ports either as one space-separated string
+  # ('lan1 lan2 ...', which is how vlan 1 is stored and works) or as separate list
+  # items ('lan1:t' 'lan2:t', how vlan 20 is stored). Both are valid, so compare the
+  # normalised text rather than the storage form: `uci get` joins items with spaces,
+  # which makes the two indistinguishable - and is exactly why a storage difference
+  # must not be reported as drift.
   have=$(uci -q get "network.$found.ports" | tr '\n' ' ' | tr -d "'" | sed 's/ *$//')
   norm=$(printf '%s' "$want_ports" | sed 's/ *$//')
   if [ "$have" != "$norm" ]; then
@@ -161,6 +173,8 @@ ensure_bridge_vlan() {
     [ "$AUDIT" = "1" ] || {
       uci -q delete "network.$found.ports"
       for p in $want_ports; do uci add_list "network.$found.ports=$p"; done
+      _pifs=$IFS; IFS=' '
+      IFS=$_pifs
     }
   fi
 }
