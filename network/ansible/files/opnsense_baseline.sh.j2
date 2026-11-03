@@ -310,6 +310,60 @@ rm -f /tmp/dnssec.php
 [ "$nrc" = "3" ] && rc=1
 [ "$nrc" = "2" ] && rc=2
 
+# ---- Unbound DNSBL blocklist --------------------------------------------------------
+# The one piece of ad-blocking config that is data rather than a flag: a single blocklist
+# entry (type oisd0, NXDOMAIN for blocked names, 72h cache). It lives in the encrypted
+# config export, but "in a backup" is not the same as "reproducible" - this makes it both.
+cat > /tmp/dnsbl.php <<'PHP_DNSBL'
+<?php
+require_once("config.inc");
+require_once("util.inc");
+$audit = getenv('AUDIT') === '1';
+$want  = ['enabled' => '1', 'type' => 'oisd0', 'nxdomain' => '1', 'cache_ttl' => '72000'];
+// The XML has one <blocklist> element, which the config array represents as the entry
+// itself - not a list of entries. Handle both shapes rather than assuming: reading it as a
+// list found no 'type' key and reported the entry missing (2026-11-03).
+$blocks = $config['OPNsense']['unboundplus']['dnsbl']['blocklist'] ?? [];
+$idx = null;
+if (isset($blocks['type'])) {
+    if ($blocks['type'] === 'oisd0') { $idx = null; $single = $blocks; }
+} else {
+    foreach ($blocks as $i => $b) {
+        if (is_array($b) && ($b['type'] ?? '') === 'oisd0') { $idx = $i; $single = $b; break; }
+    }
+}
+$entry = $single ?? null;
+if ($entry === null) {
+    // Creating one means minting a uuid and a full entry shape; not guessing that here.
+    echo "DNSBL_MISSING: no oisd0 blocklist entry\n";
+    exit(4);
+}
+$diff = [];
+foreach ($want as $k => $v) {
+    if ((string)($entry[$k] ?? '') !== $v) { $diff[] = $k; }
+}
+if (empty($diff)) { echo "dnsbl OK (oisd0)\n"; exit(0); }
+if ($audit) { echo "DNSBL_DRIFT: " . implode(', ', $diff) . "\n"; exit(2); }
+$path = ($idx === null)
+    ? 'OPNsense/unboundplus/dnsbl/blocklist'
+    : 'OPNsense/unboundplus/dnsbl/blocklist/' . $idx;
+foreach ($want as $k => $v) {
+    $ref = &$config;
+    foreach (explode('/', $path) as $seg) { $ref = &$ref[$seg]; }
+    $ref[$k] = $v;
+    unset($ref);
+}
+write_config('homelab baseline: DNSBL blocklist');
+echo "dnsbl corrected (" . implode(', ', $diff) . "); the list rebuilds on the 03:15 cron\n";
+exit(3);
+PHP_DNSBL
+AUDIT="$AUDIT" php /tmp/dnsbl.php
+brc=$?
+rm -f /tmp/dnsbl.php
+[ "$brc" = "3" ] && rc=1
+[ "$brc" = "2" ] && rc=2
+[ "$brc" = "4" ] && { echo "  no oisd0 entry - leaving it alone"; rc=1; }
+
 case "$rc" in
   0) [ "$AUDIT" = "1" ] && echo "OK: identity/access baseline matches; nothing to change." ;;
   2) echo "DRIFT detected (audit mode): rerun without --audit to correct it." ;;
