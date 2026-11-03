@@ -129,3 +129,21 @@ $model->serializeToConfig(false, true);
 
 Rotate by repeating that, storing the new pair here, and deleting the old
 (`POST /api/auth/user/delApiKey/{base64:key}`).
+
+## What `plan` cannot see
+
+`tofu plan` reporting "No changes" means *nothing this stack manages differs* — verified
+2026-11-03. It says nothing about settings the stack does not manage, and several are
+hand-applied today, so they are invisible to it:
+
+| setting | where it lives | why it matters |
+|---|---|---|
+| dpinger monitor IP (`1.1.1.1`) | `System → Gateways` | WAN loss/latency only works because it points at a public responder; the ISP gateway drops ICMP |
+| Unbound DNSBL + DNSSEC + cache TTL | `Services → Unbound` | ad-blocking and validation |
+| `/etc/cron.d/dnsbl` | router filesystem | refreshes the blocklists |
+| heartbeat cron + token | `/usr/local/etc/homelab-heartbeat.sh` | the dead-man's switch that pages when the cluster is gone |
+
+None of these appear as drift, because drift is measured against what the code claims.
+Closing them means either adding them to the stack or accepting, in writing, that they are
+manual — the failure mode to avoid is believing `plan` is clean therefore the router is
+fully described.
