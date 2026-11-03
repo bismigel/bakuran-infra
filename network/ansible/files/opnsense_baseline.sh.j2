@@ -244,6 +244,72 @@ hrc=$?
 [ "$drc" = "4" ] || [ "$hrc" = "4" ] && rc=1
 [ "$drc" = "2" ] || [ "$hrc" = "2" ] && rc=2
 
+# ---- gateway monitoring and DNSSEC --------------------------------------------------
+# Neither has an OpenTofu provider resource, and both have a failure mode we have actually
+# hit. dpinger was pointed at the ISP gateway, which drops ICMP, so the monitor reported a
+# permanent Outage while the WAN was fine; and nothing noticed it was not running at all.
+WANT_MONITOR='{{ opnsense_baseline.gateway_monitor_ip | default("1.1.1.1") }}'
+
+cat > /tmp/gwchk.php <<'PHP_GW'
+<?php
+require_once("config.inc");
+require_once("util.inc");        // write_config() needs shell_safe()
+require_once("interfaces.inc");  // dpinger_configure_do() needs legacy_interfaces_details()
+require_once("system.inc");
+$want  = getenv('WANT_MONITOR');
+$audit = getenv('AUDIT') === '1';
+$items = [];
+foreach (($config['OPNsense']['Gateways']['gateway_item'] ?? []) as $i => $g) {
+    if (($g['name'] ?? '') === 'WAN_DHCP') { $items[] = $i; }
+}
+if (empty($items)) { echo "GATEWAY_MISSING\n"; exit(4); }
+$drift = [];
+foreach ($items as $i) {
+    $gw = $config['OPNsense']['Gateways']['gateway_item'][$i];
+    if (($gw['monitor'] ?? '') !== $want) { $drift[] = $i; }
+    if ((string)($gw['monitor_disable'] ?? '0') !== '0') { $drift[] = $i; }
+}
+if (empty($drift)) { echo "gateway monitor OK ($want)\n"; exit(0); }
+if ($audit) { echo "GW_DRIFT: monitor or monitor_disable differs from '$want'\n"; exit(2); }
+
+foreach ($items as $i) {
+    $config['OPNsense']['Gateways']['gateway_item'][$i]['monitor'] = $want;
+    $config['OPNsense']['Gateways']['gateway_item'][$i]['monitor_disable'] = '0';
+}
+write_config('homelab baseline: gateway monitor IP');
+require_once("plugins.inc.d/dpinger.inc");
+dpinger_configure_do();
+echo "gateway monitor set to $want and dpinger reconfigured\n";
+exit(3);
+PHP_GW
+AUDIT="$AUDIT" WANT_MONITOR="$WANT_MONITOR" php /tmp/gwchk.php
+grc=$?
+rm -f /tmp/gwchk.php
+[ "$grc" = "3" ] && rc=1
+[ "$grc" = "2" ] && rc=2
+[ "$grc" = "4" ] && { echo "  WAN_DHCP gateway not found - not touching anything"; rc=1; }
+
+# DNSSEC: one boolean, and silently off means silently unvalidated.
+cat > /tmp/dnssec.php <<'PHP_DNSSEC'
+<?php
+require_once("config.inc");
+require_once("util.inc");
+$audit = getenv('AUDIT') === '1';
+$cur = (string)($config['OPNsense']['unboundplus']['general']['dnssec'] ?? '0');
+if ($cur === '1') { echo "dnssec OK\n"; exit(0); }
+if ($audit) { echo "DNSSEC_DRIFT: unbound general.dnssec is '$cur'\n"; exit(2); }
+$config['OPNsense']['unboundplus']['general']['dnssec'] = '1';
+write_config('homelab baseline: enable unbound DNSSEC');
+exec('configctl unbound restart 2>&1');
+echo "dnssec enabled\n";
+exit(3);
+PHP_DNSSEC
+AUDIT="$AUDIT" php /tmp/dnssec.php
+nrc=$?
+rm -f /tmp/dnssec.php
+[ "$nrc" = "3" ] && rc=1
+[ "$nrc" = "2" ] && rc=2
+
 case "$rc" in
   0) [ "$AUDIT" = "1" ] && echo "OK: identity/access baseline matches; nothing to change." ;;
   2) echo "DRIFT detected (audit mode): rerun without --audit to correct it." ;;
