@@ -5,6 +5,10 @@
     ../../modules/base.nix
     ../../modules/k3s.nix
     ../../modules/cni-cleanup.nix
+    # homelab-backup-r2-copy lives here: the offline copy of R2 writes to
+    # /mnt/data/backup-r2 on this host, deliberately a different machine from the
+    # SD media mirror (2026-11-03).
+    ../../modules/backup-local.nix
     ./disko.nix
   ];
 
