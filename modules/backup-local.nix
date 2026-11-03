@@ -63,15 +63,18 @@ let
       RCLONE_CONFIG_R2_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY" \
       RCLONE_CONFIG_R2_ENDPOINT="$R2_ENDPOINT"
 
-    dst=/mnt/media-nvme/backup-r2
+    dst=/mnt/scratch/backup-r2
     # The USB stick this used to write to failed under sustained write load (2026-11-02:
     # dropped five times, then re-enumerated mid-copy; because the mount was gone,
     # rclone wrote 12G into the mountpoint on the root filesystem). This writes to
-    # a plain ext4 data disk instead. NOT /mnt/data on patola-thinkcentre: that disk is a
-    # Longhorn replica disk, and 29G of backups there took Longhorn from comfortable to
-    # LonghornDiskSchedulingOverCommitted within an hour (capacity 144G, available 102G,
-    # 97.7G already scheduled). Backups must not compete with the storage they protect.
-    ${pkgs.util-linux}/bin/mountpoint -q /mnt/media-nvme || { echo "/mnt/media-nvme not mounted"; exit 1; }
+    # /mnt/scratch on calamansi-intel: 134G of local NVMe that nothing else depends on.
+    # Two earlier attempts are worth remembering. /mnt/data on patola-thinkcentre is a
+    # Longhorn *replica* disk, and 29G there took Longhorn from comfortable to
+    # LonghornDiskSchedulingOverCommitted within the hour (144G capacity, 102G available,
+    # 97.7G already scheduled). /mnt/media-nvme on sitaw-amd worked but put both offline
+    # copies (this and the SD media mirror) on the same PSU, which is the failure domain
+    # the second copy exists to escape.
+    ${pkgs.util-linux}/bin/mountpoint -q /mnt/scratch || { echo "/mnt/scratch not mounted"; exit 1; }
     mkdir -p "$dst"
     # R2 is the archive of record; this is the offline copy, so a 14-day window keeps
     # it small enough to fit comfortably on the data disk.
@@ -158,13 +161,13 @@ in
   };
 
   # ---- .82: encrypted R2 archive copy ----
-  systemd.services.homelab-backup-r2-copy = lib.mkIf (config.networking.hostName == "sitaw-amd") {
-    description = "Weekly copy of the newest R2 backups to the local NVMe data disk";
+  systemd.services.homelab-backup-r2-copy = lib.mkIf (config.networking.hostName == "calamansi-intel") {
+    description = "Weekly copy of the newest R2 backups to calamansi-intel scratch";
     unitConfig.OnFailure = [ "homelab-alert@%N.service" ];
     # RequiresMountsFor is what stops a vanished mount from becoming writes on `/`: the
     # stick dropped four minutes into a copy and 12G of partial files landed on the root
     # filesystem, because the only mountpoint check ran at start.
-    unitConfig.RequiresMountsFor = [ "/mnt/media-nvme" ];
+    unitConfig.RequiresMountsFor = [ "/mnt/scratch" ];
     serviceConfig = {
       Type = "oneshot";
       TimeoutStartSec = "2h";
@@ -172,7 +175,7 @@ in
     };
     script = "${r2Copy}";
   };
-  systemd.timers.homelab-backup-r2-copy = lib.mkIf (config.networking.hostName == "sitaw-amd") {
+  systemd.timers.homelab-backup-r2-copy = lib.mkIf (config.networking.hostName == "calamansi-intel") {
     wantedBy = [ "timers.target" ];
     timerConfig = {
       OnCalendar = "Sun 05:30";
