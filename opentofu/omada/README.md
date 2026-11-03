@@ -1,3 +1,5 @@
+# RETIRED 2026-11-03 — Wi-Fi is hand-managed. See RETIRED.md. Do not run tofu apply here.
+
 # `opentofu/omada` — the wireless side, in code
 
 The AP was the one device in this estate with **no declarative path**: its web UI is a JavaScript
