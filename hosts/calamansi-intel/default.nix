@@ -58,15 +58,6 @@
   # scheduled against ~294G of capacity shared with the OS, and an empty 340G
   # partition is worth more to storage than to a pool that already has 800G free.
 
-  # Backup SD card lives on sitaw-amd (.82) and is exported from there; the
-  # weekly media mirror writes to it over NFS. automount so a missing disk or a
-  # rebooted .82 does not block anything.
-  fileSystems."/mnt/backup-sd" = {
-    device = "192.168.2.82:/mnt/backup-sd";
-    fsType = "nfs";
-    options = [ "nofail" "x-systemd.automount" "_netdev" "nfsvers=4.2" ];
-  };
-
   # ---- Media library: NFS from .82, which holds the 1.8 TB btrfs ----------
   # Cut over from the mergerfs union on 2026-11-02. The union had three failure
   # modes in one week: the NFS branch failing at 06:00:06 took the whole pool
