@@ -100,3 +100,32 @@ Lose any of the middle three and every declarative resource still looks correct 
 no address and no DHCP. The script exists so that failure is visible rather than discovered by a
 phone that will not connect. Verified in both directions: it passes against the live router and
 fails cleanly against an address that is not it.
+
+## Running it
+
+Credentials are not in this repo. Two Bitwarden Secrets Manager items in project
+`homelab-kube` hold them, and `env.sh` reads them by **secret id** (ids are not secrets):
+
+```sh
+export BWS_ACCESS_TOKEN=...                      # machine account token
+export OPNSENSE_KEY_ID=0f4b304a-d1d9-4e42-9442-b4f701525ee2
+export OPNSENSE_SECRET_ID=9b0905e5-665d-4146-8e70-b4f701525f36
+. ./env.sh && tofu plan
+```
+
+The state backend is S3 (R2), so `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` must also be
+set — they are the `r2-access-key-id` / `r2-secret-access-key` items in the same project.
+
+**How the key was created (2026-11-03):** OPNsense had *no* API keys, and its UI login for
+`root` requires TOTP, so there was no non-interactive way in. The key was minted by calling
+the same model the UI calls, from a root shell on the router:
+
+```php
+$model = new \OPNsense\Auth\User();
+$model->getUserByName('root')->apikeys->add();   // returns key + secret
+$model->serializeToConfig(false, true);
+\OPNsense\Core\Config::getInstance()->save();
+```
+
+Rotate by repeating that, storing the new pair here, and deleting the old
+(`POST /api/auth/user/delApiKey/{base64:key}`).
