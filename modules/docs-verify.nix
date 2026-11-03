@@ -64,9 +64,27 @@ sitaw-amd /var/lib/longhorn"
     [ "$actual_disks" = "$(printf '%s\n' "$expected_disks" | sort)" ] \
       || note "Longhorn disk inventory differs from runbook page 21: $(printf '%s' "$actual_disks" | tr '\n' ';')"
 
+    # ---- the backup decryption key ------------------------------------------
+    # A cold copy of the age key is only worth having if it is the SAME key the
+    # backups are encrypted to. Nothing notices a regenerated identity today: an old
+    # paper copy would silently stop working and every R2 backup would become
+    # unreadable at the worst possible moment. Compare the public half of the live
+    # key with the recipient recorded in runbook 07.
+    key=/root/.config/homelab-backup.agekey
+    expected_recipient="age15hzlt4rxx0lxd7v8sxlvwfmc9x0jmx8e0l5zvemszgp966ygavkshuw4fj"
+    if [ ! -r "$key" ]; then
+      note "backup age key is not readable at $key"
+    else
+      perms=$(stat -c "%a" "$key")
+      [ "$perms" = "600" ] || note "backup age key has mode '$perms', expected 600"
+      actual=$(${pkgs.age}/bin/age-keygen -y "$key" 2>/dev/null)
+      [ "$actual" = "$expected_recipient" ] || \
+        note "backup age key recipient is '$actual', but runbook 07 records '$expected_recipient' - cold copies no longer decrypt"
+    fi
+
     if [ "$fail" -ne 0 ]; then
       ${pkgs.curl}/bin/curl -fsS -m 10 -X POST -H 'Content-Type: application/json' \
-        -d "[{\"labels\":{\"alertname\":\"DocsDrift\",\"severity\":\"warning\",\"instance\":\"$host\"},\"annotations\":{\"summary\":\"documented facts no longer match the cluster\",\"description\":\"docs-verify on $host found drift: either NETWORK.md's network claims or the Longhorn disk inventory. Fix the doc, or the state it describes. Re-run the unit on that host for the DRIFT lines.\"}}]" \
+        -d "[{\"labels\":{\"alertname\":\"DocsDrift\",\"severity\":\"warning\",\"instance\":\"$host\"},\"annotations\":{\"summary\":\"documented facts no longer match the cluster\",\"description\":\"docs-verify on $host found drift: NETWORK.md's network claims, the Longhorn inventory, or the backup age key. Fix the doc, or the state it describes. Re-run the unit on that host for the DRIFT lines.\"}}]" \
         http://127.0.0.1:30903/api/v2/alerts || true
       exit 1
     fi
@@ -75,8 +93,8 @@ sitaw-amd /var/lib/longhorn"
 in
 {
   systemd.services.homelab-docs-verify = {
-    description = "Verify NETWORK.md's cluster-network claims against the live cluster";
-    path = with pkgs; [ coreutils gawk curl jq k3s ];
+    description = "Verify NETWORK.md's claims, the Longhorn inventory and the backup key";
+    path = with pkgs; [ coreutils gawk curl jq k3s age ];
     serviceConfig = {
       Type = "oneshot";
       ExecStart = verify;
