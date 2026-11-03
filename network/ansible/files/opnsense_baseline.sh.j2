@@ -364,6 +364,95 @@ rm -f /tmp/dnsbl.php
 [ "$brc" = "2" ] && rc=2
 [ "$brc" = "4" ] && { echo "  no oisd0 entry - leaving it alone"; rc=1; }
 
+# ---- administrative settings with no provider resource -------------------------------
+# Five fields, none of which changes how a client behaves, all of which are one lookup away
+# from being wrong on a rebuilt router. Grouped in one PHP block because they fail the same
+# way: silently, and only noticed months later.
+cat > /tmp/admin.php <<'PHP_ADMIN'
+<?php
+require_once("config.inc");
+require_once("util.inc");
+$audit = getenv('AUDIT') === '1';
+$changed = [];
+
+// want(scope, path, value)
+$want = [
+    // Key names verified against /usr/local/etc/inc/plugins.inc.d/webgui.inc, which is the
+    // only thing that reads them. The first version of this block set `redirect_http` and
+    // `hsts` - neither exists, so the values landed in config.xml and changed nothing.
+    // Redirect is opt-OUT: `disablehttpredirect` unset means HTTP is already redirected.
+    ['system/webgui', 'ssl-hsts', '1', 'HSTS enabled'],
+    // NOTE: the HTTP->HTTPS redirect is controlled by `disablehttpredirect`, and webgui.inc
+    // tests `!isset(...)` - so the redirect is ON only while that key is ABSENT. Writing
+    // '0' into it disables the redirect and lighttpd stops listening on :80 entirely
+    // (verified 2026-11-03: :80 went from 301 to connection refused). It is therefore
+    // handled below as "must not exist" rather than as a value to set.
+    // passwordauth is presence-based too: OPNsense treats the key existing as "on", so
+    // disabling it means removing the key, not writing '0'. Handled as "must not exist".
+    ['dnsmasq',       'enable',        '0', 'dnsmasq disabled (Unbound serves DNS, Kea serves DHCP)'],
+    ['OPNsense/unboundplus/general', 'regdhcp',       '1', 'Unbound registers DHCP leases'],
+    ['OPNsense/unboundplus/general', 'regdhcpstatic', '1', 'Unbound registers static mappings'],
+];
+
+$ref = &$config;
+foreach ($want as $w) {
+    [$scope, $key, $value, $desc] = $w;
+    $path = str_replace('/', "\x00", $scope);
+    $node = &$config;
+    foreach (explode('/', $scope) as $seg) { $node = &$node[$seg]; }
+    $cur = (string)($node[$key] ?? '');
+    if ($cur === $value) { unset($node); continue; }
+    $changed[] = sprintf('%s: %s -> %s (%s)', $scope . '.' . $key, $cur === '' ? 'unset' : $cur, $value, $desc);
+    unset($node);
+}
+
+// Clean up the two keys an earlier version of this block wrote. They are read by nothing,
+// and leaving invented keys in config.xml is how a config becomes folklore.
+// system/ssh.passwordauth: presence means "password auth enabled" (see the SSH section
+// above, which unsets it). Remove it here too so both blocks agree on the same rule.
+if (isset($config['system']['ssh']['passwordauth'])) {
+    unset($config['system']['ssh']['passwordauth']);
+    $changed[] = 'system/ssh.passwordauth: must not exist - removed';
+}
+
+// Keys that must NOT exist for the intended behaviour, not keys to set:
+//   disablehttpredirect - webgui.inc redirects only while this key is absent
+//   hsts, redirect_http - invented by the first version of this block; nothing reads them
+foreach (['disablehttpredirect', 'passwordauth', 'hsts', 'redirect_http'] as $bogus) {
+    if (isset($config['system']['webgui'][$bogus])) {
+        unset($config['system']['webgui'][$bogus]);
+        $changed[] = "system/webgui.$bogus: must not exist - removed";
+    }
+}
+
+if (empty($changed)) { echo "admin settings OK\n"; exit(0); }
+if ($audit) {
+    foreach ($changed as $c) { echo "ADMIN_DRIFT: $c\n"; }
+    exit(2);
+}
+foreach ($want as $w) {
+    [$scope, $key, $value] = $w;
+    $node = &$config;
+    foreach (explode('/', $scope) as $seg) { $node = &$node[$seg]; }
+    $node[$key] = $value;
+    unset($node);
+}
+write_config('homelab baseline: administrative settings');
+foreach ($changed as $c) { echo "admin: $c\n"; }
+// The web GUI and sshd pick these up on reload; unbound needs a restart for the
+// registration flags to take effect in its generated config.
+@exec('configctl webgui restart 2>&1');
+@exec('service sshd reload 2>&1');
+@exec('configctl unbound restart 2>&1');
+if ((string)($config['dnsmasq']['enable'] ?? '0') === '0') { @exec('/usr/local/etc/rc.d/dnsmasq stop 2>&1'); }
+exit(3);
+PHP_ADMIN
+AUDIT="$AUDIT" php /tmp/admin.php
+arc=$?
+rm -f /tmp/admin.php
+[ "$arc" = "3" ] && rc=1
+[ "$arc" = "2" ] && rc=2
+
 case "$rc" in
   0) [ "$AUDIT" = "1" ] && echo "OK: identity/access baseline matches; nothing to change." ;;
   2) echo "DRIFT detected (audit mode): rerun without --audit to correct it." ;;
