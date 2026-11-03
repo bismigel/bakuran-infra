@@ -202,6 +202,39 @@ PHP2
 fi
 
 
+# ---- cron entries with no config.xml equivalent -------------------------------------
+# Both of these were created by hand and live only in /etc/cron.d, which is *not* part of an
+# OPNsense configuration backup (that is /conf/config.xml). A reinstall loses them silently:
+# DNSBL stops refreshing and the dead-man's switch stops running, with nothing to show for it.
+#
+# They cannot become OPNsense "cron jobs" either: that plugin's command field only accepts
+# registered configd actions, and the heartbeat is a plain script. So they are templated here,
+# which is the thing that makes a rebuild reproduce them.
+ensure_cron() { # <path> <content>
+    _path=$1
+    _want=$2
+    if [ -f "$_path" ] && [ "$(cat "$_path")" = "$_want" ]; then
+        return 0
+    fi
+    if [ "$AUDIT" = "1" ]; then
+        add_drift "cron: $_path missing or different"
+        return 2
+    fi
+    printf '%s\n' "$_want" > "$_path" || return 4
+    chmod 644 "$_path"
+    echo "cron: wrote $_path"
+    return 3
+}
+
+ensure_cron /etc/cron.d/dnsbl \
+    '15 3 * * * root /usr/local/opnsense/scripts/unbound/blocklists.py update > /dev/null 2>&1'
+drc=$?
+ensure_cron /etc/cron.d/homelab-heartbeat \
+    '*/5 * * * * root /usr/local/etc/homelab-heartbeat.sh >/dev/null 2>&1'
+hrc=$?
+[ "$drc" = "4" ] || [ "$hrc" = "4" ] && rc=1
+[ "$drc" = "2" ] || [ "$hrc" = "2" ] && rc=2
+
 case "$rc" in
   0) [ "$AUDIT" = "1" ] && echo "OK: identity/access baseline matches; nothing to change." ;;
   2) echo "DRIFT detected (audit mode): rerun without --audit to correct it." ;;
