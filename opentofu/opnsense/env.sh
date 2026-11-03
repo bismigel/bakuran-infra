@@ -12,8 +12,11 @@ set -euo pipefail
 : "${OPNSENSE_KEY_ID:?set OPNSENSE_KEY_ID to the BWS secret id of the API key}"
 : "${OPNSENSE_SECRET_ID:?set OPNSENSE_SECRET_ID to the BWS secret id of the API secret}"
 
-bws() { nix run --impure nixpkgs#bws -- "$@"; }
-jq()  { nix run nixpkgs#jq -- "$@"; }
+# Prefer what is on PATH (both are in the user profile); fall back to nix with the unfree
+# flag that `bws` needs. The original `nix run --impure nixpkgs#bws` could never work:
+# --impure only allows the env var, it does not set it, and bws is unfree.
+bws() { if command -v bws >/dev/null 2>&1; then command bws "$@"; else NIXPKGS_ALLOW_UNFREE=1 nix run --impure nixpkgs#bws -- "$@"; fi; }
+jq()  { if command -v jq >/dev/null 2>&1; then command jq "$@"; else nix run nixpkgs#jq -- "$@"; fi; }
 
 export TF_VAR_opnsense_api_key="$(bws secret get "$OPNSENSE_KEY_ID" -o json | jq -r .value)"
 export TF_VAR_opnsense_api_secret="$(bws secret get "$OPNSENSE_SECRET_ID" -o json | jq -r .value)"
