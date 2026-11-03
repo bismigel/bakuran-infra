@@ -59,12 +59,15 @@ sitaw-amd 192.168.2.82 10.42.0.0/24"
     # Longhorn dashboard, the decision is in homelab-context/NEXT-STEPS.md, and what
     # pages is LonghornDiskSchedulingHeadroomLow/OverCommitted (> 0.9 / > 1.0), which
     # say when the situation starts costing redundancy rather than merely existing.
+      # NOTE: these lines start at column 0 on purpose. Nix strips the COMMON leading
+      # whitespace of an indented string, so any indentation left here ends up inside the
+      # value and the comparison can never match (2026-11-03, twice).
     expected_disks="calamansi-intel /mnt/longhorn
-    calamansi-intel /var/lib/longhorn
-    patola-thinkcentre /mnt/data
-    patola-thinkcentre /var/lib/longhorn
-    sitaw-amd /mnt/media-nvme
-    sitaw-amd /var/lib/longhorn"
+calamansi-intel /var/lib/longhorn
+patola-thinkcentre /mnt/data
+patola-thinkcentre /var/lib/longhorn
+sitaw-amd /mnt/media-nvme
+sitaw-amd /var/lib/longhorn"
     actual_disks="$($k -n longhorn-system get nodes.longhorn.io -o json 2>/dev/null \
       | ${pkgs.jq}/bin/jq -r '.items[] | (.metadata.name as $n | (.spec.disks // {} | to_entries[]) | "\($n) \(.value.path)")' \
       | sed -E 's#/+$##' | sort)"
