@@ -37,6 +37,13 @@ sitaw-amd 192.168.2.82 10.42.0.0/24"
     # Storage: the Longhorn disk inventory documented in runbook page 21 and the
     # 2026-10-30 KNOWN-ISSUES entry.
     #
+    # Updated 2026-11-03: calamansi-intel gained /mnt/longhorn during the media
+    # migration on 2026-11-02 (234G, repurposed from the old media partition) and it was
+    # never added here, so this check had been failing every Monday since - the drift it
+    # reported was real, and it was the documentation's job to catch up. The root disks
+    # remain registered with replicas still scheduled; whether to disable them is the
+    # open question recorded in NEXT-STEPS, not something this check should encode.
+    #
     # This is the one piece of cluster state ArgoCD cannot reconcile: a disk is
     # registered in the nodes.longhorn.io CR, not in git. A disko reinstall, a
     # hand-added disk or a renamed path stays invisible until that disk fills —
@@ -52,11 +59,12 @@ sitaw-amd 192.168.2.82 10.42.0.0/24"
     # Longhorn dashboard, the decision is in homelab-context/NEXT-STEPS.md, and what
     # pages is LonghornDiskSchedulingHeadroomLow/OverCommitted (> 0.9 / > 1.0), which
     # say when the situation starts costing redundancy rather than merely existing.
-    expected_disks="calamansi-intel /var/lib/longhorn
-patola-thinkcentre /mnt/data
-patola-thinkcentre /var/lib/longhorn
-sitaw-amd /mnt/media-nvme
-sitaw-amd /var/lib/longhorn"
+    expected_disks="calamansi-intel /mnt/longhorn
+      calamansi-intel /var/lib/longhorn
+      patola-thinkcentre /mnt/data
+      patola-thinkcentre /var/lib/longhorn
+      sitaw-amd /mnt/media-nvme
+      sitaw-amd /var/lib/longhorn"
     actual_disks="$($k -n longhorn-system get nodes.longhorn.io -o json 2>/dev/null \
       | ${pkgs.jq}/bin/jq -r '.items[] | (.metadata.name as $n | (.spec.disks // {} | to_entries[]) | "\($n) \(.value.path)")' \
       | sed -E 's#/+$##' | sort)"
