@@ -28,6 +28,12 @@ switch_baseline:
       ports: ["lan1", "lan2", "lan3", "lan4", "lan5", "lan6", "lan7", "lan8"]
     - vlan: 20
       ports: ["lan1:t", "lan2:t"]
+    # VLAN 30 (IoT) — the same two ports: lan1 is the router uplink, lan2 is the AP. A tagged
+    # VLAN that no client uses is inert, so this can land before the AP has an SSID for it;
+    # what it cannot do is arrive *after* the SSID, or the first IoT device joins a network
+    # the switch drops frames for (2026-11-03).
+    - vlan: 30
+      ports: ["lan1:t", "lan2:t"]
   # The key that must exist BEFORE password auth is turned off. Public keys are not secrets,
   # so this belongs in git - and it has to, because the alternative is unreproducible: after a
   # factory reset (2026-11-01, recovering the switch from failsafe) the key was gone while the
