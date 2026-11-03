@@ -63,13 +63,21 @@ let
       RCLONE_CONFIG_R2_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY" \
       RCLONE_CONFIG_R2_ENDPOINT="$R2_ENDPOINT"
 
-    ${pkgs.util-linux}/bin/mountpoint -q /mnt/backup-usb || { echo "backup stick not mounted"; exit 1; }
-    mkdir -p /mnt/backup-usb/r2
-    # Keep the newest few of each dataset; the stick is small and this is the
-    # offline copy, not the archive of record.
-    ${pkgs.rclone}/bin/rclone --config /dev/null sync "r2:$R2_BUCKET/appdata/" /mnt/backup-usb/r2/appdata/ \
+    dst=/mnt/data/backup-r2
+    # The USB stick this used to write to failed under sustained write load (2026-11-02:
+    # dropped five times, then re-enumerated mid-copy; because the mount was gone,
+    # rclone wrote 12G into the mountpoint on the root filesystem). This writes to
+    # patola-thinkcentre instead, which is also a *different machine* from the SD media
+    # mirror - previously both offline copies hung off .82, so one dead PSU took the
+    # live data and both fallbacks together.
+    ${pkgs.util-linux}/bin/mountpoint -q /mnt/data || { echo "/mnt/data not mounted"; exit 1; }
+    mkdir -p "$dst"
+    # R2 is the archive of record; this is the offline copy, so a 14-day window keeps
+    # it small enough to fit comfortably on the data disk.
+    ${pkgs.rclone}/bin/rclone --config /dev/null sync "r2:$R2_BUCKET/appdata/" "$dst/appdata/" \
       --max-age 14d --delete-after --stats-one-line
-    ${pkgs.rclone}/bin/rclone --config /dev/null sync "r2:$R2_BUCKET/credentials/" /mnt/backup-usb/r2/credentials/ \
+    ${pkgs.rclone}/bin/rclone --config /dev/null sync "r2:$R2_BUCKET/credentials/" "$dst/credentials/" \
+      --max-age 14d --delete-after --stats-one-line
       --max-age 14d --delete-after --stats-one-line
   '';
 
@@ -150,13 +158,13 @@ in
   };
 
   # ---- .82: encrypted R2 archive copy ----
-  systemd.services.homelab-backup-r2-copy = lib.mkIf (config.networking.hostName == "sitaw-amd") {
-    description = "Weekly copy of the newest R2 backups to the USB stick";
+  systemd.services.homelab-backup-r2-copy = lib.mkIf (config.networking.hostName == "patola-thinkcentre") {
+    description = "Weekly copy of the newest R2 backups to the local data disk";
     unitConfig.OnFailure = [ "homelab-alert@%N.service" ];
-    # This is the unit that actually did it: the stick vanished four minutes in, rclone
-    # kept writing to /mnt/backup-usb (by then a plain directory on /) and put 12G
-    # there before the copy was stopped by hand.
-    unitConfig.RequiresMountsFor = [ "/mnt/backup-usb" ];
+    # RequiresMountsFor is what stops a vanished mount from becoming writes on `/`: the
+    # stick dropped four minutes into a copy and 12G of partial files landed on the root
+    # filesystem, because the only mountpoint check ran at start.
+    unitConfig.RequiresMountsFor = [ "/mnt/data" ];
     serviceConfig = {
       Type = "oneshot";
       TimeoutStartSec = "2h";
@@ -164,7 +172,7 @@ in
     };
     script = "${r2Copy}";
   };
-  systemd.timers.homelab-backup-r2-copy = lib.mkIf (config.networking.hostName == "sitaw-amd") {
+  systemd.timers.homelab-backup-r2-copy = lib.mkIf (config.networking.hostName == "patola-thinkcentre") {
     wantedBy = [ "timers.target" ];
     timerConfig = {
       OnCalendar = "Sun 05:30";
