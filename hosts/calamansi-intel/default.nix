@@ -6,6 +6,7 @@
     ../../modules/k3s.nix
     ../../modules/cni-cleanup.nix
     ../../modules/backup-local.nix
+    ../../modules/backup-verify.nix
     ../../modules/backup.nix
     ../../modules/wireguard-metrics.nix
     ../../modules/wireguard-reconcile.nix
@@ -121,6 +122,10 @@
 
   # Single source of truth for the tunnel's desired state; the reconciler
   # enforces it every 60s. Change the endpoint here and in the peer below.
+  # The offline copy of the backups lives on this host (/mnt/scratch), so the check for it does
+  # too. Weekly, after the copy job; it writes a metric and exits non-zero on a gap.
+  bakuran.backupVerify.enable = true;
+
   bakuran.wireguard = {
     # 176.113.74.82 stopped answering on 2026-11-03: initiations left .81 and nothing
     # came back, and a *different key* against that same endpoint was equally silent -
