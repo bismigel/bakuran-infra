@@ -30,3 +30,21 @@ resource "opnsense_unbound_dnsbl" "oisd" {
   address     = ""
   safe_search = false
 }
+
+# A LAN-only name for Jellyfin, so a client on the clients VLAN does not have to remember an IP.
+#
+# Why this and not a split-horizon entry for `jellyfin.bismigel.dev`: DNS cannot carry a port, and
+# the public name terminates on the ingress controller, which is a NodePort service — loopback-only
+# on every node, so there is no LAN listener on 443 to point at. Overriding the public name would
+# aim clients at a closed port. Jellyfin's LAN path is the hostPort on the media node, so the name
+# resolves to that address and the client supplies `:8096` itself.
+#
+# This adds nothing to the firewall: VLAN 20 -> 192.168.2.81:8096 was already permitted
+# (firewall-clients.tf, 2026-11-04). A name is not a hole; it is a name.
+resource "opnsense_unbound_host_override" "jellyfin_lan" {
+  hostname    = "jellyfin"
+  domain      = "lan"
+  rr          = "A"
+  server      = "192.168.2.81"
+  description = "Jellyfin on the media node, for LAN clients (use http://jellyfin.lan:8096)"
+}
