@@ -16,13 +16,24 @@ domain, and it is already the thing everything else depends on.
 | `https://192.168.2.100:6443/readyz` | the k3s API VIP. **Any** HTTP answer proves the control plane is alive — `401` is normal, because `/readyz` needs auth. A dead cluster gives no answer at all (`000`). |
 | `https://status.bismigel.dev/` | tunnel → edge → cluster, end to end, from outside |
 
-## What it does not check
+## Alertmanager, without reaching into the cluster
 
-Alertmanager. The NodePort is **loopback-only** by design — `KUBE-NODEPORTS` carries
-`destination 127.0.0.0/8` on every rule — so it is unreachable from the LAN at *any*
-source address, and a firewall rule cannot help. Two attempts were made on 2026-11-02;
-both were decoration. (The DNAT detail is still worth knowing: a rule matching
+It cannot be checked *directly* from here. The NodePort is **loopback-only** by design —
+`KUBE-NODEPORTS` carries `destination 127.0.0.0/8` on every rule — so it is unreachable from
+the LAN at *any* source address, and a firewall rule cannot help. Two attempts were made on
+2026-11-02; both were decoration. (The DNAT detail is still worth knowing: a rule matching
 `--dport 30903` sees `9093`, because kube-proxy rewrites the port first.)
+
+What the router **can** do is read `https://status.bismigel.dev/api/status`, and as of
+2026-11-04 that page carries an `alertmanager` check (`/-/healthy` on the Service, added in
+`status-api#18`). So the script parses those results and reports a **degraded** state — page
+answers 200 but a functional check fails — separately from a total loss. A quiet night and a
+dead Alertmanager look identical from outside, which is the whole reason for this check.
+
+**Not deployed yet.** The parsing change is committed but not on the router: the `alertmanager`
+check currently reports `ok:false`, and a deployed heartbeat would have sent a DEGRADED message
+for a fault that is not yet understood. See `homelab-context`'s backlog ticket
+`status-api-checks-unreachable`.
 
 The alerting path itself is covered by the `Watchdog` alert: it always fires, so its
 *absence* means Prometheus → Alertmanager → Telegram is broken.
