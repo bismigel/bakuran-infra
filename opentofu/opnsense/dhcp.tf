@@ -1,26 +1,7 @@
-# Import blocks: these four objects were created on 2026-11-01 from a scratch root with
-# local state (the repo root's S3 backend needs R2 credentials this machine does not have).
-# Importing them here puts the same objects under this root, so a later `tofu plan` shows
-# "No changes" instead of trying to recreate them. Delete these blocks once imported.
-import {
-  to = opnsense_kea_dhcpv4_reservation.sitaw_amd
-  id = "4810d577-ac8c-49fd-8d71-022a6e62a196"
-}
-
-import {
-  to = opnsense_kea_dhcpv4_reservation.calamansi_intel
-  id = "8f5c1a2d-c106-4ced-acc0-b5cf8d8f075d"
-}
-
-import {
-  to = opnsense_kea_dhcpv4_reservation.kamatis_mbp
-  id = "93eb6ab5-a9d3-4ea7-b489-4b6f7309b808"
-}
-
-import {
-  to = opnsense_kea_dhcpv4_reservation.eap650
-  id = "6f5884c0-4845-402e-be32-88d17756997b"
-}
+# These four reservations were imported on 2026-11-01 from a scratch root (this root's S3
+# backend needed R2 credentials the machine did not have). Their import blocks were removed on
+# 2026-11-04 when the provider migration re-imported every object under `matthew-on-git/opnsense`;
+# the UUIDs are recorded in that pull request and in the state, not in the configuration.
 
 # Kea reservations as code.
 #
@@ -40,7 +21,7 @@ locals {
 resource "opnsense_kea_dhcpv4_reservation" "sitaw_amd" {
   subnet_id   = local.kea_lan_subnet_id
   ip_address  = "192.168.2.82"
-  mac_address = "b4:2e:99:d6:84:29"
+  hw_address  = "b4:2e:99:d6:84:29"
   hostname    = "sitaw-amd"
   description = "cluster: platform node (ArgoCD, ingress, NFS)"
 }
@@ -48,7 +29,7 @@ resource "opnsense_kea_dhcpv4_reservation" "sitaw_amd" {
 resource "opnsense_kea_dhcpv4_reservation" "calamansi_intel" {
   subnet_id   = local.kea_lan_subnet_id
   ip_address  = "192.168.2.81"
-  mac_address = "10:62:e5:18:d9:43"
+  hw_address  = "10:62:e5:18:d9:43"
   hostname    = "calamansi-intel"
   description = "cluster: media node (QSV, /mnt/media)"
 }
@@ -56,7 +37,7 @@ resource "opnsense_kea_dhcpv4_reservation" "calamansi_intel" {
 resource "opnsense_kea_dhcpv4_reservation" "kamatis_mbp" {
   subnet_id   = local.kea_lan_subnet_id
   ip_address  = "192.168.2.83"
-  mac_address = "40:6c:8f:4c:7f:0c"
+  hw_address  = "40:6c:8f:4c:7f:0c"
   hostname    = "kamatis-mbp"
   description = "staging host (KVM guests), not a cluster member"
 }
@@ -64,7 +45,7 @@ resource "opnsense_kea_dhcpv4_reservation" "kamatis_mbp" {
 resource "opnsense_kea_dhcpv4_reservation" "eap650" {
   subnet_id   = local.kea_lan_subnet_id
   ip_address  = "192.168.2.2"
-  mac_address = "ec:b9:31:02:4d:c0"
+  hw_address  = "ec:b9:31:02:4d:c0"
   hostname    = "eap650"
   description = "Omada AP - was floating at .151 because no reservation ever applied"
 }
@@ -76,7 +57,7 @@ resource "opnsense_kea_dhcpv4_reservation" "eap650" {
 resource "opnsense_kea_dhcpv4_reservation" "omada_controller" {
   subnet_id   = local.kea_lan_subnet_id
   ip_address  = "192.168.2.60"
-  mac_address = "fc:b0:de:18:16:5b"
+  hw_address  = "fc:b0:de:18:16:5b"
   hostname    = "omada-controller"
   description = "Omada controller (admin laptop) - the AP is told to find it at omada.internal"
 }
