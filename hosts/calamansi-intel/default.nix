@@ -10,6 +10,7 @@
     ../../modules/wireguard-metrics.nix
     ../../modules/wireguard-reconcile.nix
     ../../modules/wireguard-native.nix
+    ../../modules/wireguard-fallback.nix
     ../../modules/service-resilience.nix
     ./disko.nix
   ];
