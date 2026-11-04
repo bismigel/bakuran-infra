@@ -20,5 +20,5 @@ provider "opnsense" {
   # (which is what the WebGUI itself does). The real fix is a certificate with a SAN for
   # the address - recorded in homelab-context/NETWORK-AS-CODE.md. Flip this off when that
   # exists; it is not a licence to talk to other hosts this way.
-  allow_insecure = true
+  insecure = true
 }

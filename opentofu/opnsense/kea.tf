@@ -9,19 +9,14 @@
 # in"). That reasoning expired: the subnet has exactly one pool, one router and one DNS option,
 # and leaving it unmanaged is how the DNS value drifted onto a path that depends on the tunnel.
 #
-# ADOPTION, not creation. The import block below takes the existing subnet into state on the
-# next apply; `tofu plan` after that must show **no changes** apart from the DNS servers. If it
-# wants to change anything else, the declaration is wrong and the plan is the warning.
+# ADOPTION, not creation: imported on 2026-11-01, re-imported under the new provider on
+# 2026-11-04. `tofu plan` must show **no changes**; if it wants to change anything, the
+# declaration is wrong and the plan is the warning.
 #
 # NOT APPLIED YET: `tofu init` needs the S3 backend, which needs the R2 credentials that are
 # still outstanding (`r2-opentofu` in Bitwarden). Until then this file is a declaration with a
 # plan that cannot be run — deliberately, because the alternative was a hand-written API call
 # against a live DHCP server, which failed twice and is not a trade worth making.
-
-import {
-  to = opnsense_kea_dhcpv4_subnet.lan
-  id = "4a1b6c22-1111-4aaa-8bbb-000000000001"
-}
 
 resource "opnsense_kea_dhcpv4_subnet" "lan" {
   subnet = "192.168.2.0/24"
@@ -29,7 +24,7 @@ resource "opnsense_kea_dhcpv4_subnet" "lan" {
   # Matches the live value: changing it is not part of this change.
   description = "homelab LAN"
 
-  pools = ["192.168.2.150 - 192.168.2.240"]
+  pools = "192.168.2.150 - 192.168.2.240"
 
   routers = ["192.168.2.1"]
 
@@ -68,7 +63,7 @@ resource "opnsense_kea_dhcpv4_subnet" "clients" {
   description = "CLIENTS (Wi-Fi) - cannot reach 192.168.2.0/24 except the admin laptop"
 
   # .150-.200 for ordinary clients; .50 is held for the admin laptop's reservation below.
-  pools = ["192.168.20.150 - 192.168.20.200"]
+  pools = "192.168.20.150 - 192.168.20.200"
 
   routers     = ["192.168.20.1"]
   dns_servers = ["192.168.2.1"]
@@ -81,7 +76,7 @@ resource "opnsense_kea_dhcpv4_subnet" "clients" {
 resource "opnsense_kea_dhcpv4_reservation" "admin_laptop" {
   subnet_id   = opnsense_kea_dhcpv4_subnet.clients.id
   ip_address  = "192.168.20.50"
-  mac_address = "fc:b0:de:18:16:5b"
+  hw_address  = "fc:b0:de:18:16:5b"
   hostname    = "admin-laptop"
   description = "the one device allowed to reach management from the clients VLAN (2026-11-01)"
 }

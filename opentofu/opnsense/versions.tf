@@ -3,12 +3,16 @@ terraform {
 
   required_providers {
     opnsense = {
-      source = "browningluke/opnsense"
-      # Pinned EXACTLY, not `~>`. The provider is pre-1.0 and its README states that
-      # schemas may change between releases and that it is not recommended for
-      # production until v1.0. An unpinned minor bump could re-plan live firewall
-      # rules; upgrading is a reviewed change, not a `tofu init -upgrade`.
-      version = "= 0.26.0"
+      source = "matthew-on-git/opnsense"
+      # Pinned EXACTLY, not `~>`, and the reason is measured rather than inherited: the
+      # provider published four releases on 2026-11-04 alone (v0.11 -> v0.14) and 84 commits in
+      # 30 days. This root manages live firewall rules on the only router in the estate, so an
+      # unpinned minor bump could re-plan them between breakfast and dinner. Upgrading is a
+      # reviewed change that starts with `tofu plan`, not a `tofu init -upgrade`.
+      #
+      # Migrated from `browningluke/opnsense` 0.26.0 on 2026-11-04: same objects, new provider,
+      # imported rather than recreated (no apply touched the appliance).
+      version = "= 0.14.0"
     }
   }
 
