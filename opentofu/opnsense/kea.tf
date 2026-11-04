@@ -51,8 +51,12 @@ resource "opnsense_kea_dhcpv4_subnet" "lan" {
 # ---- VLAN 20: the clients network ------------------------------------------------
 #
 # Delivered on em0 tag 20 as `opt1`, 192.168.20.1/24 (the interface itself is created by
-# config.xml — the provider has no resource for interface assignment, which is the one
-# declarative gap left on this device).
+# config.xml. **The old provider had no resource for interface assignment; the new one does**
+# (`opnsense_interface_assignment`), but it only *adopts* an existing assignment — it cannot create
+# `opt1`/`opt2` — so the UI's Interfaces -> Assignments step is still where an interface begins.
+# Adopting `opt1` is deliberately postponed: its own docs say to manage only a non-management
+# interface "whose addressing can safely be changed", and `opt1` carries the TV and the admin laptop
+# while the staging host is down. Recorded in README.md rather than half-done here.
 #
 # This subnet is what segmentation needs: Wi-Fi clients get addresses here and cannot reach
 # 192.168.2.0/24 (the management/infra network) except for the one laptop that administers
