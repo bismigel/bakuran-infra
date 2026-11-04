@@ -71,7 +71,13 @@ let
     # restart, so the tunnel was undeployable in practice. "No handshake yet" is normal;
     # say so once and let the next minute's run judge.
     hs=$(wg show "$IF" latest-handshakes 2>/dev/null | awk '{print $2}' | sort -n | tail -1)
-    case "${hs:-}" in
+    # The escape matters: inside a Nix indented string an unescaped dollar-brace
+    # interpolates, and a shell default expansion written that way does not fail loudly -
+    # it silently renders as the literal text hs:- . That is what this line was from
+    # 2026-11-01 (#193) until now: the case never matched, so a freshly started interface
+    # fell through to age = now - 0 and logged 'no handshake for 1793768305s - the endpoint
+    # or key is dead', sending the reader after a dead server when nothing was wrong.
+    case "''${hs:-}" in
       ""|0)
         log "no handshake yet ($IF has just come up) - nothing to judge, re-checking in 60s"
         exit 0
