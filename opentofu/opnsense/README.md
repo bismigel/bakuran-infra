@@ -127,8 +127,32 @@ $model->serializeToConfig(false, true);
 \OPNsense\Core\Config::getInstance()->save();
 ```
 
-Rotate by repeating that, storing the new pair here, and deleting the old
-(`POST /api/auth/user/delApiKey/{base64:key}`).
+**Rotated 2026-11-04** — the procedure, with the two things that bite:
+
+```bash
+# 1. mint, from a root shell on the router (same model the UI calls)
+cd /usr/local && /usr/local/bin/php -r '
+require_once("config.inc");
+$u = new OPNsense\Auth\User(); $user = $u->getUserByName("root");
+$k = $user->apikeys->add(); $u->serializeToConfig(false, true);
+OPNsense\Core\Config::getInstance()->save();
+echo $k["key"] . "|" . $k["secret"] . PHP_EOL;'
+
+# 2. store both values in Bitwarden Secrets Manager (`opnsense-api-key`, `opnsense-api-secret`)
+# 3. prove the stored pair before touching the old one:
+#      tofu plan  ->  "No changes. Your infrastructure matches the configuration."
+# 4. only then delete the old key
+```
+
+- **`delApiKey` takes URL-safe base64 of the key, unpadded.** `base64 -w0 | tr '+/' '-_' | tr -d '='`
+  → `200 deleted`. Standard base64 gave **404**, which reads like a missing endpoint rather than a
+  wrong encoding.
+- **The key list is a `key|hash` string, not an object.** `root.apikeys` comes back as
+  `"<key>|<hash>
+<key>|<hash>"`, so a `keys[]` over it fails; split on newlines, then on `|`.
+
+The API's 200 is not the proof — `tofu plan` answering "No changes" with the **new** pair from
+Secrets Manager is. The old key was deleted only after that.
 
 ## What `plan` cannot see
 
