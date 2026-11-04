@@ -10,6 +10,12 @@
 #   1. the k3s API VIP on 6443 - ANY http answer proves the control plane is alive
 #      (401 is normal: /readyz needs auth; a dead cluster gives no answer at all)
 #   2. the public status page - tunnel + cluster + edge, end to end
+#   4. a POST to /api/heartbeat, so the cluster knows THIS script is still running:
+#      Prometheus alerts on the staleness of router_heartbeat_last_seen_timestamp_seconds.
+#      Without it, the switch that pages when the cluster dies could stop silently, and
+#      silence is exactly what it exists to make meaningful. It cannot be done by the
+#      router watching itself; the timing has to come from the other side.
+#
 #   3. the FUNCTIONAL checks behind that page (/api/status) - a 200 page with a
 #      broken backend still looks healthy, and one of those checks is Alertmanager:
 #      "the estate alerts" vs "the estate is silent" is exactly the difference a
@@ -27,6 +33,7 @@ LOG="${LOG:-/var/log/homelab-heartbeat.log}"
 API_URL="${API_URL:-https://192.168.2.100:6443/readyz}"
 WEB_URL="${WEB_URL:-https://status.bismigel.dev/}"
 STATUS_URL="${STATUS_URL:-https://status.bismigel.dev/api/status}"
+BEAT_URL="${BEAT_URL:-https://status.bismigel.dev/api/heartbeat}"
 
 log() { echo "$(date '+%Y-%m-%dT%H:%M:%S') $*" >> "$LOG"; }
 
@@ -55,7 +62,13 @@ if [ "$api_ok" = 1 ] && [ "$web_ok" = 1 ] && [ "$bad_ok" = 1 ]; then now=up; els
 
 prev=$(cat "$STATE" 2>/dev/null || echo unknown)
 echo "$now" > "$STATE"
-log "check api=$api web=$web failing=${bad:-none} -> $now (was $prev)"
+# Beat first, and unconditionally: the cluster should be able to tell "the router is alive and
+# reporting" from "the router stopped", and that answer must not depend on whether the checks
+# happened to pass. 204 on success; anything else is logged and does not change the state.
+beat=$(curl -s -o /dev/null -w '%{http_code}' -X POST -m 10 "$BEAT_URL" 2>/dev/null)
+[ "$beat" = "204" ] || log "heartbeat POST returned ${beat:-000}"
+
+log "check api=$api web=$web failing=${bad:-none} beat=${beat:-000} -> $now (was $prev)"
 
 if [ "$now" != "$prev" ]; then
   if [ "$now" = "down" ]; then
