@@ -49,10 +49,36 @@ resource "opnsense_firewall_filter" "clients_dns" {
   }
 }
 
+# Media is served from the cluster on 192.168.2.81, which the rule below blocks - so a TV on
+# Wi-Fi could not reach Jellyfin at all. That is not a bug in the segmentation, it is the
+# segmentation working: before OPNsense landed on 2026-11-01 every device was flat on
+# 192.168.2.0/24 and a saved IP just worked.
+#
+# Scoped to one host and one port, and placed like the DNS rule: a pass that must exist before
+# the block, because order is the policy. Anything wider (all of 192.168.2.0/24, or "the media
+# node") would undo the reason this VLAN exists.
+#
+# The alternative for a client that never leaves the house is `https://jellyfin.bismigel.dev`,
+# which already works from this VLAN through the tunnel - it just hairpins out to Cloudflare and
+# back. This rule is for LAN speed and for working when the internet is down.
+resource "opnsense_firewall_filter" "clients_jellyfin" {
+  interface   = { interface = ["opt1"] }
+  description = "clients: Jellyfin on the media node (TCP 8096 only)"
+  sequence    = 3
+  filter = {
+    action      = "pass"
+    direction   = "in"
+    protocol    = "TCP"
+    ip_protocol = "inet"
+    source      = { net = local.clients_net }
+    destination = { net = "192.168.2.81", port = "8096" }
+  }
+}
+
 resource "opnsense_firewall_filter" "clients_block_mgmt" {
   interface   = { interface = ["opt1"] }
   description = "clients: everything else is blocked from 192.168.2.0/24"
-  sequence    = 3
+  sequence    = 4
   filter = {
     action      = "block"
     direction   = "in"
@@ -67,7 +93,7 @@ resource "opnsense_firewall_filter" "clients_block_mgmt" {
 resource "opnsense_firewall_filter" "clients_to_wan" {
   interface   = { interface = ["opt1"] }
   description = "clients: internet access (routed out via the default gateway)"
-  sequence    = 4
+  sequence    = 5
   filter = {
     action      = "pass"
     direction   = "in"
