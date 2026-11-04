@@ -187,9 +187,8 @@
     # Retired when .81 stops using mergerfs; keep until the rollback week is over.
     /mnt/media-sda        192.168.2.81(rw,sync,no_subtree_check,no_root_squash)
     # Backup disks (USB, 2026-10-28). .81 writes the weekly media mirror to the SD
-    # card; this host writes the R2 archive copy to the stick.
+    # card; this host writes the offline R2 copy to /mnt/scratch.
     /mnt/backup-sd        192.168.2.81(rw,sync,no_subtree_check,no_root_squash)
-    /mnt/backup-usb       192.168.2.81(rw,sync,no_subtree_check,no_root_squash)
   '';
 
   # Two USB disks used as a *weekly* backup target, not as mergerfs branches:
@@ -201,11 +200,11 @@
     fsType = "ext4";
     options = [ "nofail" "x-systemd.device-timeout=10s" ];
   };
-  fileSystems."/mnt/backup-usb" = {
-    device = "/dev/disk/by-uuid/6437190e-3bab-4a20-8e82-aeb3f8b2c73b";
-    fsType = "ext4";
-    options = [ "nofail" "x-systemd.device-timeout=10s" ];
-  };
+  # /mnt/backup-usb is gone as of 2026-11-03: that stick failed sustained writes (EPROTO
+  # under a 25 GB load) and was retired. Its mount and its NFS export are removed with it,
+  # because a unit for an absent device fails at boot and again on every rebuild — noise
+  # that trains people to ignore mount errors. The offline R2 copy writes to /mnt/scratch
+  # (`backup-local.nix`), not here, so nothing lost a target. Replacement: story 5.1.
 
   # Cloudflare tunnel. NOTE: this tunnel is **remote-managed** — routing is
   # configured in the Cloudflare dashboard/API and cloudflared pulls it, so the

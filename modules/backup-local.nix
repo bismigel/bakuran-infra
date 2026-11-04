@@ -1,12 +1,11 @@
 { config, pkgs, lib, ... }:
 
-# Weekly mirror onto the two USB disks attached to sitaw-amd (2026-10-28).
+# Weekly mirror onto the USB disk attached to sitaw-amd (2026-10-28, revised 2026-11-04).
 #
-# Why weekly, not nightly: these are an SD card and a USB stick. Both have no
-# write cache and no FUA (see dmesg), and both are on a 480 Mbps bus, so a run
-# costs hours and eats write endurance. Once a week with an incremental rsync is
-# the right trade for a device that is a *copy of last resort*, not a working
-# volume.
+# Why weekly, not nightly: the mirror target is an SD card with no write cache and no FUA
+# (see dmesg) and a 480 Mbps bus, so a run costs hours and eats write endurance. Once a week
+# with an incremental rsync is the right trade for a device that is a *copy of last resort*,
+# not a working volume.
 #
 # What is where, and why:
 #   .82  /mnt/media (LOCAL)        -> .82:/mnt/backup-sd/media     (938G SD card)
@@ -15,12 +14,13 @@
 # .82's 1.8 TB btrfs. On .81 they read /mnt/media over NFS from .82 and wrote it back
 # to .82's SD card - a pointless round trip over the wire, and it made the backup
 # depend on the network path that serves the apps.
-#   .82  R2 appdata/credentials    -> .82:/mnt/backup-usb/        (452G USB stick)
+#   .82  R2 appdata/credentials    -> .82:/mnt/scratch/backup-r2  (see r2Copy below)
 #
-# The media mirror runs on .81 because that is where the mergerfs union lives;
-# it writes over NFS to .82's disk. Doing it the other way round would make .82
-# read .81's union over NFS, and that union contains NFS mounts *back* to .82 -
-# a loop with no upside.
+# The media mirror reads .82's /mnt/media directly. It used to run on .81 and read the
+# library over NFS, a pointless round trip - and it made the backup depend on the network
+# path that serves the apps. /mnt/backup-usb is no longer a target: that stick was retired
+# on 2026-11-03 (it failed a 25 GB sustained write), and the R2 copy always wrote to
+# /mnt/scratch anyway - the comment claiming otherwise was stale.
 #
 # Failure is reported through homelab-alert@ (BackupFailed), the same path as
 # the R2 backups.
