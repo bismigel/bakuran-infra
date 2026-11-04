@@ -141,7 +141,7 @@ hand-applied today, so they are invisible to it:
 | dpinger monitor IP (`1.1.1.1`) | `System → Gateways` | WAN loss/latency only works because it points at a public responder; the ISP gateway drops ICMP |
 | Unbound DNSBL + DNSSEC + cache TTL | `Services → Unbound` | ad-blocking and validation |
 | `/etc/cron.d/dnsbl` | router filesystem | refreshes the blocklists |
-| heartbeat cron + token | `/usr/local/etc/homelab-heartbeat.sh` | the dead-man's switch that pages when the cluster is gone |
+| heartbeat cron + token | `/usr/local/etc/homelab-heartbeat.sh` | the dead-man's switch that pages when the cluster is gone. **Not expressible here even in principle:** `opnsense_cron_job` exists, but its `command` must be a registered OPNsense *command key* ("e.g. `firmware poll`"), and the provider has no resource for a file, a script or an `actions.d` key — checked against the pinned provider's schema on 2026-11-04. Declaring it needs the Ansible path or a decision to keep it manual. |
 
 None of these appear as drift, because drift is measured against what the code claims.
 Closing them means either adding them to the stack or accepting, in writing, that they are
