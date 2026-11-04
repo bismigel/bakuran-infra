@@ -163,8 +163,9 @@ hand-applied today, so they are invisible to it:
 | setting | where it lives | why it matters |
 |---|---|---|
 | dpinger monitor IP (`1.1.1.1`) | `System → Gateways` | WAN loss/latency only works because it points at a public responder; the ISP gateway drops ICMP |
-| Unbound DNSBL + DNSSEC + cache TTL | `Services → Unbound` | ad-blocking and validation |
-| `/etc/cron.d/dnsbl` | router filesystem | refreshes the blocklists |
+| Unbound **cache TTL** (`72000`) | `Services → Unbound` | ad-blocking cache behaviour. The **blocklist itself is now declared** (`unbound.tf`: `opnsense_unbound_dnsbl.oisd`, adopted 2026-11-04); TTL is not exposed by the provider in this resource or in `unbound_general` |
+| Unbound DNSSEC + other general settings | `Services → Unbound` | validation. `opnsense_unbound_general` exists and could cover some of it; not adopted yet |
+| `/etc/cron.d/dnsbl` | router filesystem | refreshes the blocklists — `cron_job.command` is a configd action, so the shell cron line cannot be declared (same limit as the heartbeat) |
 | heartbeat cron + token | `/usr/local/etc/homelab-heartbeat.sh` | the dead-man's switch that pages when the cluster is gone. **Not expressible here even in principle:** `opnsense_cron_job` exists, but its `command` must be a registered OPNsense *command key* ("e.g. `firmware poll`"), and the provider has no resource for a file, a script or an `actions.d` key — checked against the pinned provider's schema on 2026-11-04. Declaring it needs the Ansible path or a decision to keep it manual. |
 
 None of these appear as drift, because drift is measured against what the code claims.
