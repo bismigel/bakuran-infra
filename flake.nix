@@ -161,10 +161,9 @@
               "The tunnel's policy rules lost their explicit priorities. Without `pref` they land at 98/99, above `local` at 100, and the node stops answering its own LAN address (7 outages, 2026-10-25).";
             assert msg (nixpkgs.lib.hasInfix "while [ \"$i\" -lt 60 ]" postSetup)
               "postSetup lost its retry of the endpoint route. At boot the LAN device has no address yet, `ip route ... via GATEWAY` fails with 'Nexthop has invalid gateway', and because the unit is oneshot the node then boots with no tunnel and no egress (found by rebooting .81, 2026-10-28).";
-            # The IPv4-only rule now lives in the reconciler, which is what sets the peer.
-            # The peer is the reconciler's job now, so its IPv4-only rule and its endpoint are
-            # asserted by reading the generated script (below) - `script` is a store path here,
-            # so hasInfix would be searching a filename.
+            # The IPv4-only rule and the endpoint now live in the reconciler, whose `script`
+            # is a store path - hasInfix would be searching a filename - so they are read at
+            # build time below, along with a guard for the bug that produced this whole detour.
             # THE DECOUPLING, asserted. A peer in the unit carries the endpoint into the unit
             # definition, so replacing a dead server makes switch-to-configuration restart the
             # link - the operation behind seven outages. 176.113.74.82 dying cost a night on
@@ -190,7 +189,22 @@
               "bakuran.wireguard.endpoint must stay the declared/live endpoint.";
             assert msg (builtins.elem "sops-nix.service" nativeUnit.wants && builtins.elem "sops-nix.service" nativeUnit.after)
               "The wireguard-proton0 sops-nix ordering is missing: the unit reads its key from SOPS and would start keyless (outage 7's failure class).";
-          nixpkgs.legacyPackages.x86_64-linux.runCommand "wireguard-invariants-ok" { } "touch $out";
+          # Build-time reads of the generated scripts: `script` is a store path above, so grep is the
+          # only way to see the text. A stale copy of this block is what a silently no-op'd edit leaves.
+          nixpkgs.legacyPackages.x86_64-linux.runCommand "wireguard-invariants-ok" { } ''
+            grep -q "allowed-ips 0.0.0.0/0" ${reconcileScript} || {
+              echo "The reconciler no longer sets allowed-ips 0.0.0.0/0 (IPv4-only is deliberate, NETWORK.md 4)." >&2; exit 1; }
+            grep -q "84.20.16.29:51820" ${reconcileScript} || {
+              echo "The reconciler does not carry the current endpoint (84.20.16.29:51820, the server that answers since 176.113.74.82 died on 2026-11-03)." >&2; exit 1; }
+              # An unescaped shell default expansion inside a Nix indented string silently loses
+              # its braces: the reconciler's handshake guard rendered as the literal text hs:- ,
+              # could never match, and made a fresh interface log 'no handshake for 1793768305s -
+              # the endpoint or key is dead'. Escaping is the fix; this grep catches the next one.
+            if grep -qE 'case "[a-zA-Z_]+:-' ${reconcileScript}; then
+              echo "A shell default expansion lost its dollar-brace wrapper - Nix swallowed it. Escape it in the .nix source." >&2; exit 1
+            fi
+            touch $out
+          '';
       in
       base // {
         x86_64-linux = base.x86_64-linux // { inherit wireguard-invariants; };
