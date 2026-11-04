@@ -161,7 +161,11 @@
               "postSetup lost its retry of the endpoint route. At boot the LAN device has no address yet, `ip route ... via GATEWAY` fails with 'Nexthop has invalid gateway', and because the unit is oneshot the node then boots with no tunnel and no egress (found by rebooting .81, 2026-10-28).";
             assert msg (peer.allowedIPs == [ "0.0.0.0/0" ])
               "The tunnel is IPv4-only on purpose (NETWORK.md 4); ::/0 blackholes.";
-            assert msg (peer.endpoint == "176.113.74.82:51820")
+            # Tripwire, duplicated on purpose: an independent copy of a fact that also lives in
+            # hosts/calamansi-intel/default.nix and NETWORK.md. A check reading the same source it
+            # constrains could not fail. 176.113.74.82 died on 2026-11-03 (PR #244), so this moved
+            # with the peer - as a deliberate edit, which is the point.
+            assert msg (peer.endpoint == "84.20.16.29:51820")
               "bakuran.wireguard.endpoint must stay the declared/live endpoint.";
             assert msg (builtins.elem "sops-nix.service" nativeUnit.wants && builtins.elem "sops-nix.service" nativeUnit.after)
               "The wireguard-proton0 sops-nix ordering is missing: the unit reads its key from SOPS and would start keyless (outage 7's failure class).";
