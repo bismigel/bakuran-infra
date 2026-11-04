@@ -140,7 +140,9 @@
           (system: deployLib: deployLib.deployChecks self.deploy)
           deploy-rs.lib;
         ci = self.nixosConfigurations.calamansi-intel.config;
-          peer = builtins.head ci.networking.wireguard.interfaces.proton0.peers;
+          wgIface = ci.networking.wireguard.interfaces.proton0;
+          unitScript = ci.systemd.services."wireguard-proton0".script;
+          reconcileScript = ci.systemd.services.wireguard-reconcile.script;
           nativeUnit = ci.systemd.services."wireguard-proton0";
           postSetup = ci.networking.wireguard.interfaces.proton0.postSetup;
           msg = nixpkgs.lib.assertMsg;
@@ -159,13 +161,32 @@
               "The tunnel's policy rules lost their explicit priorities. Without `pref` they land at 98/99, above `local` at 100, and the node stops answering its own LAN address (7 outages, 2026-10-25).";
             assert msg (nixpkgs.lib.hasInfix "while [ \"$i\" -lt 60 ]" postSetup)
               "postSetup lost its retry of the endpoint route. At boot the LAN device has no address yet, `ip route ... via GATEWAY` fails with 'Nexthop has invalid gateway', and because the unit is oneshot the node then boots with no tunnel and no egress (found by rebooting .81, 2026-10-28).";
-            assert msg (peer.allowedIPs == [ "0.0.0.0/0" ])
-              "The tunnel is IPv4-only on purpose (NETWORK.md 4); ::/0 blackholes.";
+            # The IPv4-only rule now lives in the reconciler, which is what sets the peer.
+            # The peer is the reconciler's job now, so its IPv4-only rule and its endpoint are
+            # asserted by reading the generated script (below) - `script` is a store path here,
+            # so hasInfix would be searching a filename.
+            # THE DECOUPLING, asserted. A peer in the unit carries the endpoint into the unit
+            # definition, so replacing a dead server makes switch-to-configuration restart the
+            # link - the operation behind seven outages. 176.113.74.82 dying cost a night on
+            # 2026-11-03 precisely because of that coupling.
+            assert msg (wgIface.peers == [ ])
+              "The unit declares a peer again. That puts the endpoint back inside the unit definition, so replacing a dead server restarts the tunnel (NETWORK.md 7.1). Peer/endpoint belong to modules/wireguard-reconcile.nix.";
+            assert msg (nixpkgs.lib.hasInfix "/etc/wireguard/endpoint-ip" wgIface.postSetup)
+              "postSetup no longer reads /etc/wireguard/endpoint-ip. Interpolating the endpoint IP makes the unit definition change whenever the endpoint does, and activation then restarts the tunnel.";
+            # The unit's script must not mention the endpoint at all: if it does, the peer came
+            # back and an endpoint change restarts the link again.
+            assert msg (!(nixpkgs.lib.hasInfix "84.20.16.29" unitScript))
+              "The tunnel unit's script contains the endpoint again; replacing a dead server would restart the link (NETWORK.md 7.1).";
+            # The peer's public key is the other half of the same coupling: a peer in the unit
+            # brings its endpoint with it. Neither value may appear in the unit's script.
+            assert msg (!(nixpkgs.lib.hasInfix ci.bakuran.wireguard.peerPublicKey unitScript))
+              "The tunnel unit's script contains the peer public key, so a peer is declared in the unit again - and its endpoint with it.";
+            assert msg (ci.environment.etc."wireguard/endpoint-ip".text == "84.20.16.29")
+              "/etc/wireguard/endpoint-ip disagrees with bakuran.wireguard.endpoint; postSetup would pin the wrong address.";
             # Tripwire, duplicated on purpose: an independent copy of a fact that also lives in
             # hosts/calamansi-intel/default.nix and NETWORK.md. A check reading the same source it
-            # constrains could not fail. 176.113.74.82 died on 2026-11-03 (PR #244), so this moved
-            # with the peer - as a deliberate edit, which is the point.
-            assert msg (peer.endpoint == "84.20.16.29:51820")
+            # constrains could not fail.
+            assert msg (ci.bakuran.wireguard.endpoint == "84.20.16.29:51820")
               "bakuran.wireguard.endpoint must stay the declared/live endpoint.";
             assert msg (builtins.elem "sops-nix.service" nativeUnit.wants && builtins.elem "sops-nix.service" nativeUnit.after)
               "The wireguard-proton0 sops-nix ordering is missing: the unit reads its key from SOPS and would start keyless (outage 7's failure class).";

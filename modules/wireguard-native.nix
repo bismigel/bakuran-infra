@@ -64,17 +64,29 @@ in
       wants = [ "sops-nix.service" "network-online.target" ];
       after = [ "sops-nix.service" "network-online.target" ];
     };
+
+    # The endpoint IP as a FILE, not as text in the unit.
+    #
+    # On 2026-11-03 the Proton server at 176.113.74.82 went silent for good. Because the
+    # endpoint was interpolated into the unit definition, replacing it changed that
+    # definition, so `switch-to-configuration` restarts the unit - which deletes and
+    # recreates the link, the operation that has stranded this node seven times
+    # (NETWORK.md 7.1). A dead server must not be a maintenance window.
+    #
+    # Writing it to /etc is a content change: activation rewrites the file and leaves
+    # the unit alone. postSetup reads it at start.
+    environment.etc."wireguard/endpoint-ip".text = epIp;
     networking.wireguard.interfaces.${cfg.interface} = {
       ips = [ "10.2.0.2/32" ];
       # Overridable so this module can be booted in staging with a throwaway
       # key. In production it stays the SOPS secret.
       privateKeyFile = cfg.privateKeyFile;
-      peers = [{
-        publicKey = cfg.peerPublicKey;
-        allowedIPs = [ "0.0.0.0/0" ];
-        endpoint = cfg.endpoint;
-        persistentKeepalive = 25;
-      }];
+      # NO peers declared here, deliberately. A peer carries the endpoint, so
+      # declaring one puts the endpoint back inside the unit definition and drags the
+      # restart back with it (see environment.etc."wireguard/endpoint-ip" below).
+      # Peer, endpoint and allowed-ips are owned by modules/wireguard-reconcile.nix,
+      # which enforces all three every 60s and never restarts the link.
+      peers = [ ];
 
       # networking.wireguard does not install kernel routes: allowedIPs only tells
       # WireGuard what to encrypt. These reproduce exactly what wg-quick did
@@ -105,15 +117,18 @@ in
         #
         # So retry the pin instead of assuming. No grep/seq: the unit's PATH is
         # minimal and `ip` is the only tool guaranteed to be here.
+        # The endpoint IP is read, not baked in, so this text stays identical when the
+        # endpoint changes (see environment.etc."wireguard/endpoint-ip").
+        EPIP=$(cat /etc/wireguard/endpoint-ip)
         ok=0
         i=0
         while [ "$i" -lt 60 ]; do
-          if ip route replace ${epIp}/32 via ${cfg.gateway} dev ${cfg.device} table main 2>/dev/null; then ok=1; break; fi
+          if ip route replace "$EPIP/32" via ${cfg.gateway} dev ${cfg.device} table main 2>/dev/null; then ok=1; break; fi
           i=$((i + 1))
           sleep 1
         done
         if [ "$ok" -ne 1 ]; then
-          echo "wireguard-native: ${cfg.device} never became usable for ${epIp} via ${cfg.gateway} - refusing to blackhole the node" >&2
+          echo "wireguard-native: ${cfg.device} never became usable for $EPIP via ${cfg.gateway} - refusing to blackhole the node" >&2
           exit 1
         fi
         ip route replace default dev ${cfg.interface} table 51820
