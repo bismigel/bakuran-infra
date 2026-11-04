@@ -168,6 +168,14 @@ hand-applied today, so they are invisible to it:
 | `/etc/cron.d/dnsbl` | router filesystem | refreshes the blocklists — `cron_job.command` is a configd action, so the shell cron line cannot be declared (same limit as the heartbeat) |
 | heartbeat cron + token | `/usr/local/etc/homelab-heartbeat.sh` | the dead-man's switch that pages when the cluster is gone. **Not expressible here even in principle:** `opnsense_cron_job` exists, but its `command` must be a registered OPNsense *command key* ("e.g. `firmware poll`"), and the provider has no resource for a file, a script or an `actions.d` key — checked against the pinned provider's schema on 2026-11-04. Declaring it needs the Ansible path or a decision to keep it manual. |
 
+Also **adoptable but deliberately not adopted yet**:
+
+| what | resource | why it waits |
+|---|---|---|
+| interface assignments (`wan`, `lan`, `opt1`) | `opnsense_interface_assignment` | it *adopts* an existing assignment and cannot create one, so the UI still starts the interface. Its docs say to manage only a non-management interface "whose addressing can safely be changed"; `opt1` carries the TV and the admin laptop, and the staging host is down, so there is nowhere to rehearse it. Import-first would give a no-change plan, but a no-change plan "does not validate activation or packet behaviour" — the provider's own words |
+| Unbound DNSSEC + general settings | `opnsense_unbound_general` | import fails with `Error reading the Unbound DNS settings` while the endpoint answers 200 to curl (filed as an upstream gap) |
+| router monitoring | `opnsense_monit_test` / `_service` / `_alert` | Monit is not running and has no alert transport configured. A test whose alert goes nowhere is decoration, and the router-side witness already speaks through `homelab-heartbeat.sh` |
+
 None of these appear as drift, because drift is measured against what the code claims.
 Closing them means either adding them to the stack or accepting, in writing, that they are
 manual — the failure mode to avoid is believing `plan` is clean therefore the router is
