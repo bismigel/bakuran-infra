@@ -69,6 +69,14 @@ if ($idx === null) { echo "NO_ROOT_USER\n"; exit(3); }
 # --- authorized keys: the union, never a replacement ---
 $have = (string)($config['system']['user'][$idx]['authorizedkeys'] ?? '');
 $lines = preg_split('/\r?\n/', $have, -1, PREG_SPLIT_NO_EMPTY);
+// OPNsense 26.7 stores each authorized key base64-encoded; 26.1 stored plaintext. Decode
+// when the value looks like an encoded key, so the comparison works on both - otherwise
+// every audit after the 26.7 upgrade reports "1 key(s) missing" on a router that has it
+// (found 2026-11-03, the hour the router was upgraded).
+$lines = array_map(function ($l) {
+    $d = base64_decode($l, true);
+    return ($d !== false && preg_match('/^(ssh-|ecdsa-|sk-)/', $d)) ? $d : $l;
+}, $lines);
 $missing = [];
 foreach (preg_split('/\r?\n/', $wantKeys, -1, PREG_SPLIT_NO_EMPTY) as $k) {
     if (!in_array($k, $lines, true)) { $missing[] = $k; }
