@@ -8,6 +8,19 @@ This repo is the **NixOS machine configuration** for the Bakuran homelab.
 Cluster *content* (what runs on top of k3s) lives in **`bakuran-gitops`**, not
 here. This repo only defines the machines.
 
+<!-- bmad:context -->
+Work is planned in `homelab-context`, not here: every story in its store carries `repo:` and names
+`bakuran-infra` when the change is a host module, a NixOS service or a deploy. Rules that hold:
+
+- **Facts live in `homelab-context`** (`NETWORK.md`, `STORAGE.md`, `SYSTEM.md`, `STATE.md`); this
+  repo holds the code and the reasons live in its ADRs.
+- **A change is not done until its `verify:` ran** — `preflight-wg.sh`, a flake check, or a command
+  whose output is pasted into the ticket. Not "the deploy exited 0".
+- **Check the deploy's blast radius first**: `scripts/preflight-wg.sh` is the gate for anything
+  touching `.81`, and `deploy-rs --boot` + reboot is the tested path when the tunnel unit changes.
+- **Never assert a cause without a command that shows it.**
+<!-- /bmad:context -->
+
 ## Layout
 
 ```
