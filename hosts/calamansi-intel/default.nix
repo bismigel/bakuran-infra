@@ -122,8 +122,12 @@
   # Single source of truth for the tunnel's desired state; the reconciler
   # enforces it every 60s. Change the endpoint here and in the peer below.
   bakuran.wireguard = {
-    endpoint      = "176.113.74.82:51820";
-    peerPublicKey = "nLx6LJgXWOtnlKV65ruYMGjiw4DERImZGCpN3lolm1I=";
+    # 176.113.74.82 stopped answering on 2026-11-03: initiations left .81 and nothing
+    # came back, and a *different key* against that same endpoint was equally silent -
+    # so the server was dead, not our key. This endpoint handshook on the first try
+    # when tried as a fallback (see modules/wireguard-fallback.nix).
+    endpoint      = "84.20.16.29:51820";
+    peerPublicKey = "uUM9J8bziO0yZfsdYoruEfP3m6YuSu+Mek9W/J8mT1Y=";
   };
 
   # The tunnel is IPv4-only on purpose: the peer gets allowedIPs 0.0.0.0/0 and the
