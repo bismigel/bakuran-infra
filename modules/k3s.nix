@@ -66,8 +66,11 @@
           [ "''${health% *}" = "''${health#* }" ] || { echo "cilium health not full: $health"; exit 1; }
           ${pkgs.curl}/bin/curl -fsSL -o /dev/null --max-time 15 https://bismigel.dev/ \
             || { echo "public edge unreachable (https://bismigel.dev/)"; exit 1; }
-          ${pkgs.curl}/bin/curl -fsSL -o /dev/null --max-time 10 http://192.168.2.81:8096/ \
-            || { echo "jellyfin unreachable (http://192.168.2.81:8096/)"; exit 1; }
+          # The kube-vip service address, not `.81`: Jellyfin is reschedulable now, so a check pinned
+          # to the node it used to run on would fail for the right reason at the wrong time (and, for
+          # one afternoon, passed from inside the cluster while every real client timed out).
+          ${pkgs.curl}/bin/curl -fsSL -o /dev/null --max-time 10 http://192.168.2.84:8096/ \
+            || { echo "jellyfin unreachable (http://192.168.2.84:8096/)"; exit 1; }
           echo "smoke test passed"
         '';
       };

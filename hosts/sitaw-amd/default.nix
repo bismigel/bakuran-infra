@@ -93,6 +93,11 @@
     # Cloudflare and the WAF with a Host header.
     allowedTCPPorts = [ 22 6443 80 443 4240 4244 ];
     allowedUDPPorts = [ 8472 ];
+    # 8096 on the LAN NIC only, since 2026-11-05 (story 8.3): Jellyfin is served at the kube-vip
+    # service address 192.168.2.84, which any node may hold. This is *not* a NodePort exception —
+    # the edge lock above still keeps NodePorts loopback-only; it is the one service VIP the estate
+    # exposes to the LAN, because TV clients cannot use Cloudflare Access.
+    interfaces.enp8s0.allowedTCPPorts = [ 8096 ];
     # `extraCommands` is defined in modules/base.nix; mkAfter appends instead of
     # conflicting with it.
     extraCommands = lib.mkAfter ''

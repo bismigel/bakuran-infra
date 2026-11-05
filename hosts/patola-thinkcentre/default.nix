@@ -93,6 +93,12 @@
     # 192.168.2.81-84 (+ pod CIDR for kubelet) via firewall.extraCommands.
     allowedTCPPorts = [ 22 6443 4240 4244 ];
     allowedUDPPorts = [ 8472 ];
+    # 8096 on the LAN NIC only, since 2026-11-05 (story 8.3). Jellyfin is reachable at the kube-vip
+    # service address 192.168.2.84, which any node may hold — `.80` was the node it landed on, and its
+    # firewall allowed only 22/6443/4240/4244, so the VIP answered ICMP and timed out on TCP. The
+    # cluster's own nodes masked this: their IPVS intercepts the VIP locally, so they returned 200
+    # while every real client got nothing.
+    interfaces.eno1.allowedTCPPorts = [ 8096 ];
   };
 
   # SOPS: host key = age identity; k3s cluster token comes from Bitwarden-backed
