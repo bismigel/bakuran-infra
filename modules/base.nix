@@ -93,6 +93,7 @@
     xfsprogs
   ];
 
+
   # ---- Longhorn (distributed storage) prerequisites ----
   # open-iscsi initiator + iscsid; Longhorn attaches volumes over iSCSI.
   # dm_crypt: Longhorn's node condition ("KernelModulesLoaded") lists it as required
@@ -267,6 +268,37 @@
     "L+ /usr/bin/iscsiadm  - - - - ${pkgs.openiscsi}/bin/iscsiadm"
     "L+ /usr/sbin/iscsiadm - - - - ${pkgs.openiscsi}/bin/iscsiadm"
     "d /root/.config 0700 root root -"
+
+    # Longhorn RWX volumes are NFS exports served by a `share-manager` pod, so the *node* mounts
+    # NFS when a pod claims one — and `mount -t nfs` resolves its helper at a fixed path,
+    # /sbin/mount.nfs. NixOS has no /sbin at all, and k3s runs with a restricted store PATH that
+    # excludes the system profile, so the mount fails before NFS is attempted:
+    # `mount failed: exit status 127` (127 is "command not found" wearing a mount error's clothes).
+    # Measured 2026-11-05 with two pods on different nodes and one RWX PVC.
+    #
+    # `d /sbin` is not decoration — the helper cannot be linked into a directory that does not
+    # exist. Nothing else here uses /sbin, so an otherwise-empty one costs nothing.
+    #
+    # This also explains why every media mount in the estate is a `hostPath` rather than an in-pod
+    # NFS volume: the in-pod mechanism never worked.
+    # Round two, same reason: the mount is performed by Longhorn's CSI plugin, which runs
+    # `nsenter … mount -t nfs …` and resolves `mount` on the FHS path. NixOS puts it only in
+    # /run/current-system/sw/bin (not on that PATH), so the exec itself fails with ENOENT:
+    #   nsenter: failed to execute mount: No such file or directory
+    # So the helpers go where a container expects a Linux filesystem to have them. /usr/bin and
+    # /usr/sbin are otherwise unused on these nodes; nothing in NixOS resolves through them, so
+    # these symlinks cannot shadow the system profile.
+    "d /sbin 0755 root root -"
+    "L+ /sbin/mount - - - - ${pkgs.util-linux}/bin/mount"
+    "L+ /sbin/umount - - - - ${pkgs.util-linux}/bin/umount"
+    "L+ /sbin/mount.nfs - - - - ${pkgs.nfs-utils}/bin/mount.nfs"
+    "L+ /sbin/mount.nfs4 - - - - ${pkgs.nfs-utils}/bin/mount.nfs4"
+    "d /usr/bin 0755 root root -"
+    "d /usr/sbin 0755 root root -"
+    "L+ /usr/bin/mount - - - - ${pkgs.util-linux}/bin/mount"
+    "L+ /usr/bin/umount - - - - ${pkgs.util-linux}/bin/umount"
+    "L+ /usr/sbin/mount.nfs - - - - ${pkgs.nfs-utils}/bin/mount.nfs"
+    "L+ /usr/sbin/mount.nfs4 - - - - ${pkgs.nfs-utils}/bin/mount.nfs4"
   ];
 
   # R2 credential-backup config (creds + backup age recipient), rendered from
