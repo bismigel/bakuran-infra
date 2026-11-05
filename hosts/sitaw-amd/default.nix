@@ -179,10 +179,15 @@
   # directories where books and audiobooks actually live - a silent, plausible-looking
   # way to lose the two collections that cannot be re-downloaded.
   services.nfs.server.enable = true;
+  # `192.168.2.0/24` instead of `.81` alone, since 2026-11-05 (story 8.3). The library is now
+  # mounted *inside* pods rather than through a hostPath on `.81`, so the export has to serve
+  # whichever node the pod lands on — that is the whole point of making Jellyfin reschedulable.
+  # Narrower than it looks: it is the LAN, no routing is involved, and the same `no_root_squash`
+  # rationale applies (the *arr containers run as UID 0 — measured 2026-11-04).
   services.nfs.server.exports = ''
-    /mnt/media            192.168.2.81(rw,sync,no_subtree_check,no_root_squash)
-    /mnt/media/books      192.168.2.81(rw,sync,no_subtree_check,no_root_squash)
-    /mnt/media/audiobooks 192.168.2.81(rw,sync,no_subtree_check,no_root_squash)
+    /mnt/media            192.168.2.0/24(rw,sync,no_subtree_check,no_root_squash)
+    /mnt/media/books      192.168.2.0/24(rw,sync,no_subtree_check,no_root_squash)
+    /mnt/media/audiobooks 192.168.2.0/24(rw,sync,no_subtree_check,no_root_squash)
     /mnt/media-snapshots  192.168.2.81(ro,sync,no_subtree_check,no_root_squash)
     # Retired when .81 stops using mergerfs; keep until the rollback week is over.
     /mnt/media-sda        192.168.2.81(rw,sync,no_subtree_check,no_root_squash)
