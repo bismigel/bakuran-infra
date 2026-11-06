@@ -41,10 +41,20 @@ resource "opnsense_unbound_dnsbl" "oisd" {
 #
 # This adds nothing to the firewall: VLAN 20 -> 192.168.2.81:8096 was already permitted
 # (firewall-clients.tf, 2026-11-04). A name is not a hole; it is a name.
+#
+# **Changed 2026-11-05 from `192.168.2.81` to the load-balancer VIP `192.168.2.84`** (story 8.3). The name used
+# to resolve to a node, and Jellyfin's LAN path was that node's `hostPort` — which exists only while the pod runs
+# *there*. So the one address the TV knows was pinned to one machine, and moving the pod (a drain, a reimage, a
+# node loss) broke the TV while the cluster was perfectly healthy. That is the whole of what "not HA" meant for
+# this app: the storage was already shared (config on Longhorn, library over NFS to `.82`).
+#
+# The VIP now carries TCP — see homelab-context ADR-style note in `docs/2026-11-05-immich-ha.md`'s sibling for
+# 8.6, `manifest/network-policies/jellyfin-lan-nodes.yaml` in bakuran-gitops for the policy reason — so the name
+# can point at something that follows the pod instead of at the pod.
 resource "opnsense_unbound_host_override" "jellyfin_lan" {
   hostname    = "jellyfin"
   domain      = "lan"
   rr          = "A"
-  server      = "192.168.2.81"
-  description = "Jellyfin on the media node, for LAN clients (use http://jellyfin.lan:8096)"
+  server      = "192.168.2.84"
+  description = "Jellyfin via the kube-vip LoadBalancer address, for LAN clients (http://jellyfin.lan:8096)"
 }
