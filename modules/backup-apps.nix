@@ -56,9 +56,21 @@ let
     dump_live duwende hermes   /opt/data      hermes
     # Immich — the DB must be dumped (never file-copied) and the photo library
     # lives on the server pod's upload volume.
-    if $K -n immich exec immich-postgres-0 -- sh -c \
-         'PGPASSWORD="$POSTGRES_PASSWORD" pg_dump -U immich -h 127.0.0.1 -d immich' \
-         2>/dev/null | gzip > "$w/immich-db.sql.gz"; then
+    #
+    # The database is a CloudNativePG cluster since story 8.2, so this asks for
+    # whichever pod currently holds the primary rather than a fixed name. It used
+    # to exec into `immich-postgres-0`, which no longer exists: from 2026-11-05
+    # that line reported SKIP every night and the estate's most irreplaceable
+    # database had no backup at all — the job failed loudly, which is the only
+    # reason it was found.
+    #
+    # `pg_dump` over the local socket as the `postgres` superuser needs no
+    # password and is unaffected by a promotion (the label follows the role).
+    if $K -n immich get pod -l cnpg.io/cluster=immich-pg,role=primary \
+         -o jsonpath='{.items[0].metadata.name}' > "$w/pgpod" 2>/dev/null \
+       && [ -s "$w/pgpod" ] \
+       && $K -n immich exec "$(cat "$w/pgpod")" -c postgres -- \
+            pg_dump -U postgres -d immich 2>/dev/null | gzip > "$w/immich-db.sql.gz"; then
       echo "  immich-db ok ($(du -h "$w/immich-db.sql.gz" | cut -f1))"
     else
       echo "  immich-db SKIP"; rm -f "$w/immich-db.sql.gz"; failed=$((failed + 1))
