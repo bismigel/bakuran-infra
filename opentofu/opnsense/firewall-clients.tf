@@ -46,8 +46,8 @@ resource "opnsense_firewall_filter_rule" "clients_dns" {
   destination_port = "53"
 }
 
-# Media is served from the cluster on 192.168.2.81, which the rule below blocks - so a TV on
-# Wi-Fi could not reach Jellyfin at all. That is not a bug in the segmentation, it is the
+# Media is served from the cluster, which the rule below blocks - so a TV on Wi-Fi could not
+# reach Jellyfin at all. That is not a bug in the segmentation, it is the
 # segmentation working: before OPNsense landed on 2026-11-01 every device was flat on
 # 192.168.2.0/24 and a saved IP just worked.
 #
@@ -60,14 +60,20 @@ resource "opnsense_firewall_filter_rule" "clients_dns" {
 # back. This rule is for LAN speed and for working when the internet is down.
 resource "opnsense_firewall_filter_rule" "clients_jellyfin" {
   interface        = ["opt1"]
-  description      = "clients: Jellyfin on the media node (TCP 8096 only)"
+  description      = "clients: Jellyfin via the cluster VIP (TCP 8096 only)"
   sequence         = 3
   action           = "pass"
   direction        = "in"
   protocol         = "TCP"
   ip_protocol      = "inet"
   source_net       = local.clients_net
-  destination_net  = "192.168.2.81"
+  # The **VIP**, not the media node (2026-11-06). `jellyfin.lan` moved to `192.168.2.84` when the cluster gained a
+  # kube-vip address that follows the pod (stories 8.3/8.6), and this rule kept pointing at `.81` — so the TV's name
+  # resolved to an address the clients VLAN blocks. Nothing failed loudly: the admin laptop is allowed all of
+  # 192.168.2.0/24 by the rule above, so every curl from it returned 200 while a TV could not load a single page.
+  # That is the "one PR changes the host rule and the router rule" coupling NETWORK-AS-CODE.md warns about, found by
+  # reading the ruleset instead of testing from the one address that is exempt from it.
+  destination_net  = "192.168.2.84"
   destination_port = "8096"
 }
 
