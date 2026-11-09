@@ -8,6 +8,37 @@
       "L+ /opt/cni/bin/portmap - - - - /var/lib/rancher/k3s/data/current/bin/cni"
     ];
 
+    # Audit policy (story 10.2). Deliberately small: Metadata for everything answers "who did what", and Request
+    # level for Secrets alone answers "who read which credential" - which is the question an incident actually asks.
+    # Request level on everything would write cluster-wide object bodies to disk.
+    environment.etc."k3s/audit-policy.yaml".text = ''
+      apiVersion: audit.k8s.io/v1
+      kind: Policy
+      omitStages:
+        - RequestReceived
+      rules:
+        # The API server's own chatter, and Cilium's constant watches, are noise.
+        - level: None
+          users: ["system:kube-proxy", "system:apiserver"]
+        - level: None
+          userGroups: ["system:unauthenticated"]
+        # Credential access is the thing worth a body: this is how a leak becomes attributable.
+        - level: Request
+          resources:
+            - group: ""
+              resources: ["secrets"]
+        # Workloads reading their own metadata do not need an entry each.
+        - level: None
+          resources:
+            - group: ""
+              resources: ["endpoints", "services", "services/status"]
+          users: ["system:kube-proxy"]
+        # Everything else: who, what, when, result - no bodies.
+        - level: Metadata
+          omitStages:
+            - RequestReceived
+    '';
+
     services.k3s.package = unstable.legacyPackages.${pkgs.stdenv.hostPlatform.system}.k3s;
 
     environment.systemPackages = with pkgs; [

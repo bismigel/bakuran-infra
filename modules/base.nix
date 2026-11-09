@@ -315,10 +315,13 @@
   # Cap it here so a chatty unit cannot grind the root filesystem down; 500M is
   # ~2 weeks of normal homelab output and leaves plenty of history for
   # `journalctl -u k3s` after an incident.
+  # 500M was small enough that a specific past hour stopped being answerable within days: on 2026-11-06 the journal
+  # on .81 held no entries from five days earlier, which is why a Cloudflare bandwidth question could not be
+  # investigated locally (story 10.6). 2G is the ceiling, not the target - journald also enforces its own cap.
   services.journald.extraConfig = ''
-    SystemMaxUse=500M
+    SystemMaxUse=2G
     SystemMaxFileSize=50M
-    MaxRetentionSec=2week
+    MaxRetentionSec=30day
     Compress=yes
   '';
 
