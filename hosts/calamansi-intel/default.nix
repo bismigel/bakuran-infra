@@ -225,6 +225,19 @@
       "--advertise-address=192.168.2.81"
       # The API VIP (kube-vip, gitops manifests/base/monitoring/kube-vip.yaml) has to be
       # in the serving certificate or clients get a TLS name error.
+      # Secrets are encrypted at rest (story 10.1). Without this every Secret is stored as plaintext JSON in
+      # etcd, and every etcd snapshot inherits that - so anything holding a backup could read every credential in
+      # the cluster. k3s encrypts on write from the moment this starts; existing Secrets are re-encrypted with
+      # `k3s secrets-encrypt reencrypt`.
+      "--secrets-encryption"
+      # An audit trail (story 10.2). There was none: "who deleted that" and "who read that Secret" had no answer.
+      # Metadata level for everything, Request level for Secrets only - enough to answer both without logging
+      # every request body in the cluster.
+      "--audit-policy-file=/etc/k3s/audit-policy.yaml"
+      "--audit-log-path=/var/log/k3s-audit.log"
+      "--audit-log-maxage=30"
+      "--audit-log-maxbackup=10"
+      "--audit-log-maxsize=100"
       "--tls-san=192.168.2.100"
       "--flannel-backend=none"
       "--disable-network-policy"
