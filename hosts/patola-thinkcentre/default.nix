@@ -73,11 +73,17 @@
       # An audit trail (story 10.2). There was none: "who deleted that" and "who read that Secret" had no answer.
       # Metadata level for everything, Request level for Secrets only - enough to answer both without logging
       # every request body in the cluster.
-      "--audit-policy-file=/etc/k3s/audit-policy.yaml"
-      "--audit-log-path=/var/log/k3s-audit.log"
-      "--audit-log-maxage=30"
-      "--audit-log-maxbackup=10"
-      "--audit-log-maxsize=100"
+      # Not `--audit-policy-file`: k3s v1.34.5 does not define those as server flags (the first deploy attempt
+      # rolled back with `Incorrect Usage: flag provided but not defined: -audit-policy-file`). They are kube-apiserver
+      # flags, so they go through `--kube-apiserver-arg`, which is what k3s exposes for exactly this.
+      #
+      # The rollback is worth recording as a thing that worked: deploy-rs restored the previous generation, k3s came
+      # back healthy on all three nodes, and nothing needed a human at a console.
+      "--kube-apiserver-arg=audit-policy-file=/etc/k3s/audit-policy.yaml"
+      "--kube-apiserver-arg=audit-log-path=/var/log/k3s-audit.log"
+      "--kube-apiserver-arg=audit-log-maxage=30"
+      "--kube-apiserver-arg=audit-log-maxbackup=10"
+      "--kube-apiserver-arg=audit-log-maxsize=100"
       "--tls-san=192.168.2.100"
       "--flannel-backend=none"
       "--disable-network-policy"
