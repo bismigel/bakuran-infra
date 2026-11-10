@@ -1,0 +1,61 @@
+---
+# Suricata: off today, and the estate never decided *whether* that is right.
+#
+# Story 10.4's sibling. `HARDENING.md` records IDS as disabled; what is missing is the decision, not the capability.
+# This play makes the decision explicit and reversible: default is `off`, and turning it on is one variable.
+#
+#   ./run.sh playbooks/ids.yml -e ids_block=true --check --diff
+#
+# `ids_block: true` is IPS (drop), `false` is IDS (alert only). Start with alert-only: a blocking ruleset whose false
+# positives nobody has tuned will stop the TV from reaching Jellyfin long before it stops an attacker.
+- name: Intrusion detection on the router
+  hosts: router
+  gather_facts: false
+  # Credentials come from the environment (`run.sh` fills them from Bitwarden Secrets Manager); nothing is written to
+  # disk. Two corrections found by running this: `module_defaults` is a **reserved** name and cannot live in
+  # group_vars ("Found variable using reserved name 'module_defaults'"), and the collection's
+  # `group/ansibleguy.opnsense.all` action group only extends its *grouped* roles — `snapshot`, `package`, `service`
+  # and `ids_general` are in no group, so each has to be listed or the play fails with `missing required arguments:
+  # firewall`.
+  module_defaults:
+    group/ansibleguy.opnsense.all: &opn
+      firewall: "{{ ansible_host }}"
+      api_key: "{{ lookup('env', 'OPNSENSE_API_KEY') }}"
+      api_secret: "{{ lookup('env', 'OPNSENSE_API_SECRET') }}"
+      # The box serves a self-signed certificate on :443. Verification is off on purpose, and stated rather than implied.
+      ssl_verify: false
+    ansibleguy.opnsense.snapshot: *opn
+    ansibleguy.opnsense.package: *opn
+    ansibleguy.opnsense.service: *opn
+    ansibleguy.opnsense.ids_general: *opn
+  vars:
+    ids_enabled: true          # run the engine at all
+    ids_block: false           # false = IDS (alert), true = IPS (drop)
+    ids_interfaces: [wan]      # physical interfaces only — the module refuses vlans here
+  tasks:
+    - name: Snapshot before changing anything
+      ansible.builtin.uri:
+        url: "https://{{ ansible_host }}/api/core/backup/backups/backup"
+        method: POST
+        user: "{{ lookup('env', 'OPNSENSE_API_KEY') }}"
+        password: "{{ lookup('env', 'OPNSENSE_API_SECRET') }}"
+        force_basic_auth: true
+        validate_certs: false
+        body_format: form-urlencoded
+        body: { backuparea: "/conf/config.xml" }
+        status_code: [200]
+      changed_when: false
+      tags: [always]
+
+    - name: IDS/IPS state matches the decision
+      ansibleguy.opnsense.ids_general:
+        interfaces: "{{ ids_interfaces }}"
+        block: "{{ ids_block | bool }}"
+      register: ids
+
+    - name: Report the decision that is now in force
+      ansible.builtin.debug:
+        msg: >-
+          Suricata is enabled on {{ ids_interfaces | join(', ') }} in
+          {{ 'IPS (blocking)' if (ids_block | bool) else 'IDS (alert-only)' }} mode.
+          HARDENING.md must say the same thing.
