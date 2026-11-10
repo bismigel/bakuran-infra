@@ -1,0 +1,5 @@
+# No variables are needed for this root: the API credentials come from the environment, filled by `run.sh` from
+# Bitwarden Secrets Manager (same key/secret pair as `opentofu/opnsense/env.sh`), and the module defaults live in each
+# play — `module_defaults` is a reserved name and cannot be an inventory variable.
+#
+# Kept as a file so the next person does not add credentials here by reflex.

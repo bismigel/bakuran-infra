@@ -1,0 +1,6 @@
+# The collection this root depends on. Pinned exactly, for the same reason the Terraform provider is
+# (opentofu/opnsense/versions.tf): it manages the only router in the estate, and an unpinned bump could change what a
+# play does between one run and the next.
+collections:
+  - name: ansibleguy.opnsense
+    version: "1.2.16"
