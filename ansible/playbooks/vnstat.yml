@@ -1,0 +1,72 @@
+---
+# Interface traffic accounting — the one source that makes "what moved 11 GB at 19:00" answerable after the fact.
+#
+# Story 10.6. On 2026-11-06 that question could not be answered by anything: the router had netflow disabled, no
+# vnstat/ntopng plugin, Prometheus retains by time only from today, and every host journal had rolled over. vnstat is
+# the cheapest fix that survives: per-interface hourly and daily totals, kept for months, on the device that actually
+# sees the traffic.
+#
+# The package install is declarable; **interface selection is not**. The plugin installs with no interfaces monitored,
+# so after this play reports `changed` someone has to enable WAN and LAN under Services → VnStat once. Recorded here
+# rather than pretended, because a play that claims to have finished the job when it has not is worse than a manual
+# step that is documented.
+- name: vnstat on the router
+  hosts: router
+  gather_facts: false
+  # Credentials come from the environment (`run.sh` fills them from Bitwarden Secrets Manager); nothing is written to
+  # disk. Two corrections found by running this: `module_defaults` is a **reserved** name and cannot live in
+  # group_vars ("Found variable using reserved name 'module_defaults'"), and the collection's
+  # `group/ansibleguy.opnsense.all` action group only extends its *grouped* roles — `snapshot`, `package`, `service`
+  # and `ids_general` are in no group, so each has to be listed or the play fails with `missing required arguments:
+  # firewall`.
+  module_defaults:
+    group/ansibleguy.opnsense.all: &opn
+      firewall: "{{ ansible_host }}"
+      api_key: "{{ lookup('env', 'OPNSENSE_API_KEY') }}"
+      api_secret: "{{ lookup('env', 'OPNSENSE_API_SECRET') }}"
+      # The box serves a self-signed certificate on :443. Verification is off on purpose, and stated rather than implied.
+      ssl_verify: false
+    ansibleguy.opnsense.snapshot: *opn
+    ansibleguy.opnsense.package: *opn
+    ansibleguy.opnsense.service: *opn
+    ansibleguy.opnsense.ids_general: *opn
+  tasks:
+    # Ansible's `ansibleguy.opnsense.snapshot` module raises `'NoneType' object is not iterable` against this router
+    # (2026-11-09), so the snapshot is taken through the API directly. `/api/core/backup/backups/backup` answers 200 and
+    # creating a config revision is additive — the router has no out-of-band console, so this is the only undo that
+    # does not involve driving to it.
+    - name: Snapshot the configuration before changing anything
+      ansible.builtin.uri:
+        url: "https://{{ ansible_host }}/api/core/backup/backups/backup"
+        method: POST
+        user: "{{ lookup('env', 'OPNSENSE_API_KEY') }}"
+        password: "{{ lookup('env', 'OPNSENSE_API_SECRET') }}"
+        force_basic_auth: true
+        validate_certs: false
+        body_format: form-urlencoded
+        body:
+          backuparea: "/conf/config.xml"
+        status_code: [200]
+      changed_when: false
+      tags: [always]
+
+    # This module takes an explicit `action` (install/reinstall/remove/lock/unlock), not `state` — the collection's
+    # package module is an action API, unlike most Ansible modules. Found by running it: "missing required arguments:
+    # action".
+    - name: Package os-vnstat is installed
+      ansibleguy.opnsense.package:
+        name: [os-vnstat]
+        action: install
+
+    - name: vnstat service is running
+      ansibleguy.opnsense.service:
+        name: vnstat
+        action: start
+      changed_when: false
+
+    - name: Remind that interface selection is a one-time GUI step
+      ansible.builtin.debug:
+        msg:
+          - "os-vnstat is installed. It monitors NOTHING until interfaces are chosen:"
+          - "  Services -> VnStat -> enable WAN and LAN"
+          - "Verify afterwards with:  ops/../? -- or: curl -sk -u $KEY:$SECRET https://192.168.2.1/api/vnstat/service/status"

@@ -1,0 +1,5 @@
+
+# Ansible: the pinned collection is installed, not committed
+ansible/collections/
+ansible/*.log
+*.retry
