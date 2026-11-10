@@ -22,3 +22,9 @@ jobs:
         run: nix flake check --no-build --print-build-logs
       - name: wireguard invariants (explicit)
         run: nix eval --raw .#checks.x86_64-linux.wireguard-invariants.drvPath > /dev/null
+
+      # Story 10.7. `staging-vm/wireguard-test/nixos.qcow2` (9 MiB, committed in #100, gitignored the next day) carried
+      # an OpenSSH host private key into this repository's history. A gitignore added afterwards does not remove it, so
+      # the rule is checked on what is *tracked* — key-shaped content and disk images both fail.
+      - name: No secrets or disk images tracked
+        run: python3 scripts/check-repo-hygiene.py
