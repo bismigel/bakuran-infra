@@ -209,7 +209,12 @@
     # Capability labels, so manifests select *why* a pod needs a node rather than
     # which machine it happens to be. media-pool = /mnt/media lives here;
     # qsv = Intel QuickSync available for hardware transcoding.
-    nodeLabel = [ "homelab.io/media-pool=true" "homelab.io/qsv=true" ];
+    # `wg-egress` is a capability with a real security meaning: this is the only node whose egress goes through the
+    # Proton WireGuard tunnel, and pods inherit that by *being here* (table 51820 has `default dev proton0` and the
+    # only escape is a fwmark). Measured 2026-11-10: qBittorrent on this node egresses as 84.20.16.49 (Proton); the
+    # same check from .82 returns 142.188.116.191 (the house). So a torrent client that schedules elsewhere is not
+    # slower — it is de-anonymised, which is why this label exists for the client to select on.
+    nodeLabel = [ "homelab.io/media-pool=true" "homelab.io/wg-egress=true" "homelab.io/qsv=true" ];
     enable = true;
     role = "server";
     serverAddr = "https://192.168.2.82:6443";
