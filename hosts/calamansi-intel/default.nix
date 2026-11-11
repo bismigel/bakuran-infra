@@ -197,7 +197,12 @@
         "grafana.bismigel.dev" = "http://127.0.0.1:32080";
         "agent.bismigel.dev" = "http://127.0.0.1:32080";
         # media box service — reachable from either connector
-        "jellyfin.bismigel.dev" = "http://192.168.2.81:30096";
+        # Loopback, like every other hostname in this map (2026-11-10).
+        # NodePorts are locked to 127.0.0.1/32 by `nodeport-addresses`, so a node IP here is an address the
+        # firewall refuses — which is exactly why jellyfin went dark this morning: the pod was fine, the VIP was
+        # fine, and the only broken hop was this line. Each connector talks to its own loopback, so either box can
+        # still serve the edge.
+        "jellyfin.bismigel.dev" = "http://127.0.0.1:30096";
       };
     };
   };
