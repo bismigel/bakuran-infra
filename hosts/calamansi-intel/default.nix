@@ -261,6 +261,10 @@
       "--kube-apiserver-arg=audit-log-maxbackup=10"
       "--kube-apiserver-arg=audit-log-maxsize=100"
       "--tls-san=192.168.2.100"
+      # Cilium serves services now (story 10.10): kubeProxyReplacement=true in bakuran-gitops. Two datapaths
+      # cannot coexist — while both ran, cross-node scrapes broke (cAdvisor through the API proxy and Longhorn
+      # pod metrics, measured 2026-11-11). The two changes are one operation, split per node only for blast radius.
+      "--disable-kube-proxy"
       "--flannel-backend=none"
       "--disable-network-policy"
       "--disable"
