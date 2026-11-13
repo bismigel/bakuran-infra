@@ -71,6 +71,35 @@ scripts/preflight-wg.sh                                  -> PASS: the unit is un
 `wg-switch` reverting itself is **success**, not failure: the reconciler enforces the closure's
 values, so a runtime switch that sticks means the declaration was not updated.
 
+### After the tunnel is recreated, restart Cilium on `.81` — or anonymised egress dies silently
+
+Since 2026-11-13 the downloaders reach the tunnel through a **Cilium egress gateway** whose policy names
+`interface: proton0` (`bakuran-gitops`, `manifests/base/media/egress-policy.yaml`). Cilium resolves that name to an
+**ifindex** when it programs the egress map, and it does not re-resolve by itself.
+
+Measured the same day, while testing whether a second tunnel could give that gateway redundancy: stopping and starting
+`wireguard-proton0` recreated the interface with ifindex **18351**, while Cilium's egress map still held **3**. Every pod
+selected by the policy was silently dropped — no leak, but no egress — and `qbittorrent`/`sabnzbd`/`prowlarr` stayed
+"Running" and "Healthy" the whole time. Restarting the Cilium agent on `.81` fixed it immediately.
+
+```
+ssh root@192.168.2.81 'cat /sys/class/net/proton0/ifindex'
+kubectl -n kube-system get pods -l k8s-app=cilium --field-selector spec.nodeName=calamansi-intel -o name \
+  | xargs kubectl -n kube-system delete
+# then prove egress: a selected pod must report the Proton exit, not the house address
+```
+
+This matters for every rotation: before the egress gateway existed, rotating the tunnel did not involve Cilium at all.
+
+### Only one tunnel can be up per account
+
+Measured the same day, because it decides whether the egress gateway can have a fallback node: with `.81`'s tunnel up, two
+different spare configs refused to handshake from another host (0 bytes both ways, while both endpoints answered ICMP).
+With `.81`'s tunnel **stopped**, the same config handshook within seconds (4 524 bytes in).
+
+The limit is the account's concurrent session — not the configs and not the addressing, since all four spares carry
+`10.2.0.2/32`. A second gateway needs a Proton plan that permits a second session, or a different provider.
+
 ## What this document is not
 
 **It has not been drilled.** Story 2.5 consumes a real spent config end to end and records the
