@@ -41,9 +41,11 @@
     ids_interfaces: [wan]
     # The rule sets this estate wants. High-signal blocklist feeds rather than the whole ET open firehose, which on a
     # home network produces enough alerts to make the log useless.
+    # ThreatFox and URLhaus are deliberately NOT here: they install only with an abuse.ch auth key in the
+    # Download tab's `abuse_ch.token` field, and without one the download leaves them "not installed" while their
+    # checkbox stays ticked — which reads as success and is not. Measured 2026-11-13: four sets installed
+    # (10 985 signatures), those two did not. Add them here once a token exists.
     ids_rulesets_required:
-      - abuse.ch.threatfox.rules
-      - abuse.ch.urlhaus.rules
       - abuse.ch.feodotracker.rules
       - abuse.ch.sslblacklist.rules
       - compromised.rules
@@ -110,8 +112,10 @@
         that:
           # the catalogue reports `enabled` (0/1), not `selected` - measured, after an assertion on `selected` failed
           # with "object of type 'dict' has no attribute 'selected'"
-          - ids_rulesets.json.rows | selectattr('filename', 'in', ids_rulesets_required) | selectattr('enabled', 'equalto', 1) | list | length
-            == ids_rulesets_required | length
+          # `enabled` comes back as the STRING "1"/"0", not an integer - the first version of this assertion compared
+          # against 1 and failed on a box where every rule set was in fact enabled. Coerce before comparing.
+          - ids_rulesets.json.rows | selectattr('filename', 'in', ids_rulesets_required)
+            | selectattr('enabled', 'equalto', '1') | list | length == ids_rulesets_required | length
         fail_msg: >-
           Rule sets are not selected, and enabling the engine without them detects nothing — the API cannot toggle them
           (POST /api/ids/settings/toggle_ruleset returns 404 on this build). Do it once, by hand:
@@ -136,6 +140,19 @@
       when: not ansible_check_mode
       register: ids_write
 
+    - name: Read the service state before touching it
+      ansible.builtin.uri:
+        url: "{{ ids_api }}/service/status"
+        method: GET
+        user: "{{ lookup('env', 'OPNSENSE_API_KEY') }}"
+        password: "{{ lookup('env', 'OPNSENSE_API_SECRET') }}"
+        force_basic_auth: true
+        validate_certs: false
+        status_code: [200]
+      register: ids_status_pre
+      changed_when: false
+      check_mode: false
+
     - name: Start or stop the service to match
       ansible.builtin.uri:
         url: "{{ ids_api }}/service/{{ 'start' if (ids_enabled | bool) else 'stop' }}"
@@ -146,7 +163,13 @@
         validate_certs: false
         status_code: [200]
       when: not ansible_check_mode
-      changed_when: ids_enabled | bool
+      # `changed` must mean "the state moved", not "this task ran": a play that always reports changed cannot be used
+      # to answer "did anything change?", which is the first question asked of it during an incident.
+      # changed means "we had to do something", derived from the state before the call - a play that always reports
+      # changed cannot answer "did anything change?", which is the first question asked of it during an incident.
+      changed_when: >-
+        (ids_enabled | bool and ids_status_pre.json.status not in ['running', 'started'])
+        or (not (ids_enabled | bool) and ids_status_pre.json.status not in ['disabled', 'stopped'])
 
     - name: The service is where the decision says it should be
       ansible.builtin.uri:
@@ -161,6 +184,13 @@
       changed_when: false
       when: not ansible_check_mode
       check_mode: false
+      # Loading 11k signatures takes ~15 s here, so an immediate read says "stopped" while the engine is starting.
+      # Measured 2026-11-13: the first run asserted at t+0 and failed on a service that came up 15 s later. The
+      # assertion below is unchanged - this only gives the box time to answer honestly.
+      retries: 24
+      delay: 5
+      until: >-
+        ids_status.json.status in (['running', 'started'] if (ids_enabled | bool) else ['disabled', 'stopped'])
 
     - name: Assert the service state
       ansible.builtin.assert:
