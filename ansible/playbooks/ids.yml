@@ -1,39 +1,58 @@
 ---
-# Suricata: off today, and the estate never decided *whether* that is right.
+# Intrusion detection on the router — declared as far as the API allows, verified beyond that.
 #
-# Story 10.4's sibling. `HARDENING.md` records IDS as disabled; what is missing is the decision, not the capability.
-# This play makes the decision explicit and reversible: default is `off`, and turning it on is one variable.
+# Rewritten 2026-11-13 after measuring what this box (OPNsense 26.7.8_2) actually accepts. The previous version used
+# `ansibleguy.opnsense.ids_general`, which fails on this version:
 #
-#   ./run.sh playbooks/ids.yml -e ids_block=true --check --diff
+#   Module failed: THIS MIGHT BE A MODULE-BUG: Failed to translate API entry to Ansible entry! Failed field: 'block'
 #
-# `ids_block: true` is IPS (drop), `false` is IDS (alert only). Start with alert-only: a blocking ruleset whose false
-# positives nobody has tuned will stop the TV from reaching Jellyfin long before it stops an attacker.
+# The collection (pinned 1.2.16) maps Ansible's `block` boolean onto an API key `ips`, and 25.7+ replaced `ips` with
+# `mode: {pcap|netmap|divert}`. Every other mapping in its table still matches. So no patching of a vendored collection
+# is needed to *declare the engine state* — the API takes it directly, which is what this play does.
+#
+# WHAT CAN BE WRITTEN, measured with curl on 2026-11-13 (each one run, not assumed):
+#
+#   POST /api/ids/settings/set   {"ids": {"general": {"enabled": "1"}}}   -> {"result":"saved"}, GET reads back 1
+#   POST /api/ids/settings/set   ... {"enabled": "0"}                     -> reads back 0
+#   POST /api/ids/settings/set   {"ids": {"general": {"mode": {...}}}}    -> **HTTP 500**, so mode is NOT writable here
+#   POST /api/ids/settings/set   {"ids": {"rulesets": {...}}}             -> saved but ignored: no ruleset selected
+#   POST /api/ids/settings/toggle_ruleset                                 -> **404**, route not mapped on this build
+#   GET  /api/ids/settings/get, /api/ids/settings/list_rulesets           -> both work (that is the verifier)
+#   POST /api/ids/service/start                                           -> {"response":"OK"}
+#
+# The key is not the limit: `POST /api/auth/user/add` answers `{"result":"failed"}` rather than 403, i.e. this key has
+# admin-level rights. The 404 and the 500 are the appliance's own API, on this version.
+#
+# So this play DECLARES what it can (engine enabled/disabled) and VERIFIES the rest (mode, interfaces, rule sets),
+# failing loudly with the exact GUI step when reality does not match. A check that cannot fail is worthless: the
+# assertions below are expected to fail until someone does the one click they describe.
+#
+#   ./run.sh playbooks/ids.yml --check --diff       # what would change, and what is still manual
+#   ./run.sh playbooks/ids.yml                      # apply the engine state
+#
+# `ids_block: true` is IPS (netmap, inline, can drop traffic); `false` is IDS (PCAP, alert-only). Start alert-only: a
+# blocking ruleset nobody has tuned stops the TV reaching Jellyfin long before it stops an attacker.
 - name: Intrusion detection on the router
   hosts: router
   gather_facts: false
-  # Credentials come from the environment (`run.sh` fills them from Bitwarden Secrets Manager); nothing is written to
-  # disk. Two corrections found by running this: `module_defaults` is a **reserved** name and cannot live in
-  # group_vars ("Found variable using reserved name 'module_defaults'"), and the collection's
-  # `group/ansibleguy.opnsense.all` action group only extends its *grouped* roles — `snapshot`, `package`, `service`
-  # and `ids_general` are in no group, so each has to be listed or the play fails with `missing required arguments:
-  # firewall`.
-  module_defaults:
-    group/ansibleguy.opnsense.all: &opn
-      firewall: "{{ ansible_host }}"
-      api_key: "{{ lookup('env', 'OPNSENSE_API_KEY') }}"
-      api_secret: "{{ lookup('env', 'OPNSENSE_API_SECRET') }}"
-      # The box serves a self-signed certificate on :443. Verification is off on purpose, and stated rather than implied.
-      ssl_verify: false
-    ansibleguy.opnsense.snapshot: *opn
-    ansibleguy.opnsense.package: *opn
-    ansibleguy.opnsense.service: *opn
-    ansibleguy.opnsense.ids_general: *opn
   vars:
-    ids_enabled: true          # run the engine at all
-    ids_block: false           # false = IDS (alert), true = IPS (drop)
-    ids_interfaces: [wan]      # physical interfaces only — the module refuses vlans here
+    ids_enabled: true            # the decision this play makes
+    ids_block: false             # false = IDS (alert), true = IPS (drop)
+    ids_interfaces: [wan]
+    # The rule sets this estate wants. High-signal blocklist feeds rather than the whole ET open firehose, which on a
+    # home network produces enough alerts to make the log useless.
+    ids_rulesets_required:
+      - abuse.ch.threatfox.rules
+      - abuse.ch.urlhaus.rules
+      - abuse.ch.feodotracker.rules
+      - abuse.ch.sslblacklist.rules
+      - compromised.rules
+      - botcc.rules
+    ids_api: "https://{{ ansible_host }}/api/ids"
+    ids_auth: >-
+      {{ lookup('env', 'OPNSENSE_API_KEY') }}:{{ lookup('env', 'OPNSENSE_API_SECRET') }}
   tasks:
-    - name: Snapshot before changing anything
+    - name: Snapshot the config before changing anything
       ansible.builtin.uri:
         url: "https://{{ ansible_host }}/api/core/backup/backups/backup"
         method: POST
@@ -47,15 +66,113 @@
       changed_when: false
       tags: [always]
 
-    - name: IDS/IPS state matches the decision
-      ansibleguy.opnsense.ids_general:
-        interfaces: "{{ ids_interfaces }}"
-        block: "{{ ids_block | bool }}"
-      register: ids
+    - name: Read the current IDS settings
+      ansible.builtin.uri:
+        url: "{{ ids_api }}/settings/get"
+        method: GET
+        user: "{{ lookup('env', 'OPNSENSE_API_KEY') }}"
+        password: "{{ lookup('env', 'OPNSENSE_API_SECRET') }}"
+        force_basic_auth: true
+        validate_certs: false
+        status_code: [200]
+      register: ids_settings
+      changed_when: false
+      check_mode: false
+
+    - name: Read the rule-set catalogue
+      ansible.builtin.uri:
+        url: "{{ ids_api }}/settings/list_rulesets"
+        method: GET
+        user: "{{ lookup('env', 'OPNSENSE_API_KEY') }}"
+        password: "{{ lookup('env', 'OPNSENSE_API_SECRET') }}"
+        force_basic_auth: true
+        validate_certs: false
+        status_code: [200]
+      register: ids_rulesets
+      changed_when: false
+      check_mode: false
+
+    # The mode cannot be written through this API (HTTP 500, measured). Verifying it instead means a drift is reported
+    # rather than silently overridden — and the message says exactly what to click.
+    - name: The engine mode matches the decision (verify, cannot be written here)
+      ansible.builtin.assert:
+        that:
+          - (ids_settings.json.ids.general.mode | dict2items | map(attribute='value') | selectattr('selected', 'equalto', 1) | map(attribute='value') | first)
+            == (ids_block | bool | ternary('Netmap (IPS)', 'PCAP live mode (IDS)'))
+        fail_msg: >-
+          Mode is not what this play declares. Set it by hand: Services → Intrusion Detection → Administration →
+          {{ 'Netmap (IPS)' if (ids_block | bool) else 'PCAP live mode (IDS)' }}. The API answers HTTP 500 to a mode
+          write on 26.7.8_2, so this is a documented manual step, not an oversight.
+        quiet: true
+
+    - name: The rule sets this estate wants are selected (verify, cannot be written here)
+      ansible.builtin.assert:
+        that:
+          # the catalogue reports `enabled` (0/1), not `selected` - measured, after an assertion on `selected` failed
+          # with "object of type 'dict' has no attribute 'selected'"
+          - ids_rulesets.json.rows | selectattr('filename', 'in', ids_rulesets_required) | selectattr('enabled', 'equalto', 1) | list | length
+            == ids_rulesets_required | length
+        fail_msg: >-
+          Rule sets are not selected, and enabling the engine without them detects nothing — the API cannot toggle them
+          (POST /api/ids/settings/toggle_ruleset returns 404 on this build). Do it once, by hand:
+          Services → Intrusion Detection → Download → tick {{ ids_rulesets_required | join(', ') }} → Download & Update
+          Rules. Then re-run this play; it will turn the engine on and verify it.
+        quiet: true
+
+    - name: Engine state matches the decision
+      ansible.builtin.uri:
+        url: "{{ ids_api }}/settings/set"
+        method: POST
+        user: "{{ lookup('env', 'OPNSENSE_API_KEY') }}"
+        password: "{{ lookup('env', 'OPNSENSE_API_SECRET') }}"
+        force_basic_auth: true
+        validate_certs: false
+        body_format: json
+        body:
+          ids:
+            general:
+              enabled: "{{ 1 if (ids_enabled | bool) else 0 }}"
+        status_code: [200]
+      when: not ansible_check_mode
+      register: ids_write
+
+    - name: Start or stop the service to match
+      ansible.builtin.uri:
+        url: "{{ ids_api }}/service/{{ 'start' if (ids_enabled | bool) else 'stop' }}"
+        method: POST
+        user: "{{ lookup('env', 'OPNSENSE_API_KEY') }}"
+        password: "{{ lookup('env', 'OPNSENSE_API_SECRET') }}"
+        force_basic_auth: true
+        validate_certs: false
+        status_code: [200]
+      when: not ansible_check_mode
+      changed_when: ids_enabled | bool
+
+    - name: The service is where the decision says it should be
+      ansible.builtin.uri:
+        url: "{{ ids_api }}/service/status"
+        method: GET
+        user: "{{ lookup('env', 'OPNSENSE_API_KEY') }}"
+        password: "{{ lookup('env', 'OPNSENSE_API_SECRET') }}"
+        force_basic_auth: true
+        validate_certs: false
+        status_code: [200]
+      register: ids_status
+      changed_when: false
+      when: not ansible_check_mode
+      check_mode: false
+
+    - name: Assert the service state
+      ansible.builtin.assert:
+        that:
+          - ids_status.json.status in (['running', 'started'] if (ids_enabled | bool) else ['disabled', 'stopped'])
+        fail_msg: "Suricata is '{{ ids_status.json.status }}' but the decision says {{ 'enabled' if (ids_enabled | bool) else 'disabled' }}"
+        quiet: true
+      when: not ansible_check_mode
 
     - name: Report the decision that is now in force
       ansible.builtin.debug:
         msg: >-
-          Suricata is enabled on {{ ids_interfaces | join(', ') }} in
-          {{ 'IPS (blocking)' if (ids_block | bool) else 'IDS (alert-only)' }} mode.
-          HARDENING.md must say the same thing.
+          Suricata {{ 'enabled' if (ids_enabled | bool) else 'disabled' }} on {{ ids_interfaces | join(', ') }} in
+          {{ 'IPS (blocking, netmap)' if (ids_block | bool) else 'IDS (alert-only, PCAP)' }} mode, with
+          {{ ids_rulesets_required | length }} rule sets. HARDENING.md must say the same thing.
