@@ -19,7 +19,13 @@
 # The egress probe exists because a handshake is not a working tunnel. On
 # 2026-10-25 the interface held a stale private key: it handshook happily and
 # blackholed every packet, and the handshake-based alerts stayed green for an
-# hour while I blamed the indexers. https://1.1.1.1/ answers 301, so any HTTP
+# hour while I blamed the indexers. Any HTTP status means the path is up; only no response (000) means it is not.
+#
+# The target was https://1.1.1.1/ until 2026-11-13, when it began timing out through a WORKING tunnel: measured on
+# .81 after the tunnel was recreated, ifconfig.me answered 200 in 0.26 s and one.one.one.one 200 in 0.56 s while
+# 1.1.1.1 returned 000 after 5 s. So WireGuardNoEgress was firing about one host filtered by the VPN server, not
+# about egress - the false alarm this probe exists to prevent, arriving from the other direction. It now probes
+# one.one.one.one: same provider, name-based, so it also proves the tunnel carries DNS-assisted traffic.
 # status means the path is up; only no response (000) means it is not.
 #
 # The restart counter exists because restarting wg-quick is what strands this
@@ -56,7 +62,7 @@ let
 
     # data path: does anything actually leave?
     code="$(${pkgs.curl}/bin/curl -s -o /dev/null --max-time 5 \
-      -w '%{http_code} %{time_total}' https://1.1.1.1/ 2>/dev/null || echo '000 0')"
+      -w '%{http_code} %{time_total}' https://one.one.one.one/ 2>/dev/null || echo '000 0')"
     set -- $code
     http="''${1:-000}"; secs="''${2:-0}"
     case "$http" in
