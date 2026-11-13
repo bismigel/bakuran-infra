@@ -186,16 +186,22 @@
       credentialsFile = "/root/.cloudflared/8dcc83bd-eb95-4c0d-8f71-b92a27d37649.json";
       default = "http_status:404";
       ingress = {
-        "ciceley.cc" = "http://127.0.0.1:32080";
-        "www.ciceley.cc" = "http://127.0.0.1:32080";
-        "bismigel.dev" = "http://127.0.0.1:32080";
-        "www.bismigel.dev" = "http://127.0.0.1:32080";
-        "miguelarbis.dev" = "http://127.0.0.1:32080";
-        "www.miguelarbis.dev" = "http://127.0.0.1:32080";
-        "status.bismigel.dev" = "http://127.0.0.1:32080";
-        "private.bismigel.dev" = "http://127.0.0.1:32080";
-        "grafana.bismigel.dev" = "http://127.0.0.1:32080";
-        "agent.bismigel.dev" = "http://127.0.0.1:32080";
+        "ciceley.cc" = "http://10.43.46.55:80";
+        "www.ciceley.cc" = "http://10.43.46.55:80";
+        # **ClusterIP, not a loopback NodePort** (2026-11-12, story 10.10). The tunnel used to target
+        # `127.0.0.1:32080`, which worked only because kube-proxy keeps NodePorts off the LAN with
+        # `nodeport-addresses=127.0.0.1/32`. That flag does not translate to Cilium (measured in a VM: NodePort answered
+        # 000 on loopback *and* node address under kube-proxy replacement), so the public edge would have gone dark the
+        # moment the datapath changed. A ClusterIP is reachable from the host under either datapath, and the address is
+        # pinned in bakuran-gitops' ingress values so it cannot drift.
+        "bismigel.dev" = "http://10.43.46.55:80";
+        "www.bismigel.dev" = "http://10.43.46.55:80";
+        "miguelarbis.dev" = "http://10.43.46.55:80";
+        "www.miguelarbis.dev" = "http://10.43.46.55:80";
+        "status.bismigel.dev" = "http://10.43.46.55:80";
+        "private.bismigel.dev" = "http://10.43.46.55:80";
+        "grafana.bismigel.dev" = "http://10.43.46.55:80";
+        "agent.bismigel.dev" = "http://10.43.46.55:80";
         # media box service — reachable from either connector
         # Loopback, like every other hostname in this map (2026-11-10).
         # NodePorts are locked to 127.0.0.1/32 by `nodeport-addresses`, so a node IP here is an address the
