@@ -245,16 +245,16 @@
       default = "http_status:404";
       ingress = {
         # apps — served by ingress-nginx on this box
-        "ciceley.cc" = "http://127.0.0.1:32080";
-        "www.ciceley.cc" = "http://127.0.0.1:32080";
-        "bismigel.dev" = "http://127.0.0.1:32080";
-        "www.bismigel.dev" = "http://127.0.0.1:32080";
-        "miguelarbis.dev" = "http://127.0.0.1:32080";
-        "www.miguelarbis.dev" = "http://127.0.0.1:32080";
-        "status.bismigel.dev" = "http://127.0.0.1:32080";
-        "private.bismigel.dev" = "http://127.0.0.1:32080";
-        "grafana.bismigel.dev" = "http://127.0.0.1:32080";
-        "agent.bismigel.dev" = "http://127.0.0.1:32080";
+        "ciceley.cc" = "http://10.43.46.55:80";
+        "www.ciceley.cc" = "http://10.43.46.55:80";
+        "bismigel.dev" = "http://10.43.46.55:80";
+        "www.bismigel.dev" = "http://10.43.46.55:80";
+        "miguelarbis.dev" = "http://10.43.46.55:80";
+        "www.miguelarbis.dev" = "http://10.43.46.55:80";
+        "status.bismigel.dev" = "http://10.43.46.55:80";
+        "private.bismigel.dev" = "http://10.43.46.55:80";
+        "grafana.bismigel.dev" = "http://10.43.46.55:80";
+        "agent.bismigel.dev" = "http://10.43.46.55:80";
         # media box (.81) — one tunnel routes both boxes; no re-hosting
         # Loopback, like every other hostname in this map (2026-11-10).
         # NodePorts are locked to 127.0.0.1/32 by `nodeport-addresses`, so a node IP here is an address the
