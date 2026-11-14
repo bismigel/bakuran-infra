@@ -1,5 +1,17 @@
 {
   "nodes": {
+    "modulesSrc": {
+      "flake": false,
+      "locked": {
+        "path": "../../modules",
+        "type": "path"
+      },
+      "original": {
+        "path": "../../modules",
+        "type": "path"
+      },
+      "parent": []
+    },
     "nixpkgs": {
       "locked": {
         "lastModified": 1782847189,
@@ -18,6 +30,7 @@
     },
     "root": {
       "inputs": {
+        "modulesSrc": "modulesSrc",
         "nixpkgs": "nixpkgs"
       }
     }

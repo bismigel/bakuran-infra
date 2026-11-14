@@ -37,6 +37,12 @@ The fix is structural, not a one-liner: the modules live above the flake root, s
 flake whose root is the repository. Until one of those happens, treat `native-test.nix` as documentation of what a tunnel
 guest should contain rather than something to run.
 
+**The obvious workaround does not work**, tried on 2026-11-13 so nobody spends the same half hour: a `path:` input to the
+parent directory is resolved against the flake's **store copy**, not the checkout, so `url = "path:../../modules"` becomes
+`/nix/modules` and fails with `path '/nix/modules' is not in the Nix store`. An input of the whole repository is worse - it
+contains this flake, so evaluation recurses forever. Only an absolute `path:/home/...` works, and that does not belong in a
+committed flake.
+
 ## Why the inputs matter more than the outputs
 
 Two facts about this lab make staging worth the effort:
