@@ -189,7 +189,7 @@
   #      the old one (observed three times on 2026-11-14: map 19735 vs live 19749).
   # Everything else the flip needs is done: the module, the key in the cluster, the preStart ordering, the label ownership
   # rule, and the rehearsal that proved the mechanism.
-  bakuran.wireguard.election.enable = false;
+  bakuran.wireguard.election.enable = true;   # flipped in a manual window 2026-11-14, not by deploy-rs
 
   # ---- Cloudflare tunnel (SECOND connector — edge HA) ----
   # .82 runs one connector; this is the other. Cloudflare load-balances the
