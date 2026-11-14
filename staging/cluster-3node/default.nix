@@ -1,30 +1,13 @@
-{
-  description = "Staging that mirrors production's datapath (Cilium, kube-proxy on, two NICs)";
-
-  # Why this file looks like production: the questions we cannot answer in the lab
-  # are all datapath questions -- what a wg-quick link recreate does to a Cilium
-  # node, and whether an egress policy behaves. A flannel cluster answers neither.
-  #
-  # Matched deliberately (see bakuran-infra/hosts/calamansi-intel/default.nix and
-  # clusters/prod/apps/platform/cilium.yaml):
-  #   * k3s with --flannel-backend=none and NO --disable-kube-proxy (production
-  #     runs kubeProxyReplacement=false, so kube-proxy owns iptables)
-  #   * Cilium v1.20.3, tunnel/vxlan, ipam=kubernetes, prometheus on
-  #   * NodePorts bound to loopback only, like production's edge lock
-  #   * the same route/rule shape once the tunnel is up (table 51820 + fwmark)
-  #
-  # Deliberately different (isolation):
-  #   * pod CIDR 10.52.0.0/16, service CIDR 10.53.0.0/16 -- never 10.42/10.43
-  #   * LAN 10.10.50.0/24 on br-staging (the staging host is 10.10.50.1)
-  #   * eth0 is qemu user-net: the "WAN", NATed, so a guest can build a tunnel
-  #     without touching the lab's egress
-  #
-  # Two NICs is not incidental: production's media node strands *while its LAN
-  # link is up*, so the guest needs a LAN interface that stays reachable while its
-  # default route points into a tunnel on the other interface.
-  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
-
-  outputs = { self, nixpkgs }:
+{ nixpkgs, lib ? nixpkgs.lib }:
+# The staging guests, as a function the ROOT flake consumes (2026-11-13).
+#
+# They used to live in their own flake at this path, which had two consequences worth naming:
+#   * `native-test.nix` imported `../../modules/*`, outside that flake's root, so the guest that boots the real tunnel
+#     module could not be evaluated at all - and nothing noticed, because CI only ever evaluates the root flake;
+#   * staging and production could have drifted onto different nixpkgs, which defeats the point of staging mirroring prod.
+#
+# Now the root flake owns them: one lock file, one `nix flake check` that covers both, and `../../modules` is simply inside
+# the root. The guest definitions themselves are unchanged - this file is the old flake body with the flake wrapper removed.
     let
       ciliumVersion = "1.20.3";
         # Pinned to the version production runs, so staging rehearses the same
@@ -249,32 +232,5 @@
           })
         ];
       };
-    in {
-      # Three control planes, three etcd members: quorum 2/3, so one can be killed
-      # and the cluster keeps writing, and kube-vip's lease can move the VIP. This
-      # is the shape needed to rehearse control-plane failure at all - a single
-      # guest can only show that things work when nothing goes wrong.
-      #
-      # `tap` reuses the existing tap-agent1 / tap-agent2 devices, so adding two
-      # servers needs no change on the staging host.
-      nixosConfigurations.server2 = mk {
-        host = "server2"; tap = "agent1"; ip = "10.10.50.11"; role = "server"; mac = "52:54:00:12:36:11";
-        serverAddr = "https://10.10.50.10:6443";
-      };
-      nixosConfigurations.server3 = mk {
-        host = "server3"; tap = "agent2"; ip = "10.10.50.12"; role = "server"; mac = "52:54:00:12:36:12";
-        serverAddr = "https://10.10.50.10:6443";
-      };
-      nixosConfigurations.server = mk { host = "server"; ip = "10.10.50.10"; role = "server"; mac = "52:54:00:12:36:10"; };
-      # Boots the real production module (modules/wireguard-native.nix). Reuses
-      # tap-server and the server's address, so only one guest runs at a time.
-      # The election variant: the real module WITH the lease election (story 10.14). Separate output rather than a flag so
-      # both can be built and compared, and so `nix build .#nixosConfigurations.election...` is the whole rehearsal entry.
-      nixosConfigurations.election =
-        (mk { host = "server"; ip = "10.10.50.10"; role = "server"; mac = "52:54:00:12:36:10"; })
-        .extendModules { modules = [ ./election-test.nix ]; };
-      nixosConfigurations.native =
-          (mk { host = "server"; ip = "10.10.50.10"; role = "server"; mac = "52:54:00:12:36:10"; })
-          .extendModules { modules = [ ./native-test.nix ]; };
-    };
-}
+
+  in { inherit mk; }

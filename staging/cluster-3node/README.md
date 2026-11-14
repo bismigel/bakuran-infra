@@ -9,16 +9,20 @@ run it on the production cluster.
 
 ## Build
 
+The guests are configurations of the **repo-root flake** since 2026-11-13. They used to live here as their own flake, which
+had two consequences: `native-test.nix` imports `../../modules/*` — outside that flake's root — so the tunnel-rehearsal
+guest could not be evaluated at all, and CI's `nix flake check` never saw any of them.
+
 ```bash
-nix build --impure \
-  "path:$PWD#nixosConfigurations.server.config.system.build.vm" \
-  "path:$PWD#nixosConfigurations.agent1.config.system.build.vm" \
-  "path:$PWD#nixosConfigurations.agent2.config.system.build.vm" \
-  -o result
+nix build .#nixosConfigurations.staging-server.config.system.build.vm
+nix build .#nixosConfigurations.staging-server2.config.system.build.vm
+nix build .#nixosConfigurations.staging-server3.config.system.build.vm
+nix build .#nixosConfigurations.staging-native.config.system.build.vm    # real tunnel module, dead endpoint
+nix build .#nixosConfigurations.staging-election.config.system.build.vm  # the same, with lease election (10.14)
 ```
 
-The build creates `server.qcow2`, `agent1.qcow2` and `agent2.qcow2` in this
-directory.
+One lock file, one `nix flake check`, and the modules are simply inside the root. Production derivations are unchanged by
+this move — verified by comparing `drvPath` for all three hosts before and after.
 
 ## Network
 

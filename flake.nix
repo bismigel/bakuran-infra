@@ -13,7 +13,30 @@
   };
 
   outputs = { self, nixpkgs, nixpkgs-unstable, disko, deploy-rs, sops-nix }: {
-    nixosConfigurations = {
+    # Staging guests, from staging/cluster-3node/default.nix (2026-11-13). They used to live in a flake of their own, which
+    # meant (a) their `../../modules` imports were outside that flake's root and the tunnel-rehearsal guest could not even be
+    # evaluated, and (b) CI's `nix flake check` never saw them. Here they get the same lock file and the same check as
+    # production, which is what makes "rehearse in staging" a thing people actually do.
+    #
+    # Named `staging-*` so a deploy/run command cannot be pointed at the wrong cluster by accident.
+    nixosConfigurations = (let
+      staging = import ./staging/cluster-3node { inherit nixpkgs; };
+    in {
+      staging-server = staging.mk { host = "server"; ip = "10.10.50.10"; role = "server"; mac = "52:54:00:12:36:10"; };
+      staging-server2 = staging.mk {
+        host = "server2"; tap = "agent1"; ip = "10.10.50.11"; role = "server"; mac = "52:54:00:12:36:11";
+        serverAddr = "https://10.10.50.10:6443";
+      };
+      staging-server3 = staging.mk {
+        host = "server3"; tap = "agent2"; ip = "10.10.50.12"; role = "server"; mac = "52:54:00:12:36:12";
+        serverAddr = "https://10.10.50.10:6443";
+      };
+      # The two tunnel-rehearsal guests. They reuse tap-server and the server's address, so only one runs at a time.
+      staging-native = (staging.mk { host = "server"; ip = "10.10.50.10"; role = "server"; mac = "52:54:00:12:36:10"; })
+        .extendModules { modules = [ ./staging/cluster-3node/native-test.nix ]; };
+      staging-election = (staging.mk { host = "server"; ip = "10.10.50.10"; role = "server"; mac = "52:54:00:12:36:10"; })
+        .extendModules { modules = [ ./staging/cluster-3node/election-test.nix ]; };
+    }) // {
       # .81 (Intel i5) — media / arr stack
       calamansi-intel = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
