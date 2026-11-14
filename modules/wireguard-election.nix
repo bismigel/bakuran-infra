@@ -146,23 +146,42 @@ let
           systemctl start "wireguard-${iface}.service" && echo "tunnel UP on $ME"
         fi
 
+        # The unit declares NO peers (by design - a declared peer drags the endpoint into the unit and the restart back with
+        # it), so the peer comes from wireguard-reconcile, which runs on a 60 s timer. Without this line the gate below could
+        # never be satisfied on a fresh start and the elector would cycle the tunnel forever (observed 2026-11-14: "tunnel UP"
+        # then "did not handshake within 20s", repeating every ~20 s, with egress down the whole time).
+        systemctl start wireguard-reconcile.service 2>/dev/null || true
+
         # HANDSHAKE GATE, and it is not ceremony: on 2026-11-13 the Bitwarden entry for this key was found to hold a STALE
         # key (derived pubkey UTVRAFyh… against the live ZmxJzw0j…). A tunnel brought up with it is "active" and never
         # handshakes - fail-closed, so no leak, but the policy would then point at a node with no egress, which looks like
         # a broken estate and is hard to attribute. Refusing the label turns that into a loud, local failure instead.
         hs=0
-        for _ in 1 2 3 4 5 6 7 8 9 10; do
+        for _ in $(seq 1 30); do
           hs=$(${pkgs.wireguard-tools}/bin/wg show ${lib.escapeShellArg iface} latest-handshakes 2>/dev/null | ${pkgs.gawk}/bin/awk '{print $2}' | head -1)
           [ "''${hs:-0}" -gt 0 ] && break
           sleep 2
         done
         if [ "''${hs:-0}" -eq 0 ]; then
-          echo "tunnel did not handshake within 20s - stopping it and NOT taking egress-node (wrong/stale key, or endpoint)"
+          echo "tunnel did not handshake within 60s - stopping it and NOT taking egress-node (wrong/stale key, or endpoint)"
           systemctl stop "wireguard-${iface}.service"
           let_go_of_label "$ME"
           sleep 10; continue
         fi
         take_label "$ME"
+
+        # THE IFINDEX PROBLEM, automated. Recreating proton0 gives it a new ifindex while Cilium's egress map keeps the old
+        # one, so every selected pod is dropped until the agent on this node restarts. Seen FIVE times on 2026-11-14, twice
+        # as "the tunnel is up, everything reports healthy, nothing has egress". Restarting the agent here is idempotent
+        # (deleting the pod is a no-op if it is already re-resolving) and costs a few seconds of datapath churn on the
+        # gateway node only.
+        # Guarded so it fires once per successful gate, not on every loop pass: the gate only reaches here after a
+        # handshake, and after the agent restart the interface index is stable until the tunnel is next recreated.
+        if [ "$(cat /run/tunnel-election.cilium-restarted 2>/dev/null || echo 0)"              -lt "$(cat /sys/class/net/${iface}/ifindex 2>/dev/null || echo 0)" ]; then
+          kubectl -n kube-system delete pod -l k8s-app=cilium \
+            --field-selector "spec.nodeName=$ME" --wait=false >/dev/null 2>&1 || true
+          cat /sys/class/net/${iface}/ifindex > /run/tunnel-election.cilium-restarted 2>/dev/null || true
+        fi
       else
         if systemctl is-active --quiet "wireguard-${iface}.service"; then
           systemctl stop "wireguard-${iface}.service" && echo "tunnel DOWN on $ME (not holder)"
