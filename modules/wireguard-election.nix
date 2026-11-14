@@ -27,8 +27,12 @@ let
   # and a let-binding is evaluated even when this module is disabled - which broke evaluation on .80/.82.
   iface = e.interface;
 
-  tools = with pkgs; [ kubectl jq coreutils iproute2 systemd gawk ];
-  env = "PATH=${lib.makeBinPath tools}";
+  # gnugrep is NOT optional: the first version omitted it and the staging guest showed the elector spamming
+  # "grep: command not found" every three seconds - so `am_holder` could never match, and no node could ever become the
+  # holder. Any tool a script calls must be listed here; nothing is inherited. The system profile is appended as well,
+  # because `hostname` and friends live there and the point is to fail loudly on the tools that matter, not on trivia.
+  tools = with pkgs; [ kubectl jq coreutils iproute2 systemd gawk gnugrep ];
+  env = "PATH=${lib.makeBinPath tools}:/run/current-system/sw/bin";
 
   # Fetch the key into a tmpfs file (mode 600). A FUNCTION, not a snippet: the first version was inlined as
   # `${fetchKey} || { sleep 5; continue; }`, which is invalid shell because the snippet ends with `fi` - the build caught
@@ -56,6 +60,11 @@ let
     NS=${lib.escapeShellArg e.namespace}
     DURATION=${toString e.duration}
     ME=$(hostname)
+
+    # The key-fetch function must be DEFINED here, not merely called below: the second version of this script called
+    # fetch_key without defining it and logged "fetch_key: command not found" every five seconds (found by running the
+    # staging guest, not by reading it).
+    ${fetchKey}
 
     lease_json() { kubectl -n "$NS" get lease "$LEASE" -o json 2>/dev/null; }
     am_holder() { lease_json | jq -r '.spec.holderIdentity // ""' | grep -qx "$ME"; }
