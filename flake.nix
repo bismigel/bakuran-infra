@@ -125,6 +125,13 @@
       nodes = {
         calamansi-intel = {
           hostname = "192.168.2.81";
+          # Activation here can restart k3s - changing `nodeLabel` changes the k3s unit - and the default confirmation
+          # window is short enough that deploy-rs calls the deploy failed while k3s is still coming back, then rolls back
+          # a change that was going to work. Measured twice on 2026-11-14 (both flip attempts); the second one rolled back
+          # while `systemctl is-active k3s` said "activating", and the node recovered by itself 90 s later.
+          #
+          # 300 s is a ceiling, not a target: a normal deploy still confirms in seconds.
+          confirmTimeout = 300;
           profiles.system = {
             user = "root";
             path = deploy-rs.lib.x86_64-linux.activate.nixos self.nixosConfigurations.calamansi-intel;
