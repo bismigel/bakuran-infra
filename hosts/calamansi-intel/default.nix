@@ -247,7 +247,11 @@
     # owners - k3s re-adds it at every start, the elector removes it when it stops - and on 2026-11-14 that left the
     # egress policy with no gateway after a rolled-back flip. The module asserts this; a node is a gateway because it
     # holds a live tunnel, not because a boot label says so.
-    nodeLabel = [ "homelab.io/media-pool=true" "homelab.io/wg-egress=true" "homelab.io/qsv=true" ];
+    # `egress-node=true` KEPT HERE, and the reason is measured: removing it changes the k3s unit, activation restarts k3s,
+    # and `activate-rs wait` fails before k3s returns - three flip attempts on 2026-11-14 all died there. While `.81` is
+    # the only candidate the label has one meaningful owner anyway (this node), so the elector leaves it alone; see the
+    # `manageLabel` logic in modules/wireguard-election.nix, which takes over only when the label is NOT declared.
+    nodeLabel = [ "homelab.io/media-pool=true" "homelab.io/wg-egress=true" "homelab.io/qsv=true" "egress-node=true" ];
     enable = true;
     role = "server";
     serverAddr = "https://192.168.2.82:6443";

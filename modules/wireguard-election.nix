@@ -27,12 +27,23 @@ let
   # and a let-binding is evaluated even when this module is disabled - which broke evaluation on .80/.82.
   iface = e.interface;
 
+  # WHO OWNS `egress-node`. If the host declares it in `services.k3s.nodeLabel`, k3s owns it: it is present whenever the node
+  # boots and the elector must not touch it. Removing a declared label changes the k3s unit, a k3s restart during activation
+  # makes `activate-rs wait` fail, and that is what made three flip attempts roll back on 2026-11-14. If the host does NOT
+  # declare it - the shape for multiple candidates - the elector owns it: set on the holder, fenced off everyone else.
+  #
+  # While `.81` is the only candidate the first case applies, and the semantics are still right: "this node is meant to be
+  # the gateway" (label) is separate from "the tunnel is up here" (the handshake gate, which still stops the tunnel rather
+  # than leave a tunnel-less node pretending to be a gateway).
+  manageLabel = !(builtins.elem "egress-node=true" config.services.k3s.nodeLabel);
+
   # gnugrep is NOT optional: the first version omitted it and the staging guest showed the elector spamming
   # "grep: command not found" every three seconds - so `am_holder` could never match, and no node could ever become the
   # holder. Any tool a script calls must be listed here; nothing is inherited. The system profile is appended as well,
   # because `hostname` and friends live there and the point is to fail loudly on the tools that matter, not on trivia.
   tools = with pkgs; [ kubectl jq coreutils iproute2 systemd gawk gnugrep ];
   env = "PATH=${lib.makeBinPath tools}:/run/current-system/sw/bin";
+  libbool = if manageLabel then 1 else 0;
 
   # Fetch the key into a tmpfs file (mode 600). A FUNCTION, not a snippet: the first version was inlined as
   # `${fetchKey} || { sleep 5; continue; }`, which is invalid shell because the snippet ends with `fi` - the build caught
@@ -56,6 +67,18 @@ let
   elector = pkgs.writeShellScriptBin "tunnel-election" ''
     ${env}
     export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+
+    # Label ownership decided at build time: 1 = the elector manages it, 0 = the host's nodeLabel does and we leave it alone.
+    MANAGE_LABEL=${toString libbool}
+
+    let_go_of_label() {
+      [ "$MANAGE_LABEL" = "1" ] || return 0
+      kubectl label node "$1" egress-node- >/dev/null 2>&1
+    }
+    take_label() {
+      [ "$MANAGE_LABEL" = "1" ] || return 0
+      kubectl label node "$1" egress-node=true --overwrite >/dev/null 2>&1
+    }
     LEASE=${lib.escapeShellArg e.leaseName}
     NS=${lib.escapeShellArg e.namespace}
     DURATION=${toString e.duration}
@@ -105,7 +128,7 @@ let
       for n in $(kubectl get nodes -o jsonpath='{.items[*].metadata.name}' 2>/dev/null); do
         [ "$n" = "$ME" ] && continue
         if [ -n "$(kubectl get node "$n" -o jsonpath='{.metadata.labels.egress-node}' 2>/dev/null)" ]; then
-          kubectl label node "$n" egress-node- >/dev/null 2>&1 && echo "fenced stale egress-node label off $n"
+          let_go_of_label "$n" && echo "fenced stale egress-node label off $n"
         fi
       done
     }
@@ -133,15 +156,15 @@ let
         if [ "''${hs:-0}" -eq 0 ]; then
           echo "tunnel did not handshake within 20s - stopping it and NOT taking egress-node (wrong/stale key, or endpoint)"
           systemctl stop "wireguard-${iface}.service"
-          kubectl label node "$ME" egress-node- >/dev/null 2>&1
+          let_go_of_label "$ME"
           sleep 10; continue
         fi
-        kubectl label node "$ME" egress-node=true --overwrite >/dev/null 2>&1
+        take_label "$ME"
       else
         if systemctl is-active --quiet "wireguard-${iface}.service"; then
           systemctl stop "wireguard-${iface}.service" && echo "tunnel DOWN on $ME (not holder)"
         fi
-        kubectl label node "$ME" egress-node- >/dev/null 2>&1
+        let_go_of_label "$ME"
       fi
       sleep 3
     done
@@ -152,7 +175,9 @@ let
     export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
     systemctl stop "wireguard-${iface}.service" 2>/dev/null && echo "teardown: tunnel stopped"
     rm -f ${lib.escapeShellArg e.keyFile}
-    kubectl label node "$(hostname)" egress-node- >/dev/null 2>&1 && echo "teardown: egress-node label removed"
+    # Only if the elector owns the label (the host may declare it - see manageLabel).
+    [ "${toString libbool}" = "1" ] && kubectl label node "$(hostname)" egress-node- >/dev/null 2>&1 \
+      && echo "teardown: egress-node label removed"
     exit 0
   '';
 in
@@ -192,23 +217,10 @@ in
         assertion = cfg.useNative;
         message = "bakuran.wireguard.election.enable requires bakuran.wireguard.useNative = true, with modules/wireguard-native.nix and wireguard-reconcile.nix imported.";
       }
-      {
-        # OWNERSHIP OF THE LABEL, and this assertion exists because getting it wrong caused an outage on 2026-11-14.
-        # `egress-node` is what the egress policy selects on. If the host also declares it in `services.k3s.nodeLabel`,
-        # there are two owners: k3s re-adds it at every start, and the elector's teardown removes it whenever the election
-        # unit stops. On the first flip attempt the deploy rolled back, the teardown fired, and the label vanished - so the
-        # policy had no gateway and anonymised egress failed closed until a human re-labelled the node.
-        #
-        # The elector must be the only owner: a node is a gateway because it holds a live tunnel, not because a boot-time
-        # label says so.
-        assertion = !(builtins.elem "egress-node=true" config.services.k3s.nodeLabel);
-        message = ''
-          bakuran.wireguard.election.enable = true, so the elector owns `egress-node` - remove
-          "egress-node=true" from services.k3s.nodeLabel on this host. Two owners means k3s re-adds it and the
-          elector's teardown removes it, which is how a rolled-back flip left the egress policy with no gateway
-          (2026-11-14).
-        '';
-      }
+      # NOTHING ABOUT THE LABEL IS ASSERTED HERE ANY MORE, and that is a correction from three failed flips (2026-11-14): the
+      # assertion used to demand the label be removed from `nodeLabel`, which changes the k3s unit, which restarts k3s during
+      # activation, which makes `activate-rs wait` fail before k3s is back - so the deploy rolled back every time. Ownership
+      # is now decided by what the host declares (see `manageLabel`), not by an assertion that forces a k3s restart.
     ];
 
     systemd.services.tunnel-election = {
