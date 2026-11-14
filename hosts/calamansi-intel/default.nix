@@ -9,6 +9,7 @@
     ../../modules/backup-verify.nix
     ../../modules/backup.nix
     ../../modules/wireguard-metrics.nix
+    ../../modules/wireguard-election.nix
     ../../modules/wireguard-reconcile.nix
     ../../modules/wireguard-native.nix
     ../../modules/wireguard-fallback.nix
