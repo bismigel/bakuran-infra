@@ -177,7 +177,19 @@
   #   2. deploy with the machine power-cyclable, because the activation restarts the tunnel
   #      (`scripts/preflight-wg.sh` refuses it, correctly).
   # Re-flipping is those two edits plus this line. The module now also refuses to evaluate while both owners exist.
-  bakuran.wireguard.election.enable = true;
+  # OFF. Four flip attempts on 2026-11-14 all rolled back, and the last two showed why it cannot be a normal deploy at all:
+  # activation starts `tunnel-election`, which immediately starts/stops `wireguard-proton0` BY DESIGN, and deploy-rs's
+  # `activate-rs wait` treats a unit that was expected up but is being cycled by another unit as a failed deployment. It
+  # then rolls the whole generation back mid-flight, which stops the elector, whose teardown stops the tunnel.
+  #
+  # So the flip is a maintenance-window operation (runbook 14's class), not `deploy .#calamansi-intel`:
+  #   1. `scripts/preflight-wg.sh` will fail - that is expected and correct;
+  #   2. deploy with auto-rollback off, or `switch-to-configuration switch` by hand at the console;
+  #   3. afterwards restart the Cilium agent on this node - recreating proton0 changes its ifindex and the egress map keeps
+  #      the old one (observed three times on 2026-11-14: map 19735 vs live 19749).
+  # Everything else the flip needs is done: the module, the key in the cluster, the preStart ordering, the label ownership
+  # rule, and the rehearsal that proved the mechanism.
+  bakuran.wireguard.election.enable = false;
 
   # ---- Cloudflare tunnel (SECOND connector — edge HA) ----
   # .82 runs one connector; this is the other. Cloudflare load-balances the
