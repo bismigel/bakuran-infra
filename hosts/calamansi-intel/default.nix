@@ -263,7 +263,11 @@
     # and `activate-rs wait` fails before k3s returns - three flip attempts on 2026-11-14 all died there. While `.81` is
     # the only candidate the label has one meaningful owner anyway (this node), so the elector leaves it alone; see the
     # `manageLabel` logic in modules/wireguard-election.nix, which takes over only when the label is NOT declared.
-    nodeLabel = [ "homelab.io/media-pool=true" "homelab.io/wg-egress=true" "homelab.io/qsv=true" "egress-node=true" ];
+    # `egress-node` is NOT declared: the lease elector owns it (story 10.14). With two candidates the mixed model broke - `nodeLabel` still declared it
+    # on `.81` while `.82` declared nothing, so when `.82` won the lease it fenced the label off `.81`, and when `.82` lost it again nothing
+    # re-added it: k3s only applies `nodeLabel` at start. The egress map then read "Not Found" and anonymised egress was down until the label
+    # was restored by hand. One owner, everywhere: the elector.
+    nodeLabel = [ "homelab.io/media-pool=true" "homelab.io/wg-egress=true" "homelab.io/qsv=true" ];
     enable = true;
     role = "server";
     serverAddr = "https://192.168.2.82:6443";
