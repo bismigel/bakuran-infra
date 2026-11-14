@@ -18,6 +18,25 @@ production.
 `br-staging` bridge and the tap devices the VM runners expect. The MacBook
 (`kamatis-mbp`, `.83`) is that host, and is no longer a cluster node.
 
+## Known-broken: the `native` output cannot be evaluated (found 2026-11-13)
+
+`cluster-3node/native-test.nix` imports `../../modules/wireguard-native.nix` and `../../modules/wireguard-reconcile.nix`.
+Those paths are **outside** the flake root (`staging/cluster-3node`), so Nix refuses:
+
+```
+nix eval "path:staging/cluster-3node#nixosConfigurations.native.config.system.build.toplevel.drvPath"
+error: access to absolute path '/nix/modules/wireguard-native.nix' is forbidden
+```
+
+This is not a regression from a recent change — the output has never been buildable with the command the table above
+advertises, and it is the vehicle the tunnel-rehearsal notes point at ("boots the real module"). Anyone planning to
+rehearse a tunnel-unit change there will lose an hour before discovering that the guest does not build.
+
+The fix is structural, not a one-liner: the modules live above the flake root, so either the staging configs move into the
+**repo-root** flake (one source of truth, at the cost of staging entries in the production flake) or `staging/` gets its own
+flake whose root is the repository. Until one of those happens, treat `native-test.nix` as documentation of what a tunnel
+guest should contain rather than something to run.
+
 ## Why the inputs matter more than the outputs
 
 Two facts about this lab make staging worth the effort:
