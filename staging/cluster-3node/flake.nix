@@ -268,6 +268,11 @@
       nixosConfigurations.server = mk { host = "server"; ip = "10.10.50.10"; role = "server"; mac = "52:54:00:12:36:10"; };
       # Boots the real production module (modules/wireguard-native.nix). Reuses
       # tap-server and the server's address, so only one guest runs at a time.
+      # The election variant: the real module WITH the lease election (story 10.14). Separate output rather than a flag so
+      # both can be built and compared, and so `nix build .#nixosConfigurations.election...` is the whole rehearsal entry.
+      nixosConfigurations.election =
+        (mk { host = "server"; ip = "10.10.50.10"; role = "server"; mac = "52:54:00:12:36:10"; })
+        .extendModules { modules = [ ./election-test.nix ]; };
       nixosConfigurations.native =
           (mk { host = "server"; ip = "10.10.50.10"; role = "server"; mac = "52:54:00:12:36:10"; })
           .extendModules { modules = [ ./native-test.nix ]; };
