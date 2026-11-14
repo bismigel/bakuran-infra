@@ -4,13 +4,6 @@
   imports = [
     ../../modules/base.nix
     ../../modules/k3s.nix
-    # Tunnel candidate since 2026-11-14 (story 10.14): the same native interface + reconciler that `.81` runs, plus the
-    # lease election. Deliberately NOT `wireguard-fallback.nix` - that renders the four rotation configs from SOPS
-    # secrets this host does not carry, and a candidate needs none of them: its key arrives from the Kubernetes Secret.
-    ../../modules/wireguard-metrics.nix
-    ../../modules/wireguard-reconcile.nix
-    ../../modules/wireguard-native.nix
-    ../../modules/wireguard-election.nix
     ../../modules/cni-cleanup.nix
     ../../modules/backup-local.nix
     ../../modules/backup.nix
@@ -289,18 +282,14 @@
 
   system.stateVersion = lib.mkForce "25.11";
 
-  # ---- WireGuard tunnel candidate (story 10.14, 2026-11-14) ----
-  # This host can CARRY the Proton tunnel; it does not run one unless the lease says so. Proton permits one session per
-  # account (measured 2026-11-13), so a second simultaneous tunnel would simply never handshake.
+  # ---- NOT a tunnel candidate (reverted 2026-11-14, same day) ----
+  # `.82` imported the wireguard stack and became a candidate, and the election DID move the tunnel to it: `.82` held the
+  # lease, brought proton0 up and took `egress-node`. But while it held the tunnel it stopped answering on its LAN address -
+  # SSH from the workstation timed out, while the node stayed Ready and reachable from `.81`. That is the 2026-10-25 stranding
+  # class, and it is not understood. It lifted by itself the moment `.82` lost the lease and stopped the tunnel, which is the
+  # self-fencing working, but a candidate that strands itself when it wins is worse than no candidate.
   #
-  # `device` is the one thing that differs from `.81`: this host's LAN NIC is `enp8s0` (the module default, `eno1`, is
-  # `.81`'s). Getting it wrong is not cosmetic - the reconciler pins the endpoint route with
-  # `ip route ... via GATEWAY dev DEVICE`, and the wrong device there is how a node gets stranded (NETWORK.md §7.1).
-  bakuran.wireguard = {
-    device          = "enp8s0";
-    endpoint        = "84.20.16.29:51820";
-    peerPublicKey   = "uUM9J8bziO0yZfsdYoruEfP3m6YuSu+Mek9W/J8mT1Y=";
-    useNative       = true;
-    election.enable = true;
-  };
+  # Reverted until the strand is diagnosed on a staging guest (the `staging-election` rehearsal exists for exactly this).
+  # `.81` stays the only candidate; its elector keeps the tunnel healthy.
+
 }
