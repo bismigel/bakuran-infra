@@ -187,10 +187,29 @@ in
   # written; that is why .80/.82 are not candidates yet and do not import this file. Making them candidates is the same
   # migration .81 went through on 2026-11-01 (runbook 14), not a one-line flip.
   config = lib.mkIf e.enable {
-    assertions = [{
-      assertion = cfg.useNative;
-      message = "bakuran.wireguard.election.enable requires bakuran.wireguard.useNative = true, with modules/wireguard-native.nix and wireguard-reconcile.nix imported.";
-    }];
+    assertions = [
+      {
+        assertion = cfg.useNative;
+        message = "bakuran.wireguard.election.enable requires bakuran.wireguard.useNative = true, with modules/wireguard-native.nix and wireguard-reconcile.nix imported.";
+      }
+      {
+        # OWNERSHIP OF THE LABEL, and this assertion exists because getting it wrong caused an outage on 2026-11-14.
+        # `egress-node` is what the egress policy selects on. If the host also declares it in `services.k3s.nodeLabel`,
+        # there are two owners: k3s re-adds it at every start, and the elector's teardown removes it whenever the election
+        # unit stops. On the first flip attempt the deploy rolled back, the teardown fired, and the label vanished - so the
+        # policy had no gateway and anonymised egress failed closed until a human re-labelled the node.
+        #
+        # The elector must be the only owner: a node is a gateway because it holds a live tunnel, not because a boot-time
+        # label says so.
+        assertion = !(builtins.elem "egress-node=true" config.services.k3s.nodeLabel);
+        message = ''
+          bakuran.wireguard.election.enable = true, so the elector owns `egress-node` - remove
+          "egress-node=true" from services.k3s.nodeLabel on this host. Two owners means k3s re-adds it and the
+          elector's teardown removes it, which is how a rolled-back flip left the egress policy with no gateway
+          (2026-11-14).
+        '';
+      }
+    ];
 
     systemd.services.tunnel-election = {
       description = "Elect one node to carry the WireGuard tunnel (story 10.14)";
@@ -216,7 +235,20 @@ in
     # Proton session that exists. `mkForce []` here removes the boot pull; `systemctl start wireguard-proton0` still works,
     # because starting a unit does not need it to be wanted.
     systemd.targets."wireguard-${iface}".wantedBy = lib.mkForce [ ];
-    systemd.services."wireguard-${iface}".after = [ "tunnel-election.service" ];
+    systemd.services."wireguard-${iface}" = {
+      after = [ "tunnel-election.service" ];
+      # THE UNIT FETCHES ITS OWN KEY, and this is not belt-and-braces - it is the fix for the first production attempt
+      # (2026-11-14). Activation restarted the tunnel before the elector had written /run/..., the unit failed with
+      # "fopen: No such file or directory", deploy-rs saw a failed unit and rolled the change back; the elector started the
+      # tunnel 2 s LATER, so the mechanism was right and the ordering was not.
+      #
+      # With this preStart the unit is self-sufficient: it either has a key from the cluster or it fails for a reason that is
+      # true (no Secret), never because another unit had not run yet.
+      preStart = ''
+        ${fetchKey}
+        fetch_key
+      '';
+    };
 
     # ...and the key comes from tmpfs, written by the elector from the cluster, never from a host disk.
     bakuran.wireguard.privateKeyFile = lib.mkForce e.keyFile;
