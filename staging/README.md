@@ -18,30 +18,18 @@ production.
 `br-staging` bridge and the tap devices the VM runners expect. The MacBook
 (`kamatis-mbp`, `.83`) is that host, and is no longer a cluster node.
 
-## Known-broken: the `native` output cannot be evaluated (found 2026-11-13)
+## Fixed 2026-11-13: the staging guests are configurations of the root flake
 
-`cluster-3node/native-test.nix` imports `../../modules/wireguard-native.nix` and `../../modules/wireguard-reconcile.nix`.
-Those paths are **outside** the flake root (`staging/cluster-3node`), so Nix refuses:
+The `native` guest used to be unevaluatable — `cluster-3node/native-test.nix` imports `../../modules/*`, outside that
+flake's own root, so Nix refused it and nothing noticed, because CI's `nix flake check` only ever looks at the **root** flake.
 
-```
-nix eval "path:staging/cluster-3node#nixosConfigurations.native.config.system.build.toplevel.drvPath"
-error: access to absolute path '/nix/modules/wireguard-native.nix' is forbidden
-```
+The guests now live in the root flake as `.#nixosConfigurations.staging-{server,server2,server3,native,election}`. One lock
+file, one `nix flake check` that covers staging and production together, and `../../modules` is simply inside the root.
 
-This is not a regression from a recent change — the output has never been buildable with the command the table above
-advertises, and it is the vehicle the tunnel-rehearsal notes point at ("boots the real module"). Anyone planning to
-rehearse a tunnel-unit change there will lose an hour before discovering that the guest does not build.
-
-The fix is structural, not a one-liner: the modules live above the flake root, so either the staging configs move into the
-**repo-root** flake (one source of truth, at the cost of staging entries in the production flake) or `staging/` gets its own
-flake whose root is the repository. Until one of those happens, treat `native-test.nix` as documentation of what a tunnel
-guest should contain rather than something to run.
-
-**The obvious workaround does not work**, tried on 2026-11-13 so nobody spends the same half hour: a `path:` input to the
-parent directory is resolved against the flake's **store copy**, not the checkout, so `url = "path:../../modules"` becomes
-`/nix/modules` and fails with `path '/nix/modules' is not in the Nix store`. An input of the whole repository is worse - it
-contains this flake, so evaluation recurses forever. Only an absolute `path:/home/...` works, and that does not belong in a
-committed flake.
+Recorded because the obvious workarounds do not work, and were tried: a `path:` input to the parent resolves against the
+flake's **store copy** (`path '/nix/modules' is not in the Nix store`), and an input of the whole repository contains the
+flake that consumes it — infinite recursion. Hoisting was the only fix that did not duplicate the modules or hardcode an
+absolute path.
 
 ## Why the inputs matter more than the outputs
 
