@@ -164,6 +164,14 @@
   # restart the unit. That is now moot: the wg-quick unit is gone, and the peer
   # below is IPv4-only exactly like the live tunnel.
   bakuran.wireguard.useNative = true;
+  # The tunnel is lease-elected instead of started at boot (story 10.14, flipped 2026-11-14). `.81` is the only
+  # candidate for now, so there is nothing to fail over TO - this exercises the mechanism in production without a
+  # second node competing. Two things to watch, both learned the hard way:
+  #   * the handshake gate refuses `egress-node` if the tunnel does not handshake within 20s, so a stale key shows up
+  #     here instead of as "the egress policy points at a dead tunnel";
+  #   * recreating proton0 changes its ifindex, and Cilium's egress map keeps the old one - restart the cilium agent
+  #     on this node after any tunnel restart (docs/WIREGUARD-ROTATION.md).
+  bakuran.wireguard.election.enable = true;
 
   # ---- Cloudflare tunnel (SECOND connector — edge HA) ----
   # .82 runs one connector; this is the other. Cloudflare load-balances the
