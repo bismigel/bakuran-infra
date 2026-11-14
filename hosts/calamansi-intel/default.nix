@@ -177,7 +177,7 @@
   #   2. deploy with the machine power-cyclable, because the activation restarts the tunnel
   #      (`scripts/preflight-wg.sh` refuses it, correctly).
   # Re-flipping is those two edits plus this line. The module now also refuses to evaluate while both owners exist.
-  bakuran.wireguard.election.enable = false;
+  bakuran.wireguard.election.enable = true;
 
   # ---- Cloudflare tunnel (SECOND connector — edge HA) ----
   # .82 runs one connector; this is the other. Cloudflare load-balances the
@@ -243,7 +243,11 @@
     # `egress-node=true` is what Cilium's egress gateway looks for — it may run egress-policy traffic for pods on
     # **other** nodes, because this is where the Proton tunnel (`proton0`) lives. That is the point: the downloaders stop
     # needing to be here. `homelab.io/wg-egress` stays for now, on the workloads, until the policy is proven.
-    nodeLabel = [ "homelab.io/media-pool=true" "homelab.io/wg-egress=true" "homelab.io/qsv=true" "egress-node=true" ];
+    # `egress-node` is NOT here: the lease elector owns it (story 10.14). Declaring it as well gives the label two
+    # owners - k3s re-adds it at every start, the elector removes it when it stops - and on 2026-11-14 that left the
+    # egress policy with no gateway after a rolled-back flip. The module asserts this; a node is a gateway because it
+    # holds a live tunnel, not because a boot label says so.
+    nodeLabel = [ "homelab.io/media-pool=true" "homelab.io/wg-egress=true" "homelab.io/qsv=true" ];
     enable = true;
     role = "server";
     serverAddr = "https://192.168.2.82:6443";
