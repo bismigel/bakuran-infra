@@ -7,6 +7,25 @@ fence. It is the space where things get built, repaired, and occasionally taken
 apart to see how they work. This repo is part of that backyard lab: small,
 personal, and safe to break on purpose.
 
+## Which tool owns what
+
+Five toolchains live here. The map exists because "change the router" should not require a search.
+
+| what you want to change | where it lives | how it is applied |
+|---|---|---|
+| a host: packages, services, disks, kernel, mounts | `flake.nix` → `hosts/<host>/`, `modules/` | `deploy-rs` (`nix run github:serokell/deploy-rs -- .#<host>`) |
+| the router: firewall rules, VLANs, DHCP, DNS overrides | `opentofu/opnsense/` | `tofu plan` then `tofu apply` (runbook 22) |
+| the router's **unmodelled** half: IDS state, plugins, cron | `ansible/` | `./ansible/run.sh playbooks/<x>.yml --check` first |
+| a rehearsal before touching production | `staging/` | QEMU guests on `br-staging`; `.#nixosConfigurations.staging-*` |
+| how to rebuild a machine from scratch | `docs/` | read, then follow |
+
+Two rules that decide arguments between them:
+
+- **OpenTofu owns everything the provider can model**; Ansible owns what it cannot. The boundary is written in
+  `opentofu/opnsense/README.md` and `ansible/README.md`, and neither is allowed to grow into the other's territory.
+- **Nothing on the router is hand-edited.** `config.xml` is off limits; a change that cannot be declared is said out loud and
+  recorded (`NETWORK-AS-CODE.md` in the context repo names which is which).
+
 **NixOS machine configuration** for the Bakuran homelab. This repo defines the
 *machines*; what runs on top of them (k3s workloads) lives in
 [`bakuran-gitops`](../bakuran-gitops) and is reconciled by ArgoCD.
