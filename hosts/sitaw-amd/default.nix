@@ -4,6 +4,13 @@
   imports = [
     ../../modules/base.nix
     ../../modules/k3s.nix
+    # Tunnel candidate since 2026-11-14 (story 10.14): the same native interface + reconciler that `.81` runs, plus the
+    # lease election. Deliberately NOT `wireguard-fallback.nix` - that renders the four rotation configs from SOPS
+    # secrets this host does not carry, and a candidate needs none of them: its key arrives from the Kubernetes Secret.
+    ../../modules/wireguard-metrics.nix
+    ../../modules/wireguard-reconcile.nix
+    ../../modules/wireguard-native.nix
+    ../../modules/wireguard-election.nix
     ../../modules/cni-cleanup.nix
     ../../modules/backup-local.nix
     ../../modules/backup.nix
@@ -281,4 +288,19 @@
   systemd.tmpfiles.rules = [ "d /root/.cloudflared 0700 root root -" ];
 
   system.stateVersion = lib.mkForce "25.11";
+
+  # ---- WireGuard tunnel candidate (story 10.14, 2026-11-14) ----
+  # This host can CARRY the Proton tunnel; it does not run one unless the lease says so. Proton permits one session per
+  # account (measured 2026-11-13), so a second simultaneous tunnel would simply never handshake.
+  #
+  # `device` is the one thing that differs from `.81`: this host's LAN NIC is `enp8s0` (the module default, `eno1`, is
+  # `.81`'s). Getting it wrong is not cosmetic - the reconciler pins the endpoint route with
+  # `ip route ... via GATEWAY dev DEVICE`, and the wrong device there is how a node gets stranded (NETWORK.md §7.1).
+  bakuran.wireguard = {
+    device          = "enp8s0";
+    endpoint        = "84.20.16.29:51820";
+    peerPublicKey   = "uUM9J8bziO0yZfsdYoruEfP3m6YuSu+Mek9W/J8mT1Y=";
+    useNative       = true;
+    election.enable = true;
+  };
 }
