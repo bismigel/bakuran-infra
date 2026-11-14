@@ -51,6 +51,9 @@ let
   fetchKey = ''
     fetch_key() {
       local keyfile priv
+      # kubectl defaults to localhost:8080 without this, so the tunnel unit's preStart failed even with the Secret present -
+      # the unit then refused to start and the node had no egress at all (2026-11-14, during the window).
+      export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
       keyfile=${lib.escapeShellArg e.keyFile}
       priv=$(${pkgs.kubectl}/bin/kubectl -n ${lib.escapeShellArg e.secretNamespace} \
                get secret ${lib.escapeShellArg e.secretName} \
