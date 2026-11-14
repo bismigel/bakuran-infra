@@ -105,6 +105,23 @@ let
         if ! systemctl is-active --quiet "wireguard-${iface}.service"; then
           systemctl start "wireguard-${iface}.service" && echo "tunnel UP on $ME"
         fi
+
+        # HANDSHAKE GATE, and it is not ceremony: on 2026-11-13 the Bitwarden entry for this key was found to hold a STALE
+        # key (derived pubkey UTVRAFyh… against the live ZmxJzw0j…). A tunnel brought up with it is "active" and never
+        # handshakes - fail-closed, so no leak, but the policy would then point at a node with no egress, which looks like
+        # a broken estate and is hard to attribute. Refusing the label turns that into a loud, local failure instead.
+        hs=0
+        for _ in 1 2 3 4 5 6 7 8 9 10; do
+          hs=$(${pkgs.wireguard-tools}/bin/wg show ${lib.escapeShellArg iface} latest-handshakes 2>/dev/null | ${pkgs.gawk}/bin/awk '{print $2}' | head -1)
+          [ "''${hs:-0}" -gt 0 ] && break
+          sleep 2
+        done
+        if [ "''${hs:-0}" -eq 0 ]; then
+          echo "tunnel did not handshake within 20s - stopping it and NOT taking egress-node (wrong/stale key, or endpoint)"
+          systemctl stop "wireguard-${iface}.service"
+          kubectl label node "$ME" egress-node- >/dev/null 2>&1
+          sleep 10; continue
+        fi
         kubectl label node "$ME" egress-node=true --overwrite >/dev/null 2>&1
       else
         if systemctl is-active --quiet "wireguard-${iface}.service"; then
