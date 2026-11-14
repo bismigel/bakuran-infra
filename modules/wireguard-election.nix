@@ -30,19 +30,23 @@ let
   tools = with pkgs; [ kubectl jq coreutils iproute2 systemd gawk ];
   env = "PATH=${lib.makeBinPath tools}";
 
-  # Shared: fetch the key into a tmpfs file (mode 600). Fails loudly; the caller must then not start the tunnel.
+  # Fetch the key into a tmpfs file (mode 600). A FUNCTION, not a snippet: the first version was inlined as
+  # `${fetchKey} || { sleep 5; continue; }`, which is invalid shell because the snippet ends with `fi` - the build caught
+  # it (`syntax error near unexpected token '||'`) and the unit would have failed on every candidate at start.
   fetchKey = ''
-    ${env}
-    keyfile=${lib.escapeShellArg e.keyFile}
-    priv=$(${pkgs.kubectl}/bin/kubectl -n ${lib.escapeShellArg e.secretNamespace} \
-             get secret ${lib.escapeShellArg e.secretName} \
-             -o jsonpath='{.data.${e.secretKey}}' 2>/dev/null | ${pkgs.coreutils}/bin/base64 -d || true)
-    if [ -z "$priv" ]; then
-      echo "no tunnel key in secret ${e.secretNamespace}/${e.secretName} — refusing to start the tunnel (fail closed)"
-      rm -f "$keyfile"
-      exit 1
-    fi
-    umask 077; printf '%s' "$priv" > "$keyfile"
+    fetch_key() {
+      local keyfile priv
+      keyfile=${lib.escapeShellArg e.keyFile}
+      priv=$(${pkgs.kubectl}/bin/kubectl -n ${lib.escapeShellArg e.secretNamespace} \
+               get secret ${lib.escapeShellArg e.secretName} \
+               -o jsonpath='{.data.${e.secretKey}}' 2>/dev/null | ${pkgs.coreutils}/bin/base64 -d || true)
+      if [ -z "$priv" ]; then
+        echo "no tunnel key in secret ${e.secretNamespace}/${e.secretName} — refusing to start the tunnel (fail closed)"
+        rm -f "$keyfile"
+        return 1
+      fi
+      umask 077; printf '%s' "$priv" > "$keyfile"
+    }
   '';
 
   elector = pkgs.writeShellScriptBin "tunnel-election" ''
@@ -100,7 +104,8 @@ let
     echo "tunnel election: lease $NS/$LEASE, duration ''${DURATION}s"
     while true; do
       if renew && am_holder; then
-        ${fetchKey} || { sleep 5; continue; }      # no key => no tunnel, and no label
+        # no key => no tunnel, and no label: fail closed rather than point the policy at a tunnel-less node
+        if ! fetch_key; then sleep 5; continue; fi
         fence_others
         if ! systemctl is-active --quiet "wireguard-${iface}.service"; then
           systemctl start "wireguard-${iface}.service" && echo "tunnel UP on $ME"
