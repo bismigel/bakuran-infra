@@ -171,7 +171,13 @@
   #     here instead of as "the egress policy points at a dead tunnel";
   #   * recreating proton0 changes its ifindex, and Cilium's egress map keeps the old one - restart the cilium agent
   #     on this node after any tunnel restart (docs/WIREGUARD-ROTATION.md).
-  bakuran.wireguard.election.enable = true;
+  # OFF until two preconditions are met, both learned from the first attempt (2026-11-14):
+  #   1. drop "egress-node=true" from `nodeLabel` above - the elector owns that label, and when both declared it the
+  #      teardown removed it on rollback and anonymised egress failed closed with no gateway;
+  #   2. deploy with the machine power-cyclable, because the activation restarts the tunnel
+  #      (`scripts/preflight-wg.sh` refuses it, correctly).
+  # Re-flipping is those two edits plus this line. The module now also refuses to evaluate while both owners exist.
+  bakuran.wireguard.election.enable = false;
 
   # ---- Cloudflare tunnel (SECOND connector — edge HA) ----
   # .82 runs one connector; this is the other. Cloudflare load-balances the
