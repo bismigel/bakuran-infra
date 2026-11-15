@@ -20,7 +20,20 @@
         # Cilium talks to the LOCAL API, matching production since 2026-11-15: a cold boot must not
         # depend on the VIP, or Cilium and kube-vip deadlock (2026-11-15 incident). `vip` stays for
         # kube-vip itself and the TLS SAN, which is what clients use.
-        ciliumApi = "--set k8sServiceHost=127.0.0.1 --set k8sServicePort=6443";
+        # Every value the install passes, so install and upgrade cannot diverge. `--reuse-values` on the
+        # upgrade path silently keeps the OLD value of anything this list omits - which is how two
+        # rehearsals "passed" while the agent was still dialling the VIP.
+        ciliumValues = lib.concatStringsSep " " [
+          "--set kubeProxyReplacement=true"
+          "--set routingMode=tunnel"
+          "--set tunnelProtocol=vxlan"
+          "--set ipam.mode=kubernetes"
+          "--set k8sServiceHost=127.0.0.1"
+          "--set k8sServicePort=6443"
+          "--set operator.replicas=1"
+          "--set prometheus.enabled=true"
+          "--set updateStrategy.rollingUpdate.maxUnavailable=1"
+        ];
 
       mk = { host, ip, role, mac, serverAddr ? null,
       # The tap on br-staging this guest attaches to. Decoupled from `host` so a
@@ -119,23 +132,11 @@
                   if ! helm status cilium -n kube-system >/dev/null 2>&1; then
                     helm install cilium cilium/cilium --namespace kube-system \
                     --version ${ciliumVersion} \
-                    --set kubeProxyReplacement=true \
-                    --set routingMode=tunnel \
-                    --set tunnelProtocol=vxlan \
-                    --set ipam.mode=kubernetes \
-                    ${ciliumApi} \
-                    --set operator.replicas=1 \
-                    --set prometheus.enabled=true \
-                    --set updateStrategy.rollingUpdate.maxUnavailable=1
+                    ${ciliumValues}
                   else
-                    # --reuse-values alone keeps whatever the release already recorded, so the endpoint
-                    # is passed on both paths. A change that only lands on the install path silently does
-                    # nothing on a cluster that already has a release - which is exactly what happened
-                    # the first two times this was rehearsed.
                     helm upgrade cilium cilium/cilium --namespace kube-system \
                     --version ${ciliumVersion} \
-                    --reuse-values \
-                    ${ciliumApi}
+                    ${ciliumValues}
                   fi
                 echo "staging-cilium: applied"
               '';
