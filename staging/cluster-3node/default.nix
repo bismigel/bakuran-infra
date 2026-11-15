@@ -80,7 +80,10 @@
                 "--disable" "traefik"
                 "--disable" "servicelb"
                 "--kubelet-arg" "container-log-max-size=10Mi"
-                "--kube-proxy-arg" "nodeport-addresses=127.0.0.1/32"
+                # production shape since 2026-11-15: Cilium replaces kube-proxy, so the API service IP
+                # 10.43.0.1 exists only once Cilium is running. That is the condition the cold-boot
+                # deadlock needs, and the reason this rehearsal is now faithful.
+                "--disable-kube-proxy"
 ] ++ (if role == "server" then
   # The FIRST server must bootstrap embedded etcd, or k3s falls back to
   # SQLite and every additional server fails to join with "failed to
@@ -116,7 +119,7 @@
                   if ! helm status cilium -n kube-system >/dev/null 2>&1; then
                     helm install cilium cilium/cilium --namespace kube-system \
                     --version ${ciliumVersion} \
-                    --set kubeProxyReplacement=false \
+                    --set kubeProxyReplacement=true \
                     --set routingMode=tunnel \
                     --set tunnelProtocol=vxlan \
                     --set ipam.mode=kubernetes \
