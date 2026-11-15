@@ -23,6 +23,8 @@
         # Every value the install passes, so install and upgrade cannot diverge. `--reuse-values` on the
         # upgrade path silently keeps the OLD value of anything this list omits - which is how two
         # rehearsals "passed" while the agent was still dialling the VIP.
+        # Which address the agents dial, as a separate value so a control run only changes this line.
+        ciliumEndpoint = "127.0.0.1";
         ciliumValues = lib.concatStringsSep " " [
           "--set kubeProxyReplacement=false"
           "--set routingMode=tunnel"
@@ -112,39 +114,52 @@
             # Cilium, installed the way production has it configured. A oneshot
             # rather than ArgoCD: staging exists to test infra, not to be a GitOps
             # replica, and a failed helm install should be visible in one place.
+            # Cilium, installed the way production has it configured, then ASSERTED.
+            #
+            # Why the reset loop and not a rollback: see docs/plans/2026-11-15-staging-rehearsal-harness.md in
+            # homelab-context. Short version: three rehearsals on 2026-11-15 reported success while testing the
+            # previous configuration, because a pending Helm revision silently blocks every upgrade.
             systemd.services.staging-cilium = lib.mkIf (role == "server") {
-              description = "Install Cilium ${ciliumVersion} with production's values";
+              description = "Install Cilium ${ciliumVersion} with production's values, then assert the result";
               wantedBy = [ "multi-user.target" ];
               after = [ "k3s.service" ];
               wants = [ "k3s.service" ];
-              path = with pkgs; [ kubernetes-helm kubectl curl coreutils ];
+              path = with pkgs; [ kubernetes-helm kubectl coreutils gnused gnugrep ];
               script = ''
                 export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
                 helm repo add cilium https://helm.cilium.io/ >/dev/null 2>&1 || true
-                # A release record can outlive the agents it describes (staging's
-                # etcd gets snapshotted and restored), and `upgrade --install` then
-                # fails with "UPGRADE FAILED: release: already exists". Recreate the
-                # record rather than refusing to boot: Cilium is the CNI, so this
-                # unit failing means the guest has no pod network at all.
-                  # A previous boot that died mid-upgrade leaves the release in `pending-upgrade`, and every
-                  # later upgrade then fails with "another operation is in progress" - silently, from the
-                  # rehearsal's point of view, because the old configuration keeps running. Roll back to the
-                  # last deployed revision first. This is why three rehearsals tonight measured the previous
-                  # configuration instead of the one under test.
-                  state=$(helm status cilium -n kube-system -o json 2>/dev/null | grep -o '"status":"[a-z-]*"' | head -1 | cut -d'"' -f4)
-                  case "$state" in
-                    pending-*) helm rollback cilium -n kube-system 0 --wait --timeout 120s >/dev/null 2>&1 || true ;;
+
+                # 1. Clear pending revisions by DELETING their records. Helm refuses every operation while any
+                # revision is pending, and the old configuration keeps running - which is indistinguishable from
+                # success when the only thing measured is whether pods come up. A rollback is itself an
+                # operation and can leave pending-rollback, making it worse; deleting the record cannot.
+                for s in $(kubectl -n kube-system get secrets -l owner=helm,name=cilium \
+                             -o go-template='{{range .items}}{{.metadata.name}} {{.metadata.labels.status}}{{"\n"}}{{end}}'); do
+                  name=''${s% *}
+                  status=''${s##* }
+                  case "$status" in
+                    pending-*) echo "staging-cilium: deleting stuck revision record $name ($status)"
+                               kubectl -n kube-system delete secret "$name" >/dev/null 2>&1 || true ;;
                   esac
-                  if ! helm status cilium -n kube-system >/dev/null 2>&1; then
-                    helm install cilium cilium/cilium --namespace kube-system \
-                    --version ${ciliumVersion} \
-                    ${ciliumValues}
-                  else
-                    helm upgrade cilium cilium/cilium --namespace kube-system \
-                    --version ${ciliumVersion} \
-                    ${ciliumValues}
-                  fi
+                done
+
+                # 2. One path, complete values, so install and upgrade cannot diverge.
+                helm upgrade --install cilium cilium/cilium --namespace kube-system \
+                  --version ${ciliumVersion} \
+                  ${ciliumValues}
+
+                # 3. Assert what is in place. If this fails the guest boots without a CNI, which is loud on
+                # purpose: a rehearsal that cannot verify its own configuration is a rehearsal of nothing.
+                replaced=$(kubectl -n kube-system get cm cilium-config -o jsonpath='{.data.kube-proxy-replacement}')
+                endpoint=$(kubectl -n kube-system get ds cilium \
+                             -o jsonpath='{.spec.template.spec.containers[0].env}' |
+                           grep -o 'KUBERNETES_SERVICE_HOST","value":"[0-9.]*' | head -1 | sed 's/.*"//')
+                echo "staging-cilium: kube-proxy-replacement=$replaced endpoint=$endpoint (want ${ciliumEndpoint})"
+                [ "$replaced" = "true" ] || { echo "staging-cilium: FAIL cilium is not replacing kube-proxy"; exit 1; }
+                [ "$endpoint" = "${ciliumEndpoint}" ] || { echo "staging-cilium: FAIL endpoint is $endpoint"; exit 1; }
                 echo "staging-cilium: applied"
+              serviceConfig = { Type = "oneshot"; RemainAfterExit = true; };
+            };
               '';
               serviceConfig = { Type = "oneshot"; RemainAfterExit = true; };
             };
