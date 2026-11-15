@@ -129,6 +129,15 @@
                 # fails with "UPGRADE FAILED: release: already exists". Recreate the
                 # record rather than refusing to boot: Cilium is the CNI, so this
                 # unit failing means the guest has no pod network at all.
+                  # A previous boot that died mid-upgrade leaves the release in `pending-upgrade`, and every
+                  # later upgrade then fails with "another operation is in progress" - silently, from the
+                  # rehearsal's point of view, because the old configuration keeps running. Roll back to the
+                  # last deployed revision first. This is why three rehearsals tonight measured the previous
+                  # configuration instead of the one under test.
+                  state=$(helm status cilium -n kube-system -o json 2>/dev/null | grep -o '"status":"[a-z-]*"' | head -1 | cut -d'"' -f4)
+                  case "$state" in
+                    pending-*) helm rollback cilium -n kube-system 0 --wait --timeout 120s >/dev/null 2>&1 || true ;;
+                  esac
                   if ! helm status cilium -n kube-system >/dev/null 2>&1; then
                     helm install cilium cilium/cilium --namespace kube-system \
                     --version ${ciliumVersion} \
