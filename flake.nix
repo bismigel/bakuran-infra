@@ -36,6 +36,10 @@
         .extendModules { modules = [ ./staging/cluster-3node/native-test.nix ]; };
       staging-election = (staging.mk { host = "server"; ip = "10.10.50.10"; role = "server"; mac = "52:54:00:12:36:10"; })
         .extendModules { modules = [ ./staging/cluster-3node/election-test.nix ]; };
+          # The same guest with NetworkManager owning the LAN route - .82's shape, and the only configuration in
+          # which H1 (a race with NetworkManager's proto-static default) can actually be tested.
+          staging-election-nm = (staging.mk { host = "server"; ip = "10.10.50.10"; role = "server"; mac = "52:54:00:12:36:10"; })
+            .extendModules { modules = [ ./staging/cluster-3node/election-nm.nix ]; };
     }) // {
       # .81 (Intel i5) — media / arr stack
       calamansi-intel = nixpkgs.lib.nixosSystem {
