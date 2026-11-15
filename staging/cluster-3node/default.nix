@@ -113,20 +113,27 @@
                 # fails with "UPGRADE FAILED: release: already exists". Recreate the
                 # record rather than refusing to boot: Cilium is the CNI, so this
                 # unit failing means the guest has no pod network at all.
-                if ! helm status cilium -n kube-system >/dev/null 2>&1; then
-                  helm install cilium cilium/cilium --namespace kube-system \
-                  --version ${ciliumVersion} \
-                  --set kubeProxyReplacement=false \
-                  --set routingMode=tunnel \
-                  --set tunnelProtocol=vxlan \
-                  --set ipam.mode=kubernetes \
+                  if ! helm status cilium -n kube-system >/dev/null 2>&1; then
+                    helm install cilium cilium/cilium --namespace kube-system \
+                    --version ${ciliumVersion} \
+                    --set kubeProxyReplacement=false \
+                    --set routingMode=tunnel \
+                    --set tunnelProtocol=vxlan \
+                    --set ipam.mode=kubernetes \
+                    ${ciliumApi} \
+                    --set operator.replicas=1 \
+                    --set prometheus.enabled=true \
+                    --set updateStrategy.rollingUpdate.maxUnavailable=1
+                  else
+                    # --reuse-values alone keeps whatever the release already recorded, so the endpoint
+                    # is passed on both paths. A change that only lands on the install path silently does
+                    # nothing on a cluster that already has a release - which is exactly what happened
+                    # the first two times this was rehearsed.
+                    helm upgrade cilium cilium/cilium --namespace kube-system \
+                    --version ${ciliumVersion} \
+                    --reuse-values \
                     ${ciliumApi}
-                else
-                  helm upgrade cilium cilium/cilium --namespace kube-system \
-                  --version ${ciliumVersion} \
-                    ${ciliumApi}
-                    --reuse-values
-                fi
+                  fi
                 echo "staging-cilium: applied"
               '';
               serviceConfig = { Type = "oneshot"; RemainAfterExit = true; };
