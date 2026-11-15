@@ -116,7 +116,10 @@
                   --set routingMode=tunnel \
                   --set tunnelProtocol=vxlan \
                   --set ipam.mode=kubernetes \
-                  --set k8sServiceHost=${vip} \
+                  # The local API, matching production since 2026-11-15: the point of this line is that a
+                  # cold boot must not depend on the VIP. `vip` is still used below for kube-vip itself and for
+                  # the TLS SAN, which is what clients use.
+                  --set k8sServiceHost=127.0.0.1 \
                   --set k8sServicePort=6443 \
                   --set operator.replicas=1 \
                   --set prometheus.enabled=true \
