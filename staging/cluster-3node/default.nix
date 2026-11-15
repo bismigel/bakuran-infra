@@ -17,6 +17,10 @@
         # The staging stand-in for production's 192.168.2.100. Nothing else on
         # br-staging uses it: the host is .1 and the guests are .10-.12.
         vip = "10.10.50.100";
+        # Cilium talks to the LOCAL API, matching production since 2026-11-15: a cold boot must not
+        # depend on the VIP, or Cilium and kube-vip deadlock (2026-11-15 incident). `vip` stays for
+        # kube-vip itself and the TLS SAN, which is what clients use.
+        ciliumApi = "--set k8sServiceHost=127.0.0.1 --set k8sServicePort=6443";
 
       mk = { host, ip, role, mac, serverAddr ? null,
       # The tap on br-staging this guest attaches to. Decoupled from `host` so a
@@ -116,18 +120,12 @@
                   --set routingMode=tunnel \
                   --set tunnelProtocol=vxlan \
                   --set ipam.mode=kubernetes \
-                  # The local API, matching production since 2026-11-15: the point of this line is that a
-                  # cold boot must not depend on the VIP. `vip` is still used below for kube-vip itself and for
-                  # the TLS SAN, which is what clients use.
-                  --set k8sServiceHost=127.0.0.1 \
-                  --set k8sServicePort=6443 \
-                  --set operator.replicas=1 \
-                  --set prometheus.enabled=true \
-                  --set updateStrategy.rollingUpdate.maxUnavailable=1
+                    ${ciliumApi}
                 else
                   helm upgrade cilium cilium/cilium --namespace kube-system \
                   --version ${ciliumVersion} \
-                  --reuse-values
+                    ${ciliumApi}
+                    --reuse-values
                 fi
                 echo "staging-cilium: applied"
               '';
