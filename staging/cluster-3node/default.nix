@@ -129,6 +129,16 @@
                 export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
                 helm repo add cilium https://helm.cilium.io/ >/dev/null 2>&1 || true
 
+                # 0. Wait for the API to ANSWER, not merely for k3s to be active. `after = k3s.service` fires
+                # when the unit is up, which is before :6443 accepts connections - and every kubectl below then
+                # fails instantly, so the reset loop finds nothing and the upgrade dies on a stale pending record.
+                # That is what made this harness fail its own assertions on 2026-11-15.
+                for _ in $(seq 1 60); do
+                  kubectl get --raw /readyz >/dev/null 2>&1 && break
+                  sleep 2
+                done
+                kubectl get --raw /readyz >/dev/null 2>&1 || { echo "staging-cilium: FAIL api never became ready"; exit 1; }
+
                 # 1. Clear pending revisions by DELETING their records. Helm refuses every operation while any
                 # revision is pending, and the old configuration keeps running - which is indistinguishable from
                 # success when the only thing measured is whether pods come up. A rollback is itself an
