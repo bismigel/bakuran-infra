@@ -6,6 +6,9 @@
     systemd.tmpfiles.rules = [
       "d /opt/cni/bin 0755 root root -"
       "L+ /opt/cni/bin/portmap - - - - /var/lib/rancher/k3s/data/current/bin/cni"
+        # containerd 2.x reads registry mirrors from certs.d/<host>/hosts.toml; see the registry section below.
+        "d /var/lib/rancher/k3s/agent/etc/containerd/certs.d 0755 root root -"
+        "d /var/lib/rancher/k3s/agent/etc/containerd/certs.d/registry.bismigel.dev 0755 root root -"
     ];
 
     # Audit policy (story 10.2). Deliberately small: Metadata for everything answers "who did what", and Request
@@ -54,6 +57,31 @@
           endpoint:
             - "http://10.43.200.10:5000"
     '';
+
+    # The above is the documented way to do this, and on containerd 2.x (k3s 1.34) it does nothing on its own: the
+    # generated config points containerd at a certs.d directory, and k3s wrote no entry there for a mirror-only
+    # registries.yaml. Measured 2026-11-16: the pod pull answered `lookup registry.bismigel.dev: no such host` while
+    # /etc/rancher/k3s/registries.yaml was present and correct.
+    #
+    # hosts.toml is what containerd actually reads, so it is declared here as well. If a future k3s starts generating
+    # the same file, this rule simply writes the same bytes.
+      # (the certs.d directories are created by the tmpfiles list at the top of this file)
+    environment.etc."k3s-hosts-registry-bismigel.toml".text = ''
+      server = "http://10.43.200.10:5000"
+
+      [host."http://10.43.200.10:5000"]
+        capabilities = ["pull", "resolve"]
+    '';
+    systemd.services.k3s-hoststoml = {
+      description = "Place the registry hosts.toml where containerd reads it";
+      before = [ "k3s.service" ];
+      wantedBy = [ "multi-user.target" ];
+      serviceConfig = { Type = "oneshot"; RemainAfterExit = true; };
+      script = ''
+        install -D -m 0644 /etc/k3s-hosts-registry-bismigel.toml \
+          /var/lib/rancher/k3s/agent/etc/containerd/certs.d/registry.bismigel.dev/hosts.toml
+      '';
+    };
 
     services.k3s.package = unstable.legacyPackages.${pkgs.stdenv.hostPlatform.system}.k3s;
 
