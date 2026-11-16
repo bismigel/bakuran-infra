@@ -39,6 +39,22 @@
             - RequestReceived
     '';
 
+    # containerd's view of the estate's own image registry (2026-11-16).
+    #
+    # An image is written as `registry.bismigel.dev/bismigel/<name>@sha256:...` - a name anyone can read - and containerd
+    # resolves it to the registry's pinned ClusterIP over plain HTTP inside the cluster. Verified before writing this:
+    # all three nodes answer 401 (auth enforced) on http://10.43.200.10:5000/v2/, so the address is reachable from the
+    # host without a hostPort and without exposing the registry to the LAN.
+    #
+    # No credentials here on purpose: this file lives in the Nix store, which is world-readable. Pods carry
+    # `imagePullSecrets: [registry-cred]` instead, so the password stays in a Secret.
+    environment.etc."rancher/k3s/registries.yaml".text = ''
+      mirrors:
+        registry.bismigel.dev:
+          endpoint:
+            - "http://10.43.200.10:5000"
+    '';
+
     services.k3s.package = unstable.legacyPackages.${pkgs.stdenv.hostPlatform.system}.k3s;
 
     environment.systemPackages = with pkgs; [
