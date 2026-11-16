@@ -41,11 +41,13 @@ Two rules that decide arguments between them:
 | --- | --- | --- | --- |
 | `sitaw-amd` | 192.168.2.82 | Ryzen 5 4600G | Platform: k3s server + **the single ArgoCD**, ingress-nginx, cloudflared connector #1, the daily Cloudflare-edge reconcile timer |
 | `calamansi-intel` | 192.168.2.81 | Intel i5-7500T | Media worker: Jellyfin (QSV), *arr stack, download clients, cloudflared connector #2; ProtonVPN + **kill switch** |
-| `kamatis-mbp` | 192.168.2.83 | Intel i5 (MacBook Pro 13" 2012) | 3rd k3s **server (etcd quorum)**, tainted; runs **Immich** and one **Redis HA** replica (storage on `/mnt/data`) |
+| `patola-thinkcentre` | 192.168.2.80 | Intel i5-6500T, 16 GB | k3s **server**, third etcd member, schedulable; Immich Postgres + Redis |
+| `kamatis-mbp` | 192.168.2.83 | Intel i5 (MacBook 13" 2012) | **Not a cluster node** since 2026-10-28: the staging host, QEMU guests on `br-staging` (10.10.50.0/24) for datapath rehearsals |
 
-All run NixOS 25.11 and form **one 3-node k3s cluster** (embedded etcd, 3 members;
-traefik + servicelb disabled). `kamatis-mbp` is `NoSchedule`-tainted except the
-`immich` app, which tolerates it.
+All four run NixOS 25.11. Three of them - `.80`, `.81`, `.82` - form **one 3-node k3s cluster**
+(embedded etcd, 3 members, each `control-plane` and schedulable; traefik and servicelb disabled).
+`kamatis-mbp` left the cluster on 2026-10-28 and is now the staging host: a deploy-rs target, not a
+member, so what is rehearsed there cannot be depended on by the cluster.
 
 ## Layout
 
