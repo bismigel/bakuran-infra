@@ -18,6 +18,10 @@ map=(
   "media-mcp:REPO_READ_TOKEN:forgejo-read-token"
   "bakuran-gitops:SITE_TOKEN:forgejo-read-token"
   "media-mcp:REGISTRY_PASSWORD:registry-password"
+  # The site's deploy workflow pushes the image and merges its own tag-bump PR, so it needs a token that can write.
+  # Separate from the read token on purpose: a build that is compromised should not be able to read every repository.
+  "bismigel-site:REGISTRY_PASSWORD:registry-password"
+  "bismigel-site:FORGEJO_WRITE_TOKEN:forgejo-write-token"
 )
 
 for entry in "${map[@]}"; do
