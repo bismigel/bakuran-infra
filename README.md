@@ -1,5 +1,10 @@
 # bakuran-infra
 
+> **This repository's origin is Forgejo** ([git.bismigel.dev](https://git.bismigel.dev)). GitHub receives a push mirror,
+> so what you read here is current, but pull requests, CI and reviews happen there. Everything below describes the
+> repository itself and is the same on both sides.
+
+
 ## Why "Bakuran"
 
 Bakuran is Tagalog for the yard or enclosure behind a house, from *bakod*, a
