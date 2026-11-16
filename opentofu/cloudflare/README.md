@@ -9,6 +9,8 @@ Use the Cloudflare token from SOPS. Never write it into a file or shell history.
 
 ```bash
 export TF_VAR_cloudflare_api_token="$(sudo cat /run/secrets/cloudflare_api_token)"
+# Access allowlist for the second household member (Bitwarden: access-household-emails).
+export TF_VAR_household_emails='["<from Bitwarden>"]'
 ```
 
 ## Where the state lives

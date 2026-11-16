@@ -27,3 +27,14 @@ variable "miguel_zone_id" {
   type    = string
   default = "0ee0ef4302ab23094e39aae78ca9492e"
 }
+
+# Household members allowed through Zero Trust Access, supplied at plan time (Bitwarden: access-household-emails).
+#
+# A literal address here used to be one family member's personal email, committed to a repository that is now public.
+# The owner's address stays in the clear - it is in every commit's metadata anyway - but a second person's does not
+# belong in a public repo, and an email is not a value that can be "just a placeholder": Access policies are live
+# configuration, so the value has to keep working. Hence a variable rather than redaction.
+variable "household_emails" {
+  description = "Additional emails allowed through Access (from Bitwarden: access-household-emails)"
+  type        = list(string)
+}

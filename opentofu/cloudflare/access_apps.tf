@@ -75,10 +75,10 @@ resource "cloudflare_zero_trust_access_policy" "runbook" {
   account_id = var.account_id
   name       = "Runbook"
   decision   = "allow"
-  include = [
-    { email = { email = "bismigel@pm.me" } },
-    { email = { email = "family-member@example.com" } },
-  ]
+  include = concat(
+    [{ email = { email = "bismigel@pm.me" } }],
+    [for e in var.household_emails : { email = { email = e } }],
+  )
 }
 
 resource "cloudflare_zero_trust_access_application" "runbook" {
@@ -110,10 +110,10 @@ resource "cloudflare_zero_trust_access_policy" "forgejo" {
   account_id = var.account_id
   name       = "Forgejo"
   decision   = "allow"
-  include = [
-    { email = { email = "bismigel@pm.me" } },
-    { email = { email = "family-member@example.com" } },
-  ]
+  include = concat(
+    [{ email = { email = "bismigel@pm.me" } }],
+    [for e in var.household_emails : { email = { email = e } }],
+  )
 }
 
 resource "cloudflare_zero_trust_access_application" "forgejo" {

@@ -9,7 +9,7 @@
 `sync.sh` survives as a **manual rollback path** for edge changes that went wrong:
 
 ```bash
-CF_API_TOKEN=<cfat_...> ./cloudflare/sync.sh
+CF_API_TOKEN=<cfat_...> HOUSEHOLD_EMAILS=<from Bitwarden> ./cloudflare/sync.sh
 ```
 
 It is idempotent and converges the hostnames/DNS/Access apps below, but it knows
@@ -30,3 +30,12 @@ apps and their per-email policies. Session lengths now live in
 `opentofu/cloudflare/access_apps.tf` — 24h for admin apps, 730h for Homelab Media.
 Jellyfin, Immich, Kavita and Audiobookshelf are deliberately not behind Access
 (their native clients cannot complete the email-OTP) and keep their own auth.
+
+## Running sync.sh
+
+`HOUSEHOLD_EMAILS` must be set - it is the second person's Access allowlist entry, kept out of this repository because
+an email address is personal data and this repo is public. Value: Bitwarden `access-household-emails`.
+
+```sh
+HOUSEHOLD_EMAILS="$(bws secret get ... | jq -r .value)" ./sync.sh
+```

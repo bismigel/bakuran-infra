@@ -52,8 +52,12 @@ HOSTNAMES=("${PUBLIC_HOSTNAMES[@]}" "${ADMIN_HOSTNAMES[@]}")
 # publicly by the reverse proxy (ingress-nginx) and Jellyfin does its own auth.
 # (LAN viewers use the hostPort :8096; remote clients that can't complete an
 # interactive Access challenge use the public hostname.)
+# Household members come from the environment (Bitwarden: access-household-emails), not from this file. A second
+# person's personal email does not belong in a public repository, and these strings are live Access configuration.
+: "${HOUSEHOLD_EMAILS:?set HOUSEHOLD_EMAILS (comma-separated; Bitwarden: access-household-emails)}"
+
 ACCESS=(
-  "Grafana|grafana.bismigel.dev|bismigel@pm.me,family-member@example.com|24h"
+  "Grafana|grafana.bismigel.dev|bismigel@pm.me,${HOUSEHOLD_EMAILS}|24h"
   "Homelab Agent|agent.bismigel.dev|bismigel@pm.me|24h"
   "Private API|private.bismigel.dev|bismigel@pm.me|24h"
   "ArgoCD|argocd.bismigel.dev|bismigel@pm.me|24h"
@@ -61,11 +65,11 @@ ACCESS=(
   # NOTE: immich.bismigel.dev is intentionally NOT gated by Access either — the
   # native phone app (background backup) can't complete an interactive Access
   # challenge. Served publicly by the reverse proxy; Immich does its own auth.
-  "Homelab Media|sonarr.bismigel.dev,radarr.bismigel.dev,prowlarr.bismigel.dev,bazarr.bismigel.dev,qbittorrent.bismigel.dev,sabnzbd.bismigel.dev,homepage.bismigel.dev,prometheus.bismigel.dev|bismigel@pm.me,family-member@example.com"
+  "Homelab Media|sonarr.bismigel.dev,radarr.bismigel.dev,prowlarr.bismigel.dev,bazarr.bismigel.dev,qbittorrent.bismigel.dev,sabnzbd.bismigel.dev,homepage.bismigel.dev,prometheus.bismigel.dev|bismigel@pm.me,${HOUSEHOLD_EMAILS}"
   # NOTE: kavita.bismigel.dev is intentionally NOT gated by Access — the mobile
   # apps can't complete an interactive Access challenge. Served publicly by the
   # reverse proxy; Kavita has its own login.
-  "Books|lazylibrarian.bismigel.dev|bismigel@pm.me,family-member@example.com|24h"
+  "Books|lazylibrarian.bismigel.dev|bismigel@pm.me,${HOUSEHOLD_EMAILS}|24h"
 )
 SESSION=730h
 
