@@ -1,0 +1,29 @@
+# CI on the estate's own hardware (ADR 0015: Forgejo is the origin, GitHub is a push mirror).
+#
+# What is NOT here, and why. Both are marked from a check rather than from memory - `scripts/check-runner-tools.py
+# ../bakuran-infra` in homelab-context, on 2026-11-16, reported exactly these three things:
+#
+#   nix (cachix/install-nix-action)  the runner pod has no nix store. Adding nix turns a CI runner into a nix builder,
+#                                    which is a decision about the runner's job, not a package to add. Ticket 14.7.
+#   renovatebot/github-action        speaks GitHub's API and needs a Forgejo platform token; and a job that pushes
+#                                    branches from inside CI is a different argument than a job that checks one. 14.7.
+#
+# So the flake check is a workstation check until then: `nix flake check` before touching a host, as before.
+name: checks
+
+on:
+  pull_request:
+  workflow_dispatch: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  hygiene:
+    runs-on: in-cluster
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: The repository keeps its own rules
+        run: python3 scripts/check-repo-hygiene.py
