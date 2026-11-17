@@ -17,7 +17,11 @@ probing them is out of scope.
 
 ## Reporting
 
-Open a private report, or write to **security@bismigel.dev**. Please do not open a public issue for a live exposure.
+Open an issue in this repository, marked clearly, and say if it is a live exposure — that is the channel that exists today. Please do not
+paste a working exploit, an unencrypted export or a credential into it.
+
+A dedicated address (`security@bismigel.dev`) is being set up; it is written here only once it delivers, because an address that bounces
+silently is worse than none.
 
 Expect an answer from one person, not a team: this is a homelab. You will get an honest reply about whether it is fixed, being fixed, or
 accepted with the reason — this repository records its accepted risks, including one about a disk image in its own history that
