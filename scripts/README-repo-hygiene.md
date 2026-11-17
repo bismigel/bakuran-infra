@@ -20,7 +20,7 @@ commit that referenced it. Recorded here so the decision can be revisited by who
 
 ## What stops the next one
 
-`scripts/check-repo-hygiene.py`, run in CI, fails on:
+`check-repo-hygiene` (Go, in homelab-context since 2026-11-18), run in CI, fails on:
 
 - a tracked file with a credential-shaped name;
 - **key material inside any tracked file** (private-key blocks, age secret keys, GitHub/Slack/AWS token shapes);
@@ -28,4 +28,4 @@ commit that referenced it. Recorded here so the decision can be revisited by who
 
 Proven in both directions: a clean tree exits 0; a tracked `vm.qcow2` and a tracked file containing a private-key block
 each exit 1. The same class of accident happened twice — an OPNsense API key committed on 2026-11-01, and this image —
-which is why the check is a script and not a note in a README.
+which is why the check is code and not a note in a README.
