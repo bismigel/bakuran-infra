@@ -6,17 +6,28 @@ because that is what a disk image of an installed system contains.
 
 ## What was done about it
 
-**Accepted, not rewritten.** The reasoning, so it is a decision rather than an omission:
+**Rewritten on 2026-11-18**, after the reasoning below had been accepted for nine days. Two things changed the calculation:
 
-- the repository is **private**, so exposure is limited to accounts that already hold write access to the whole estate;
-- the key belongs to a **throwaway test VM** that no longer exists and is trusted by nothing — rotating it is
-  meaningless, because nothing accepts it;
-- rewriting history rewrites every commit hash, which would break the commit references in this estate's own records
-  (`bakuran-infra#100`, the ticket store, the ADRs). That cost is real; the benefit here is not.
+1. the mirrors are **public**, so "the repository is private" — the premise of the acceptance — stopped being true;
+2. the blob was still retrievable **by SHA from the GitHub API**, anonymously, even though no branch referenced it.
 
-**If this repository ever becomes public, or is shared outside the household**, that calculation changes completely and
-the fix is `git filter-repo --path staging-vm/wireguard-test/nixos.qcow2 --invert-paths`, followed by a rewrite of every
-commit that referenced it. Recorded here so the decision can be revisited by whoever needs it, not rediscovered.
+So: `git filter-repo --path-glob '*qcow2*' --invert-paths` in a fresh mirror clone, force-pushed to Forgejo and to GitHub, and every
+branch other than `main` deleted in both (the stale branches were the only refs that still carried the old history). The consequence is
+recorded rather than glossed: **every commit hash before 2026-11-18 changed**, so an older citation like `#100 (89b4586)` names a commit
+that no longer exists — the pull request number is still the durable reference.
+
+Verified after the rewrite:
+
+    Forgejo  raw/commit/<old sha>/…/nixos.qcow2   -> 404
+    branches on Forgejo and GitHub                -> ['main']
+
+**And one thing the rewrite did not fix.** GitHub still serves the blob object by SHA, anonymously:
+
+    GET api.github.com/repos/bismigel/bakuran-infra/git/blobs/d890b90e0a9efeee34d55e7ace89570f1d6537d1  -> 200
+
+Removing a blob from history removes every *reference* to it; it does not remove the object from a hosting provider's store, which is
+garbage-collected on their schedule or on request. **Rotating the key is still the only remedy that actually closes this**, and the
+mirror being public is what makes it matter.
 
 ## What stops the next one
 
