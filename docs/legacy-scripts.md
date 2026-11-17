@@ -40,7 +40,7 @@ and deleting one would have been discovered during a restore. `bootstrap-argocd.
 | script | lines | why it is a tool |
 |---|---|---|
 | `scripts/preflight-wg.sh` | 79 | referenced from `hosts/calamansi-intel/default.nix` ×2 and 13 documents; the only thing that refuses a deploy which would restart the tunnel (seven outages on 2026-10-25). **Ported 2026-11-18.** |
-| `scripts/verify-backup-copies.sh` | 126 | referenced by `modules/backup*`; checks that the copies outside the estate exist |
+| ~~`scripts/verify-backup-copies.sh`~~ | 126 | **moved to Go in this repository** (`cmd/verify-backup-copies`, `packages.verify-backup-copies`): the weekly unit runs it, so by ADR 0019 it belongs to the repository that builds the closure |
 | `scripts/wg-restore.sh` | 93 | referenced by `modules/wireguard*`; the recovery path a preflight failure points at |
 | `scripts/wg-fallback.sh` | 74 | the staged fallback named in `preflight-wg.sh`'s own failure message |
 | `staging/snapshot.sh` | 267 | referenced by `staging/host.nix` |

@@ -12,7 +12,27 @@
     sops-nix.inputs.nixpkgs.follows = "nixpkgs";
   };
 
-  outputs = { self, nixpkgs, nixpkgs-unstable, disko, deploy-rs, sops-nix }: {
+  outputs = { self, nixpkgs, nixpkgs-unstable, disko, deploy-rs, sops-nix }:
+    let
+      # Commands a *host* runs (ADR 0019: a command belongs to the repository that builds the closure it runs inside). They are
+      # standard-library-only Go, so there is nothing to vendor and `vendorHash = null` is honest rather than a placeholder.
+      eachSystem = nixpkgs.lib.genAttrs [ "x86_64-linux" "aarch64-linux" ];
+      mkGo = system: name: nixpkgs.legacyPackages.${system}.buildGoModule {
+        pname = name;
+        version = "0.1.0";
+        src = ./.;
+        subPackages = [ "cmd/${name}" ];
+        vendorHash = null;
+        env.CGO_ENABLED = "0";
+        ldflags = [ "-s" "-w" ];
+        meta.mainProgram = name;
+      };
+    in {
+    packages = eachSystem (system: {
+      preflight-wg = mkGo system "preflight-wg";
+      verify-backup-copies = mkGo system "verify-backup-copies";
+    });
+
     # Staging guests, from staging/cluster-3node/default.nix (2026-11-13). They used to live in a flake of their own, which
     # meant (a) their `../../modules` imports were outside that flake's root and the tunnel-rehearsal guest could not even be
     # evaluated, and (b) CI's `nix flake check` never saw them. Here they get the same lock file and the same check as
@@ -45,6 +65,7 @@
       calamansi-intel = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
         specialArgs = {
+          inherit self;
           sshPubKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIH+soIiTQA3y96cqgaPluR9i9Z9qCdypdSfH/w0KiYrb labanos@bakuran";
 
           unstable = nixpkgs-unstable;
@@ -65,6 +86,7 @@
       sitaw-amd = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
         specialArgs = {
+          inherit self;
           sshPubKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIH+soIiTQA3y96cqgaPluR9i9Z9qCdypdSfH/w0KiYrb labanos@bakuran";
 
           unstable = nixpkgs-unstable;
@@ -85,6 +107,7 @@
       kamatis-mbp = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
         specialArgs = {
+          inherit self;
           sshPubKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIH+soIiTQA3y96cqgaPluR9i9Z9qCdypdSfH/w0KiYrb labanos@bakuran";
 
           unstable = nixpkgs-unstable;

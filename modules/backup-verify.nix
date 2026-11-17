@@ -11,7 +11,7 @@
 # It writes a textfile metric and exits non-zero, so the gap is loud rather than silent. The bit-
 # level gap — right size, wrong content — is closed by a manual drill with the off-site key, which
 # is story 5.3 in homelab-context's store, not something this unit pretends to do.
-{ config, pkgs, lib, ... }:
+{ config, pkgs, lib, self, ... }:
 let
   cfg = config.bakuran.backupVerify;
 in
@@ -38,14 +38,17 @@ in
   config = lib.mkIf cfg.enable {
     systemd.services.backup-copy-verify = {
       description = "Verify the offline backup copy is complete (set + size vs R2)";
-      # The env file holds the R2 credentials and lives on the host, not in the store.
+      # The env file holds the R2 credentials and lives on the host, not in the store. The check is Go and is built by this
+      # repository's flake (ADR 0019: a command belongs to the repository that builds the closure it runs inside), so the unit
+      # needs no interpreter and no path outside the store.
       script = ''
         export LOCAL=${lib.escapeShellArg cfg.localPath}
         export WINDOW_DAYS=${toString cfg.windowDays}
         export TEXTFILE=${lib.escapeShellArg cfg.textfileDirectory}
-        exec ${pkgs.bash}/bin/bash ${../scripts/verify-backup-copies.sh}
+        exec ${self.packages.${pkgs.system}.verify-backup-copies}/bin/verify-backup-copies
       '';
-      path = with pkgs; [ coreutils findutils gawk rclone util-linux ];
+      # `rclone` is the only external tool left: the Go command reads its JSON, and mount detection reads /proc/self/mountinfo.
+      path = with pkgs; [ rclone ];
       serviceConfig = {
         Type = "oneshot";
         # A verification that fails must not take the timer with it: the metric and the exit code
