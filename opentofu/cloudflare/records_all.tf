@@ -139,15 +139,6 @@ resource "cloudflare_dns_record" "r_7846bbe14a" {
   comment = null
 }
 
-resource "cloudflare_dns_record" "r_1ea06ef71d" {
-  zone_id = var.zone_id
-  name    = "private.bismigel.dev"
-  type    = "CNAME"
-  content = "8dcc83bd-eb95-4c0d-8f71-b92a27d37649.cfargotunnel.com"
-  proxied = true
-  ttl     = 1
-  comment = "tunnel"
-}
 
 resource "cloudflare_dns_record" "r_3524f68bf9" {
   zone_id = var.zone_id

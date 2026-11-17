@@ -44,19 +44,6 @@ resource "cloudflare_zero_trust_access_application" "longhorn" {
   policies                   = [{ id = "76712f1c-3b76-43fe-8cca-29f319eecafc", precedence = 1 }]
 }
 
-resource "cloudflare_zero_trust_access_application" "private_api" {
-  account_id                 = var.account_id
-  name                       = "Private API"
-  type                       = "self_hosted"
-  session_duration           = "24h"
-  self_hosted_domains        = ["private.bismigel.dev"]
-  auto_redirect_to_identity  = false
-  enable_binding_cookie      = false
-  options_preflight_bypass   = false
-  http_only_cookie_attribute = true
-  policies                   = [{ id = "30fe9543-3604-4b09-96d5-9b8c9aad01b8", precedence = 1 }]
-}
-
 resource "cloudflare_zero_trust_access_application" "agent" {
   account_id                 = var.account_id
   name                       = "Homelab Agent"

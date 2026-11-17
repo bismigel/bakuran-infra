@@ -28,7 +28,6 @@ resource "cloudflare_zero_trust_tunnel_cloudflared_config" "main" {
       { hostname = "kavita.bismigel.dev", service = var.public_target },
       { hostname = "audiobookshelf.bismigel.dev", service = var.public_target },
       { hostname = "karakeep.bismigel.dev", service = var.public_target },
-      { hostname = "private.bismigel.dev", service = var.admin_target },
       { hostname = "grafana.bismigel.dev", service = var.admin_target },
       { hostname = "agent.bismigel.dev", service = var.admin_target },
       { hostname = "sonarr.bismigel.dev", service = var.admin_target },
