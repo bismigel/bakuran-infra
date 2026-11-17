@@ -141,7 +141,7 @@ and be referenced by a second ArgoCD `Application`. This doc assumes **apps live
 - [ ] Adopt `bakuran-infra` as source of truth; commit any drift from the live box.
 - [ ] Harden SSH (`base.nix` currently allows root + password login — restrict it).
 - [ ] Set `system.stateVersion` intentionally; pin `nixpkgs` (25.11) for reproducibility.
-- [ ] `nixos-rebuild switch --flake .#calamansi-intel` (or `./deploy.sh calamansi-intel`).
+- [ ] `deploy .#calamansi-intel` (deploy-rs; `deploy.sh` was deleted 2026-11-18 — see `docs/legacy-scripts.md`).
 
 ### Phase 2 — k3s + ingress
 - [ ] Keep k3s `--disable traefik --disable servicelb`.

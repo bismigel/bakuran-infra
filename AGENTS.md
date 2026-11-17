@@ -28,7 +28,6 @@ flake.nix                 # inputs (nixpkgs, disko, deploy-rs) + hosts + deploy 
 hosts/<host>/default.nix  # per-host config (imports modules/, disko.nix)
 hosts/<host>/disko.nix    # disk layout (only where disko is used)
 modules/                  # shared config (base.nix, k3s.nix, backup.nix)
-deploy.sh                 # legacy: sync + nixos-rebuild over ssh
 ```
 
 ## Rules for agents

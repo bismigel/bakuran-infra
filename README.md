@@ -70,7 +70,6 @@ secrets/homelab.yaml         # SOPS/age-encrypted host secrets
 docs/REBUILD.md              # disaster recovery
 docs/HOMELAB-MIGRATION.md    # historical: Proxmox → NixOS migration plan
 SERVICES.md                  # what's deployed + where
-deploy.sh                    # legacy: sync + nixos-rebuild over ssh (prefer deploy-rs)
 ```
 
 ## Deploy a host
