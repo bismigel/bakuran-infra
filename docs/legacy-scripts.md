@@ -6,12 +6,14 @@ owns: which shell scripts are tools, which are records, and which are dead
 
 # The scripts directory, classified
 
-Thirty-three authored shell scripts lived here on 2026-11-18. ADR 0016 says executable code is Go, and the question "port them all" was
+Thirty-three authored shell scripts lived here on 2026-11-18. Thirty remain: two were deleted and one moved into this
+repository's Go module. ADR 0016 says executable code is Go, and the question "port them all" was
 the wrong question: a script that ran once to bootstrap a service is a **record**, not a tool, and porting it would preserve a shape
 nobody will ever run again. This page is the classification, with the evidence for each bucket, so the migration scope is a decision
 rather than a sweep.
 
-Counts, and they add up to the 31 files in the tree: **29 tools** · **0 records** · **2 dead, deleted** (below). Every file in
+Counts, and they add up to the **30 files in `git ls-files '*.sh'`**: **30 tools** · **0 records** · **3 gone** — `deploy.sh` and
+`migrate-media-to-btrfs.sh` deleted, `verify-backup-copies.sh` moved to Go in this repository. Every file in
 `git ls-files '*.sh'` appears on this page; `staging/deck/scripts/{up,down,status}.sh` share one row.
 
 **The records bucket is withdrawn (2026-11-18, same day it was written).** It was filled by counting references in *this* repository and

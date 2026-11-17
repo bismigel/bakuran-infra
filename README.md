@@ -8,7 +8,7 @@ OpenWrt switch, and the encrypted exports that let all of it be rebuilt.
 | if you have | read |
 |---|---|
 | 2 minutes | `hosts/*/default.nix` — every host is one file, and nothing is configured by hand on a machine |
-| 10 minutes | [`docs/legacy-scripts.md`](docs/legacy-scripts.md) — 33 scripts, classified: 29 tools, 2 deleted, and the rule each remaining shell file satisfies |
+| 10 minutes | [`docs/legacy-scripts.md`](docs/legacy-scripts.md) — the 30 shell files that remain, why each is still shell, and the two that were deleted |
 | an hour | [`docs/REBUILD.md`](docs/REBUILD.md) — the actual restore procedure, in order, including the one manual step |
 | a question | `modules/` — one module per concern (wireguard, backups, monitoring), each with the incident that shaped it in a comment |
 
