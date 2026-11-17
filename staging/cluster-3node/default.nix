@@ -116,8 +116,7 @@
             # replica, and a failed helm install should be visible in one place.
             # Cilium, installed the way production has it configured, then ASSERTED.
             #
-            # Why the reset loop and not a rollback: see docs/plans/2026-11-15-staging-rehearsal-harness.md in
-            # homelab-context. Short version: three rehearsals on 2026-11-15 reported success while testing the
+            # Why the reset loop and not a rollback: see homelab-context/docs/plans/2026-11-15-staging-rehearsal-harness.md. Short version: three rehearsals on 2026-11-15 reported success while testing the
             # previous configuration, because a pending Helm revision silently blocks every upgrade.
             systemd.services.staging-cilium = lib.mkIf (role == "server") {
               description = "Install Cilium ${ciliumVersion} with production's values, then assert the result";

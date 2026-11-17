@@ -1,6 +1,6 @@
 # CI on the estate's own hardware (ADR 0015: Forgejo is the origin, GitHub is a push mirror).
 #
-# What is NOT here, and why. Both are marked from a check rather than from memory - `scripts/check-runner-tools.py
+# What is NOT here, and why. Both are marked from a check rather than from memory - `check-runner-tools
 # ../bakuran-infra` in homelab-context, on 2026-11-16, reported exactly these three things:
 #
 #   nix (cachix/install-nix-action)  the runner pod has no nix store. Adding nix turns a CI runner into a nix builder,
