@@ -6,7 +6,11 @@ repo. SOPS + age (see `.sops.yaml`): every host key plus the admin key can decry
 | file | device | taken |
 |---|---|---|
 | `opnsense-config-2026-11-01T0914.xml` | OPNsense on `sitaw-amd`'s OptiPlex (`.1`) | 2026-11-01 09:14 |
-| `gs108tv3-oem-running-config-2026-11-01.txt` | Netgear GS108Tv3 before the OpenWrt flash | 2026-11-01 |
+| ~~`gs108tv3-oem-running-config-2026-11-01.txt`~~ | Netgear GS108Tv3 before the OpenWrt flash | never landed |
+
+The switch export was written into PR #234 and did not survive the squash: it is not in this repository's history on `main`,
+only in the commits that PR was made of. The switch is OpenWrt now and its configuration lives in the flake, so the OEM config
+is worth having only as a rollback artefact - and this table saying it is here while the file is not is worse than the gap.
 
 ## Why these exist
 

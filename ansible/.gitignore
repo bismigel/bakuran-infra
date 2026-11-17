@@ -1,5 +1,8 @@
-
-# Ansible: the pinned collection is installed, not committed
-ansible/collections/
-ansible/*.log
+# Ansible: the pinned collection is installed, not committed. The pin is ansible/requirements.yml, which IS tracked - the
+# ignored file is the installed tree only.
+#
+# The previous pattern was `ansible/collections/`, evaluated relative to this directory, so it resolved to
+# `ansible/ansible/collections/` and ignored nothing: 306 vendored files were tracked for weeks (found 2026-11-18, story 15.7).
+collections/
+*.log
 *.retry
