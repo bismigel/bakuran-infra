@@ -11,7 +11,12 @@ the wrong question: a script that ran once to bootstrap a service is a **record*
 nobody will ever run again. This page is the classification, with the evidence for each bucket, so the migration scope is a decision
 rather than a sweep.
 
-Counts: **2 dead** (deleted) · **15 records** (kept in history, not ported) · **15 tools** (ported or on the port list).
+Counts, and they add up to the 31 files in the tree: **19 tools** · **11 records** · **2 dead, deleted** (below). Every file in `git ls-files '*.sh'` appears on this page; `staging/deck/scripts/{up,down,status}.sh` share one row.
+
+**Correction, same day.** The first pass classified by reference count and put four scripts in the *records* bucket whose only references
+were in `docs/REBUILD.md` — the disaster-recovery procedure. A script a recovery procedure tells you to run is a **tool** by definition,
+and deleting one would have been discovered during a restore. `bootstrap-argocd.sh`, `media-stack-setup.sh`, `media-setup-secret.sh` and
+`media-usenet-secret.sh` moved to *tools*; the records list below is what survived that check.
 
 ## Tools: still needed, so they get ported
 
@@ -32,6 +37,10 @@ Counts: **2 dead** (deleted) · **15 records** (kept in history, not ported) · 
 | `switch/node-exporter.sh` | 70 | puts the exporter on the OpenWrt switch; needed again whenever the switch is rebuilt |
 | `scripts/books-fetch.sh` + `scripts/lib/mirror_parse.py` | 150 + 54 | the book pipeline: still the way a book is fetched and converted |
 | `scripts/kavita-add-user.sh` | 68 | adding a household reader is a recurring operation, not a one-off |
+| `scripts/bootstrap-argocd.sh` | 118 | **`docs/REBUILD.md` step 3** — the one manual bootstrap; it installs ArgoCD `--server-side` because the ApplicationSet CRD exceeds the client-side limit |
+| `scripts/media-stack-setup.sh` | 444 | **`docs/REBUILD.md`** — re-creates qBittorrent paths and categories, Sonarr/Radarr configuration, the parts no manifest holds |
+| `scripts/media-setup-secret.sh` | 91 | **`docs/REBUILD.md`** — seeds the *arr API keys before ESO can |
+| `scripts/media-usenet-secret.sh` | 40 | **`docs/REBUILD.md`** — the Usenet credentials a rebuild needs first |
 
 ## Records: they ran once, and their value is the reasoning
 
@@ -39,11 +48,10 @@ These bootstrapped a service that now runs from `bakuran-gitops`. Their *configu
 not, because the service's desired state is now the manifests. They stay in git history (with the date and the commit) and leave
 `scripts/` so that a reader does not mistake a spent tool for a live one.
 
-`scripts/media-stack-setup.sh` (444) · `scripts/media-quality-setup.sh` (57) · `scripts/media-bazarr-setup.sh` (98) ·
-`scripts/media-usenet-secret.sh` (40) · `scripts/media-setup-secret.sh` (91) · `scripts/kavita-setup.sh` (98) ·
+`scripts/media-quality-setup.sh` (57) · `scripts/media-bazarr-setup.sh` (98) · `scripts/kavita-setup.sh` (98) ·
 `scripts/kavita-user.sh` (82) · `scripts/lazylibrarian-ui-setup.sh` (93) · `scripts/immich-setup.sh` (70) ·
-`scripts/books-bootstrap.sh` (37) · `scripts/bootstrap-argocd.sh` (118) · `scripts/forgejo-sync-secrets.sh` (45) ·
-`scripts/backup-credentials.sh` (39) · `staging/deck/scripts/{up,down,status}.sh` (47)
+`scripts/books-bootstrap.sh` (37) · `scripts/forgejo-sync-secrets.sh` (45) · `scripts/backup-credentials.sh` (39) ·
+`staging/deck/scripts/{up,down,status}.sh` (47 — one row, three files)
 
 The test for this bucket: **does the script change state that a manifest now owns?** For all fifteen the answer is yes — Sonarr's
 quality profile, Kavita's users, Immich's first admin, the deck VM's boot order. Re-running one of them would fight ArgoCD.
