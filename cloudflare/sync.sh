@@ -41,6 +41,9 @@ ADMIN_HOSTNAMES=(
   bazarr.bismigel.dev qbittorrent.bismigel.dev sabnzbd.bismigel.dev
   homepage.bismigel.dev prometheus.bismigel.dev
   argocd.bismigel.dev longhorn.bismigel.dev lazylibrarian.bismigel.dev
+  # Story 7.5: Argo Workflows' own UI is the human pane for every runbook action — one place to see all actions and
+  # submit one, over the same two templates the CLI uses. Admin class, so it is Access-gated like the rest.
+  argo.bismigel.dev
 )
 
 HOSTNAMES=("${PUBLIC_HOSTNAMES[@]}" "${ADMIN_HOSTNAMES[@]}")
@@ -61,6 +64,7 @@ ACCESS=(
   "Homelab Agent|agent.bismigel.dev|bismigel@pm.me|24h"
   "Private API|private.bismigel.dev|bismigel@pm.me|24h"
   "ArgoCD|argocd.bismigel.dev|bismigel@pm.me|24h"
+  "Argo Workflows|argo.bismigel.dev|bismigel@pm.me|24h"
   "Longhorn|longhorn.bismigel.dev|bismigel@pm.me|24h"
   # NOTE: immich.bismigel.dev is intentionally NOT gated by Access either — the
   # native phone app (background backup) can't complete an interactive Access
