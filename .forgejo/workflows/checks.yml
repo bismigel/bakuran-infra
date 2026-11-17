@@ -25,5 +25,14 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+      # The guard is Go (ADR 0016) and lives in homelab-context. This job runs on every PR, and what it protects is a credential
+      # reaching git: an API key committed by a `git add -A` on 2026-11-01, and a qcow2 in history carrying a host private key.
+      - name: Check out the guard
+        run: |
+          CTX="/tmp/ctx-${GITHUB_RUN_ID:-0}-${GITHUB_JOB:-job}"
+          rm -rf "$CTX"
+          git clone --depth=1 "http://oauth2:${{ secrets.CONTEXT_READ_TOKEN }}@forgejo:3000/bismigel/homelab-context.git" "$CTX"
       - name: The repository keeps its own rules
-        run: python3 scripts/check-repo-hygiene.py
+        run: |
+          CTX="/tmp/ctx-${GITHUB_RUN_ID:-0}-${GITHUB_JOB:-job}"
+          cd "$CTX" && CGO_ENABLED=0 go run ./cmd/check-repo-hygiene --root "$GITHUB_WORKSPACE"
