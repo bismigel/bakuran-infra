@@ -11,7 +11,24 @@ the wrong question: a script that ran once to bootstrap a service is a **record*
 nobody will ever run again. This page is the classification, with the evidence for each bucket, so the migration scope is a decision
 rather than a sweep.
 
-Counts, and they add up to the 31 files in the tree: **19 tools** · **11 records** · **2 dead, deleted** (below). Every file in `git ls-files '*.sh'` appears on this page; `staging/deck/scripts/{up,down,status}.sh` share one row.
+Counts, and they add up to the 31 files in the tree: **29 tools** · **0 records** · **2 dead, deleted** (below). Every file in
+`git ls-files '*.sh'` appears on this page; `staging/deck/scripts/{up,down,status}.sh` share one row.
+
+**The records bucket is withdrawn (2026-11-18, same day it was written).** It was filled by counting references in *this* repository and
+concluded fifteen scripts were spent one-offs. Every one of them turned out to be named by a procedure somewhere else:
+
+| script | the reference that makes it a tool |
+|---|---|
+| `kavita-setup.sh` | `homelab-context docs/reference/media.md:107` — "resets the admin password" |
+| `kavita-user.sh`, `kavita-add-user.sh` | adding a household reader is recurring, not once |
+| `books-bootstrap.sh` | `homelab-context docs/guides/cluster.md:89` — a procedure step |
+| `immich-setup.sh`, `backup-credentials.sh` | named in this repository's `README.md` as operational |
+| `staging/deck/scripts/*` | `docs/REBUILD.md`, `SERVICES.md`, three READMEs |
+| `media-quality-setup.sh`, `media-bazarr-setup.sh`, `lazylibrarian-ui-setup.sh` | `homelab-context docs/reference/media.md` |
+
+Deleting any of them would have been discovered at the worst possible moment: during a restore, or by the household member who wanted a
+book. **A script is not dead because a grep in one repository returned nothing; it is dead when the procedure that names it is gone** -
+which was true of exactly two files, below..
 
 **Correction, same day.** The first pass classified by reference count and put four scripts in the *records* bucket whose only references
 were in `docs/REBUILD.md` — the disaster-recovery procedure. A script a recovery procedure tells you to run is a **tool** by definition,
@@ -37,24 +54,11 @@ and deleting one would have been discovered during a restore. `bootstrap-argocd.
 | `switch/node-exporter.sh` | 70 | puts the exporter on the OpenWrt switch; needed again whenever the switch is rebuilt |
 | `scripts/books-fetch.sh` + `scripts/lib/mirror_parse.py` | 150 + 54 | the book pipeline: still the way a book is fetched and converted |
 | `scripts/kavita-add-user.sh` | 68 | adding a household reader is a recurring operation, not a one-off |
+| `scripts/forgejo-sync-secrets.sh` | 45 | nothing references it and it is still a tool: it pushes the estate's action secrets into Forgejo, which is needed whenever a secret rotates. A tool with no caller is a gap to fix, not a file to delete — the same distinction that kept `argocd-redis-ha-post-renderer`. |
 | `scripts/bootstrap-argocd.sh` | 118 | **`docs/REBUILD.md` step 3** — the one manual bootstrap; it installs ArgoCD `--server-side` because the ApplicationSet CRD exceeds the client-side limit |
 | `scripts/media-stack-setup.sh` | 444 | **`docs/REBUILD.md`** — re-creates qBittorrent paths and categories, Sonarr/Radarr configuration, the parts no manifest holds |
 | `scripts/media-setup-secret.sh` | 91 | **`docs/REBUILD.md`** — seeds the *arr API keys before ESO can |
 | `scripts/media-usenet-secret.sh` | 40 | **`docs/REBUILD.md`** — the Usenet credentials a rebuild needs first |
-
-## Records: they ran once, and their value is the reasoning
-
-These bootstrapped a service that now runs from `bakuran-gitops`. Their *configuration knowledge* is worth keeping; their *code* is
-not, because the service's desired state is now the manifests. They stay in git history (with the date and the commit) and leave
-`scripts/` so that a reader does not mistake a spent tool for a live one.
-
-`scripts/media-quality-setup.sh` (57) · `scripts/media-bazarr-setup.sh` (98) · `scripts/kavita-setup.sh` (98) ·
-`scripts/kavita-user.sh` (82) · `scripts/lazylibrarian-ui-setup.sh` (93) · `scripts/immich-setup.sh` (70) ·
-`scripts/books-bootstrap.sh` (37) · `scripts/forgejo-sync-secrets.sh` (45) · `scripts/backup-credentials.sh` (39) ·
-`staging/deck/scripts/{up,down,status}.sh` (47 — one row, three files)
-
-The test for this bucket: **does the script change state that a manifest now owns?** For all fifteen the answer is yes — Sonarr's
-quality profile, Kavita's users, Immich's first admin, the deck VM's boot order. Re-running one of them would fight ArgoCD.
 
 ## Dead: deleted, because the thing they did no longer exists
 
