@@ -51,3 +51,11 @@ variable "admin_target" {
   type        = string
   default     = "http://10.43.15.7:80"
 }
+
+# The mailbox that receives security@bismigel.dev. It is a variable rather than a literal because the destination address has to be
+# verified from that mailbox, and a report that silently bounces is the failure this address exists to avoid.
+variable "security_mailbox" {
+  description = "Destination mailbox for security@bismigel.dev (must be verified by clicking Cloudflare's email)"
+  type        = string
+  default     = "miguelarbis@protonmail.com"
+}
