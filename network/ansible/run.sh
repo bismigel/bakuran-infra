@@ -11,8 +11,8 @@ cd "$(dirname "$0")"
 
 if [ -z "${OPNSENSE_API_KEY:-}" ]; then
   TOKEN=$(kubectl -n external-secrets get secret bitwarden-access-token -o jsonpath='{.data.token}' | base64 -d)
-  ids=$(grep -oE "OPNSENSE_KEY_ID=[0-9a-f-]+" ../opentofu/opnsense/README.md | head -1 | cut -d= -f2)
-  sid=$(grep -oE "OPNSENSE_SECRET_ID=[0-9a-f-]+" ../opentofu/opnsense/README.md | head -1 | cut -d= -f2)
+  ids=$(grep -oE "OPNSENSE_KEY_ID=[0-9a-f-]+" ../../opentofu/opnsense/README.md | head -1 | cut -d= -f2)
+  sid=$(grep -oE "OPNSENSE_SECRET_ID=[0-9a-f-]+" ../../opentofu/opnsense/README.md | head -1 | cut -d= -f2)
   secrets=$(BWS_ACCESS_TOKEN="$TOKEN" bws secret list)
   export OPNSENSE_API_KEY=$(printf '%s' "$secrets" | jq -r --arg i "$ids" '.[] | select(.id==$i) | .value')
   export OPNSENSE_API_SECRET=$(printf '%s' "$secrets" | jq -r --arg i "$sid" '.[] | select(.id==$i) | .value')

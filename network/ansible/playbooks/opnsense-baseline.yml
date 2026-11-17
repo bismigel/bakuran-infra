@@ -1,8 +1,8 @@
 # Apply (or audit) the OPNsense identity/access baseline.
 #
-#   ansible-playbook playbooks/opnsense.yml              # apply, report what changed
-#   ansible-playbook playbooks/opnsense.yml -e audit=1   # read-only drift report, fails on drift
-#   ansible-playbook playbooks/opnsense.yml --check      # same as -e audit=1
+#   ansible-playbook playbooks/opnsense-baseline.yml              # apply, report what changed
+#   ansible-playbook playbooks/opnsense-baseline.yml -e audit=1   # read-only drift report, fails on drift
+#   ansible-playbook playbooks/opnsense-baseline.yml --check      # same as -e audit=1
 #
 # The router has no Python, so this uses `script` (Ansible copies the rendered baseline over
 # SSH and runs it). Idempotency lives in the script: it compares every value before writing,

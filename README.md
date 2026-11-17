@@ -16,7 +16,7 @@ personal, and safe to break on purpose.
 |---|---|---|
 | a host: packages, services, disks, mounts | `flake.nix` → `hosts/<host>/`, `modules/` | `nix run github:serokell/deploy-rs -- .#<host>` |
 | the router: firewall, VLANs, DHCP, DNS | `opentofu/opnsense/` | `tofu plan`, then `tofu apply` |
-| the router's unmodelled half: IDS, plugins, cron | `ansible/` | `./ansible/run.sh playbooks/<x>.yml --check` first |
+| the router's unmodelled half: IDS, plugins, cron | `network/ansible/` | `./network/ansible/run.sh playbooks/<x>.yml --check` first |
 | the Cloudflare edge: DNS, tunnel, Access | `opentofu/cloudflare/` | `terraform plan`, then `apply` |
 | a rehearsal before production | `staging/` | QEMU guests; `.#nixosConfigurations.staging-*` |
 | rebuilding a machine from scratch | `docs/REBUILD.md` | read, then follow |
@@ -44,7 +44,8 @@ hosts/<host>/              # one file per machine, plus disko.nix where declared
 modules/                   # base, k3s, backups, wireguard, monitoring — one concern each
 cmd/, internal/            # Go commands that run ON a host (see ADR 0019 in homelab-context)
 opentofu/{opnsense,cloudflare,omada,media}/
-ansible/                   # the router's unmodelled half; collections pinned in requirements.yml
+network/ansible/           # router + switch plays (API and ssh modes); collection pinned in requirements.yml
+network/switch/            # the OpenWrt switch's exporter
 staging/                   # the rehearsal cluster and its harness
 scripts/                   # 30 shell scripts, each with its reason in docs/legacy-scripts.md
 secrets/homelab.yaml       # SOPS/age host secrets

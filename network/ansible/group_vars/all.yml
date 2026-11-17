@@ -52,7 +52,7 @@ switch_baseline:
   luci_redirect_https: true
 
 # Identity/access state for the router. The OpenTofu provider has no `system` resource, so this is
-# its only declarative home. Applied by playbooks/opnsense.yml.
+# its only declarative home. Applied by playbooks/opnsense-baseline.yml.
 #
 # NOT here: TOTP (a seed has to be enrolled in a human's authenticator — automating it either
 # locks someone out or writes a secret that cannot be verified), and the VLAN interface objects

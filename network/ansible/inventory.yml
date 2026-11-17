@@ -1,22 +1,29 @@
-# Network devices that have no Terraform/OpenTofu resource for the settings we need.
+# Two ways into the same devices, because the tools differ:
 #
-# Both use the `script` module: OpenWrt has no Python at all, and on OPNsense the
-# identity/access values live in config.xml, which is edited through OPNsense's own library
-# (see files/opnsense_baseline.sh.j2). Idempotency lives in the scripts, not in Ansible.
+#   router      -> the OPNsense collection, which is an API client. `ansible_connection: local`: the modules run on
+#                  the controller and talk HTTPS to the firewall. This mode never opens a shell on the router.
+#   opnsense    -> the baseline scripts: identity, access and IDS live in config.xml and are edited through
+#                  OPNsense's own library (files/opnsense_baseline.sh.j2). ssh + `script`, idempotency in the script.
+#   openwrt     -> the switch. OpenWrt has no Python at all, so every task is raw/script level.
 all:
   children:
-    openwrt:
+    router:
       hosts:
-        gs108tv3:
-          ansible_host: 192.168.2.3
-          ansible_user: root
-          ansible_ssh_private_key_file: ~/.ssh/id_ed25519
-          ansible_connection: ssh
-          ansible_ssh_common_args: "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10 -o ControlMaster=no -o ControlPath=none"
+        opnsense:
+          ansible_host: 192.168.2.1
+          ansible_connection: local
     opnsense:
       hosts:
         gw-opnsense:
           ansible_host: 192.168.2.1
+          ansible_user: root
+          ansible_ssh_private_key_file: ~/.ssh/id_ed25519
+          ansible_connection: ssh
+          ansible_ssh_common_args: "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10 -o ControlMaster=no -o ControlPath=none"
+    openwrt:
+      hosts:
+        gs108tv3:
+          ansible_host: 192.168.2.3
           ansible_user: root
           ansible_ssh_private_key_file: ~/.ssh/id_ed25519
           ansible_connection: ssh
