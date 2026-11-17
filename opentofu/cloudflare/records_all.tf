@@ -239,3 +239,15 @@ resource "cloudflare_dns_record" "r_argo" {
   ttl     = 1
   comment = null
 }
+
+# Live since its service went up, and absent from this file until 2026-11-17: the tunnel routed it, DNS answered for it, and
+# nothing here described it. A record Terraform does not know is a record `plan` can never warn about.
+resource "cloudflare_dns_record" "r_vault" {
+  zone_id = var.zone_id
+  name    = "vault.bismigel.dev"
+  type    = "CNAME"
+  content = "8dcc83bd-eb95-4c0d-8f71-b92a27d37649.cfargotunnel.com"
+  proxied = true
+  ttl     = 1
+  comment = null
+}
