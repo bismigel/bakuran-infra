@@ -1,27 +1,7 @@
-# bakuran-infra — the hosts, and the way back
+# bakuran-infra
 
-NixOS configuration and disaster recovery for a three-node homelab: three Intel machines running k3s, one OPNsense router, one
-OpenWrt switch, and the encrypted exports that let all of it be rebuilt.
-
-### Start here
-
-| if you have | read |
-|---|---|
-| 2 minutes | `hosts/*/default.nix` — every host is one file, and nothing is configured by hand on a machine |
-| 10 minutes | [`docs/legacy-scripts.md`](docs/legacy-scripts.md) — the 30 shell files that remain, why each is still shell, and the two that were deleted |
-| an hour | [`docs/REBUILD.md`](docs/REBUILD.md) — the actual restore procedure, in order, including the one manual step |
-| a question | `modules/` — one module per concern (wireguard, backups, monitoring), each with the incident that shaped it in a comment |
-
-### What is deliberately *not* here
-
-Router and switch state is **OpenTofu** (`opentofu/`), not shell: `config.xml` is off limits and a change that cannot be declared is
-said out loud. Application state is not here either — that is a separate repository of Kubernetes desired state, reconciled by ArgoCD.
-And the checks are Go, in `homelab-context`; this repository's own CI runs one of them.
-
-> **This repository's origin is Forgejo** ([git.bismigel.dev](https://git.bismigel.dev)). GitHub receives a push mirror,
-> so what you read here is current, but pull requests, CI and reviews happen there. Everything below describes the
-> repository itself and is the same on both sides.
-
+NixOS configuration for the Bakuran homelab: three machines in one k3s cluster, plus the router, the switch and the disaster-recovery
+exports that let all of it be rebuilt.
 
 ## Why "Bakuran"
 
@@ -32,107 +12,73 @@ personal, and safe to break on purpose.
 
 ## Which tool owns what
 
-Five toolchains live here. The map exists because "change the router" should not require a search.
-
 | what you want to change | where it lives | how it is applied |
 |---|---|---|
-| a host: packages, services, disks, kernel, mounts | `flake.nix` → `hosts/<host>/`, `modules/` | `deploy-rs` (`nix run github:serokell/deploy-rs -- .#<host>`) |
-| the router: firewall rules, VLANs, DHCP, DNS overrides | `opentofu/opnsense/` | `tofu plan` then `tofu apply` (runbook 22) |
-| the router's **unmodelled** half: IDS state, plugins, cron | `ansible/` | `./ansible/run.sh playbooks/<x>.yml --check` first |
-| a rehearsal before touching production | `staging/` | QEMU guests on `br-staging`; `.#nixosConfigurations.staging-*` |
-| how to rebuild a machine from scratch | `docs/` | read, then follow |
+| a host: packages, services, disks, mounts | `flake.nix` → `hosts/<host>/`, `modules/` | `nix run github:serokell/deploy-rs -- .#<host>` |
+| the router: firewall, VLANs, DHCP, DNS | `opentofu/opnsense/` | `tofu plan`, then `tofu apply` |
+| the router's unmodelled half: IDS, plugins, cron | `ansible/` | `./ansible/run.sh playbooks/<x>.yml --check` first |
+| the Cloudflare edge: DNS, tunnel, Access | `opentofu/cloudflare/` | `terraform plan`, then `apply` |
+| a rehearsal before production | `staging/` | QEMU guests; `.#nixosConfigurations.staging-*` |
+| rebuilding a machine from scratch | `docs/REBUILD.md` | read, then follow |
 
-Two rules that decide arguments between them:
-
-- **OpenTofu owns everything the provider can model**; Ansible owns what it cannot. The boundary is written in
-  `opentofu/opnsense/README.md` and `ansible/README.md`, and neither is allowed to grow into the other's territory.
-- **Nothing on the router is hand-edited.** `config.xml` is off limits; a change that cannot be declared is said out loud and
-  recorded (`homelab-context/docs/reference/network-as-code.md` names which is which).
-
-**NixOS machine configuration** for the Bakuran homelab. This repo defines the
-*machines*; what runs on top of them (k3s workloads) lives in
-[`bakuran-gitops`](../bakuran-gitops) and is reconciled by ArgoCD.
+Two rules decide arguments between them: **OpenTofu owns what the provider can model**, Ansible owns what it cannot; and **nothing on
+the router is hand-edited** — `config.xml` is off limits.
 
 ## Hosts
 
-| Host | Addr | Hardware | Role |
-| --- | --- | --- | --- |
-| `sitaw-amd` | 192.168.2.82 | Ryzen 5 4600G | Platform: k3s server + **the single ArgoCD**, ingress-nginx, cloudflared connector #1, the daily Cloudflare-edge reconcile timer |
-| `calamansi-intel` | 192.168.2.81 | Intel i5-7500T | Media worker: Jellyfin (QSV), *arr stack, download clients, cloudflared connector #2; ProtonVPN + **kill switch** |
-| `patola-thinkcentre` | 192.168.2.80 | Intel i5-6500T, 16 GB | k3s **server**, third etcd member, schedulable; Immich Postgres + Redis |
-| `kamatis-mbp` | 192.168.2.83 | Intel i5 (MacBook 13" 2012) | **Not a cluster node** since 2026-10-28: the staging host, QEMU guests on `br-staging` (10.10.50.0/24) for datapath rehearsals |
+| host | address | role |
+|---|---|---|
+| `sitaw-amd` | .82 | platform: k3s server, ArgoCD, ingress, cloudflared, the NFS server |
+| `calamansi-intel` | .81 | media: the stack pinned here, `/mnt/media`, the WireGuard tunnel |
+| `patola-thinkcentre` | .80 | third etcd member, Immich (server, Postgres, Redis) |
+| `kamatis-mbp` | .83 | **not a cluster node**: the staging host for datapath rehearsals |
 
-All four run NixOS 25.11. Three of them - `.80`, `.81`, `.82` - form **one 3-node k3s cluster**
-(embedded etcd, 3 members, each `control-plane` and schedulable; traefik and servicelb disabled).
-`kamatis-mbp` left the cluster on 2026-10-28 and is now the staging host: a deploy-rs target, not a
-member, so what is rehearsed there cannot be depended on by the cluster.
+The first three form **one 3-node k3s cluster** (embedded etcd, all schedulable, traefik and servicelb disabled). `.83` is a deploy-rs
+target, not a member, so nothing rehearsed there can be depended on by the cluster.
 
 ## Layout
 
 ```
-flake.nix                    # inputs (nixpkgs, disko, deploy-rs, sops-nix) + hosts + deploy.nodes
-hosts/<host>/default.nix     # per-host config (imports modules/, inlines hardware)
-hosts/<host>/disko.nix       # disk layout (only where disko is used)
-modules/
-  base.nix                   # shared: SSH (key-only), users, packages, sops-nix, backup tooling
-  k3s.nix                    # k3s server config (ProtonVPN key + VPN kill switch on .81)
-  backup.nix                 # daily R2 credential backup (systemd timer)
-  backup-apps.nix            # daily R2 app-data backup (config PVCs, via kubectl exec)
-scripts/
-  bootstrap-argocd.sh        # one-time ArgoCD bootstrap + repo/cluster secrets
-  media-stack-setup.sh       # idempotent *arr ↔ qBittorrent wiring + Jellyfin settings
-  immich-setup.sh            # Immich admin + household accounts (from Bitwarden)
-  backup-credentials.sh      # host keys + kubeconfigs + BWS token → R2 (age-encrypted)
-opentofu/cloudflare/         # declared Cloudflare edge (DNS, tunnel, Access, R2) — tofu
-secrets/homelab.yaml         # SOPS/age-encrypted host secrets
-docs/REBUILD.md              # disaster recovery
-docs/HOMELAB-MIGRATION.md    # historical: Proxmox → NixOS migration plan
-SERVICES.md                  # what's deployed + where
+flake.nix                  # inputs, hosts, deploy.nodes
+hosts/<host>/              # one file per machine, plus disko.nix where declared
+modules/                   # base, k3s, backups, wireguard, monitoring — one concern each
+cmd/, internal/            # Go commands that run ON a host (see ADR 0019 in homelab-context)
+opentofu/{opnsense,cloudflare,omada,media}/
+ansible/                   # the router's unmodelled half; collections pinned in requirements.yml
+staging/                   # the rehearsal cluster and its harness
+scripts/                   # 30 shell scripts, each with its reason in docs/legacy-scripts.md
+secrets/homelab.yaml       # SOPS/age host secrets
+docs/REBUILD.md            # disaster recovery, in order
 ```
 
-## Deploy a host
+## Deploy
 
 ```bash
-nix run github:serokell/deploy-rs -- .#sitaw-amd
-nix run github:serokell/deploy-rs -- .#calamansi-intel
-nix run github:serokell/deploy-rs -- .#kamatis-mbp
+nix eval .#nixosConfigurations.<host>.config.system.build.toplevel.drvPath   # does it evaluate?
+nix run github:serokell/deploy-rs -- .#<host>                                 # build here, activate there
 ```
 
-Validate before deploying:
-
-```bash
-nix eval .#nixosConfigurations.<host>.config.system.build.toplevel.drvPath
-```
-
-Install a **brand-new** host (wipes the target): add `hosts/<name>/default.nix`
-(+ `disko.nix`), `git add` it, then
+A **new** machine: add `hosts/<name>/default.nix` (and `disko.nix`), `git add` it, then
 `nix run github:nix-community/nixos-anywhere -- --flake .#<name> --target-host root@<ip>`.
 
 ## Secrets
 
-- **Host secrets** (cloudflared credentials, ProtonVPN key, Cloudflare API token,
-  age identity) are **SOPS/age** (`sops-nix`); the age identity is the host's SSH key.
-- **Cluster secrets** (GHCR pull, tokens) live in **Bitwarden Secrets Manager** and
-  are synced by External Secrets Operator — see `bakuran-gitops`.
-- Never commit plaintext secrets.
+Host secrets (cloudflared credentials, the WireGuard key, the age identity) are **SOPS/age** via `sops-nix`; cluster secrets live in
+Bitwarden and arrive through External Secrets in `bakuran-gitops`. No plaintext secret is committed — `check-repo-hygiene` fails the
+build on the shapes it knows.
 
 ## Backups
 
-Daily systemd timers push age-encrypted data to R2:
-- `modules/backup.nix` → `r2:homelab-backups/credentials/` (host keys, kubeconfigs, BWS token).
-- `modules/backup-apps.nix` → `r2:homelab-backups/appdata/` (config PVCs:
-  *arrs/Jellyfin/Grafana/Prometheus/homelab agent).
-  - **Immich is backed up** with a local database dump and file archive, plus an
-    offsite copy in R2 `homelab-backups/immich-manual/`. The restore path was tested.
+Daily systemd timers push age-encrypted copies to R2: host keys and kubeconfigs (`modules/backup.nix`), config PVCs
+(`modules/backup-apps.nix`), and Immich's own dump plus an offsite copy. `verify-backup-copies` compares the offline copy against R2
+by set and size, weekly, and writes a metric.
 
-## Known issues
+## Checks
 
-  - **Cloudflare:** `min_tls_version` is 1.2, HSTS is on, and Bot Fight Mode is on.
-- The live inventory/roadmap lives in `homelab-context/` (local-only);
-  `SERVICES.md` here is a summary and may lag.
+CI runs on the estate's own Forgejo: `check-repo-hygiene` — no tracked credentials, key material or disk images. The rest of the
+estate's checks are Go, in `homelab-context`, and run from a workstation with `verify-all`.
 
-## Related
+## Where the reasoning lives
 
-- `bakuran-gitops` — cluster desired state (ArgoCD).
-- `homelab-app-template` — scaffold for a new app.
-- `docs/REBUILD.md` — rebuild from scratch. `SERVICES.md` — service inventory.
+Design decisions, incident write-ups and the operational runbook are in `homelab-context` (private) and at
+**[bismigel.dev](https://bismigel.dev)**, which is public. This repository holds the machines; it does not argue for them.
