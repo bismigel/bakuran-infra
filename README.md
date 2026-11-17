@@ -1,4 +1,22 @@
-# bakuran-infra
+# bakuran-infra — the hosts, and the way back
+
+NixOS configuration and disaster recovery for a three-node homelab: three Intel machines running k3s, one OPNsense router, one
+OpenWrt switch, and the encrypted exports that let all of it be rebuilt.
+
+### Start here
+
+| if you have | read |
+|---|---|
+| 2 minutes | `hosts/*/default.nix` — every host is one file, and nothing is configured by hand on a machine |
+| 10 minutes | [`docs/legacy-scripts.md`](docs/legacy-scripts.md) — 33 scripts, classified: 29 tools, 2 deleted, and the rule each remaining shell file satisfies |
+| an hour | [`docs/REBUILD.md`](docs/REBUILD.md) — the actual restore procedure, in order, including the one manual step |
+| a question | `modules/` — one module per concern (wireguard, backups, monitoring), each with the incident that shaped it in a comment |
+
+### What is deliberately *not* here
+
+Router and switch state is **OpenTofu** (`opentofu/`), not shell: `config.xml` is off limits and a change that cannot be declared is
+said out loud. Application state is not here either — that is a separate repository of Kubernetes desired state, reconciled by ArgoCD.
+And the checks are Go, in `homelab-context`; this repository's own CI runs one of them.
 
 > **This repository's origin is Forgejo** ([git.bismigel.dev](https://git.bismigel.dev)). GitHub receives a push mirror,
 > so what you read here is current, but pull requests, CI and reviews happen there. Everything below describes the
@@ -29,7 +47,7 @@ Two rules that decide arguments between them:
 - **OpenTofu owns everything the provider can model**; Ansible owns what it cannot. The boundary is written in
   `opentofu/opnsense/README.md` and `ansible/README.md`, and neither is allowed to grow into the other's territory.
 - **Nothing on the router is hand-edited.** `config.xml` is off limits; a change that cannot be declared is said out loud and
-  recorded (`NETWORK-AS-CODE.md` in the context repo names which is which).
+  recorded (`homelab-context/docs/reference/network-as-code.md` names which is which).
 
 **NixOS machine configuration** for the Bakuran homelab. This repo defines the
 *machines*; what runs on top of them (k3s workloads) lives in
