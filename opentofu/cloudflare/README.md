@@ -76,8 +76,7 @@ tofu plan
 5. R2 lifecycle;
 6. zone settings.
 
-Keep `cloudflare/sync.sh` as the rollback path until the OpenTofu state covers
-the full edge and a `tofu plan` is clean.
+The rollback path is `git revert` of this directory plus `tofu apply` — one declaration, one owner.
 
 ## State
 
