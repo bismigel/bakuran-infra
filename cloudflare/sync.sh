@@ -21,7 +21,21 @@ DOMAINS=(
 )
 
 # --- desired state ---------------------------------------------------------
-# Public surfaces stay on the public ingress (32080).
+# Where the connectors send traffic. cloudflared runs as a host unit on .81 and .82
+# (`cloudflared-tunnel-<id>.service`) and reaches the two ingress controllers by **ClusterIP**, not by the
+# `127.0.0.1:3208x` NodePorts this file named until 2026-11-16 — those ports no longer listen anywhere:
+#
+#   ss -ltn | grep -cE ':32080|:32081'                        -> 0     (on .82)
+#   curl -H 'Host: status.bismigel.dev' http://10.43.46.55/    -> 200
+#   curl -H 'Host: argocd.bismigel.dev' http://10.43.15.7/     -> 200
+#
+# This is why the file must be read *against the cluster* before it is run: four hostnames that were live but undeclared
+# (git, vault, tools, runbook) would have been dropped by the prune step, and every remaining route rewritten to a dead
+# port. A stale declaration is an outage waiting for someone to trust it.
+PUBLIC_TARGET="http://10.43.46.55:80"       # svc ingress-nginx-controller (ingress-nginx)
+ADMIN_TARGET="http://10.43.15.7:80"         # svc ingress-nginx-admin-controller (ingress-nginx-admin)
+
+# Public surfaces stay on the public ingress.
 PUBLIC_HOSTNAMES=(
   ciceley.cc www.ciceley.cc
   bismigel.dev www.bismigel.dev
@@ -32,9 +46,13 @@ PUBLIC_HOSTNAMES=(
   # Audiobookshelf: like Kavita, the native phone apps cannot complete an
   # interactive Access challenge, so it is public and does its own auth.
   audiobookshelf.bismigel.dev
+  # Live but never declared until 2026-11-16, found by diffing this file against the tunnel's own config:
+  git.bismigel.dev        # Forgejo, the origin — dropping this route takes the source of truth off the edge
+  vault.bismigel.dev
+  tools.ciceley.cc
 )
 
-# Access-gated/admin surfaces use the separate admin ingress (32081).
+# Access-gated/admin surfaces use the separate admin ingress.
 ADMIN_HOSTNAMES=(
   private.bismigel.dev grafana.bismigel.dev agent.bismigel.dev
   sonarr.bismigel.dev radarr.bismigel.dev prowlarr.bismigel.dev
@@ -44,6 +62,7 @@ ADMIN_HOSTNAMES=(
   # Story 7.5: Argo Workflows' own UI is the human pane for every runbook action — one place to see all actions and
   # submit one, over the same two templates the CLI uses. Admin class, so it is Access-gated like the rest.
   argo.bismigel.dev
+  runbook.bismigel.dev    # live but never declared, like the three public ones above
 )
 
 HOSTNAMES=("${PUBLIC_HOSTNAMES[@]}" "${ADMIN_HOSTNAMES[@]}")
@@ -61,6 +80,9 @@ HOSTNAMES=("${PUBLIC_HOSTNAMES[@]}" "${ADMIN_HOSTNAMES[@]}")
 
 ACCESS=(
   "Grafana|grafana.bismigel.dev|bismigel@pm.me,${HOUSEHOLD_EMAILS}|24h"
+  # Two apps were live and undeclared, which is harmless only while nobody runs the prune:
+  "Forgejo|git.bismigel.dev|bismigel@pm.me,${HOUSEHOLD_EMAILS}|24h"
+  "Tools (private)|tools.ciceley.cc/lab,tools.ciceley.cc/api/lab|bismigel@pm.me,${HOUSEHOLD_EMAILS}|24h"
   "Homelab Agent|agent.bismigel.dev|bismigel@pm.me|24h"
   "Private API|private.bismigel.dev|bismigel@pm.me|24h"
   "ArgoCD|argocd.bismigel.dev|bismigel@pm.me|24h"
@@ -79,8 +101,8 @@ SESSION=730h
 
 # --- tunnel ingress --------------------------------------------------------
 echo ">> tunnel ingress"
-ING_PUBLIC=$(for h in "${PUBLIC_HOSTNAMES[@]}"; do jq -nc --arg h "$h" '{hostname:$h,service:"http://127.0.0.1:32080"}'; done | jq -sc '.')
-ING_ADMIN=$(for h in "${ADMIN_HOSTNAMES[@]}"; do jq -nc --arg h "$h" '{hostname:$h,service:"http://127.0.0.1:32081"}'; done | jq -sc '.')
+ING_PUBLIC=$(for h in "${PUBLIC_HOSTNAMES[@]}"; do jq -nc --arg h "$h" --arg t "$PUBLIC_TARGET" '{hostname:$h,service:$t}'; done | jq -sc '.')
+ING_ADMIN=$(for h in "${ADMIN_HOSTNAMES[@]}"; do jq -nc --arg h "$h" --arg t "$ADMIN_TARGET" '{hostname:$h,service:$t}'; done | jq -sc '.')
 ING=$(jq -nc --argjson p "$ING_PUBLIC" --argjson a "$ING_ADMIN" '$p + $a + [{service:"http_status:404"}]')
 cf -X PUT "$API/accounts/$ACCT/cfd_tunnel/$TUN/configurations" --data "$(jq -nc --argjson i "$ING" '{config:{ingress:$i}}')" >/dev/null \
   && echo "   ok"
@@ -161,11 +183,19 @@ done
 # --- prune ----------------------------------------------------------------
 # Delete Access apps that are no longer declared above (e.g. Jellyfin moved off
 # Zero Trust). Scoped to Access apps, which are all managed by this file.
+# Deleting an Access app *removes the front door* from a service that was behind it, so this is the one step that does
+# not run by itself: an app nobody declared is reported, and only `RECONCILE_DELETE=1` removes it. Ten minutes of reading
+# ("why is this app here?") is cheaper than an hour of an origin being public.
 echo ">> prune stale Access apps"
 want=$(printf '%s\n' "${ACCESS[@]}" | sed 's/|.*//')
 while IFS=$'\t' read -r aid aname; do
   [ -n "$aid" ] || continue
-  grep -qxF "$aname" <<<"$want" || { cf -X DELETE "$API/accounts/$ACCT/access/apps/$aid" >/dev/null 2>&1 && echo "   - $aname"; }
+  grep -qxF "$aname" <<<"$want" && continue
+  if [ "${RECONCILE_DELETE:-0}" = "1" ]; then
+    cf -X DELETE "$API/accounts/$ACCT/access/apps/$aid" >/dev/null 2>&1 && echo "   - $aname"
+  else
+    echo "   ? $aname is live but undeclared — not touched (RECONCILE_DELETE=1 removes it)"
+  fi
 done < <(cf "$API/accounts/$ACCT/access/apps" | jq -r '.result[]|"\(.id)\t\(.name)"')
 
 echo ">> done"
