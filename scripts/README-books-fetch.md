@@ -32,7 +32,7 @@ forced scan takes ~8 seconds.
 ## How it works
 
 1. Search the mirror for `"<title> <author-surname>"`.
-2. Parse the result table (`scripts/lib/mirror_parse.py` — a real HTML parser; a
+2. Parse the result table (`mirror-parse`, Go in homelab-context — a real HTML parser; a
    shell regex over `<tr>` rows was the first version and it silently matched
    nothing).
 3. Score each row: 75% core-title token overlap (the part before ` - ` or `:`,

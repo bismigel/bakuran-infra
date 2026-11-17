@@ -52,7 +52,7 @@ and deleting one would have been discovered during a restore. `bootstrap-argocd.
 | `network/router/homelab-heartbeat.sh` | 94 | referenced by `network/ansible/playbooks/*` and two documents |
 | `ansible/run.sh` | 32 | the wrapper the router and switch playbooks are run through |
 | `switch/node-exporter.sh` | 70 | puts the exporter on the OpenWrt switch; needed again whenever the switch is rebuilt |
-| `scripts/books-fetch.sh` + `scripts/lib/mirror_parse.py` | 150 + 54 | the book pipeline: still the way a book is fetched and converted |
+| `scripts/books-fetch.sh` | 143 | the book pipeline: still the way a book is fetched and converted. Its parser (`mirror_parse.py`) and its scoring copy are Go now — `mirror-parse` |
 | `scripts/kavita-add-user.sh` | 68 | adding a household reader is a recurring operation, not a one-off |
 | `scripts/forgejo-sync-secrets.sh` | 45 | nothing references it and it is still a tool: it pushes the estate's action secrets into Forgejo, which is needed whenever a secret rotates. A tool with no caller is a gap to fix, not a file to delete — the same distinction that kept `argocd-redis-ha-post-renderer`. |
 | `scripts/bootstrap-argocd.sh` | 118 | **`docs/REBUILD.md` step 3** — the one manual bootstrap; it installs ArgoCD `--server-side` because the ApplicationSet CRD exceeds the client-side limit |

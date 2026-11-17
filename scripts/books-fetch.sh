@@ -29,6 +29,7 @@ TITLE=""
 
 die() { echo "ERROR: $*" >&2; exit 1; }
 
+PY="$(command -v python3 || true)"; [ -n "$PY" ] || { echo "python3 is needed for URL-encoding only" >&2; exit 1; }
 enc() { $PY -c 'import sys,urllib.parse;print(urllib.parse.quote_plus(sys.argv[1]))' "$1"; }
 
 while [ $# -gt 0 ]; do
@@ -44,7 +45,7 @@ while [ $# -gt 0 ]; do
 done
 
 LIBDIR="$(cd "$(dirname "$0")" && pwd)/lib"
-PY="$(command -v python3 || true)"; [ -n "$PY" ] || PY="nix run nixpkgs#python3 --"
+# (the parser is Go now; python3 inside the lazylibrarian container is that container's own interpreter)
 
 # --- collect targets ----------------------------------------------------------
 targets=()
@@ -67,24 +68,11 @@ fi
 
 STOP="the a an of and to in for on with your you how is be book novel series vol volume edition"
 
-# Score a candidate title+author against what we want. Compares the CORE title
-# (before " - " or ":") because LL stores Goodreads strings with long subtitles.
+# Score a candidate title+author against what we want. The formula lives in Go (`mirror-parse --score`, ADR 0016): this function used
+# to carry its own Python copy of it, and two implementations of one scoring rule is what ADR 0011 forbids - the copy is the one that
+# drifts. The Go command is on PATH through homelab-context's dev shell and flake; MIRROR_PARSE overrides it for a test.
 score() { # <candidate-title> <want-title> <want-author>
-  $PY - "$1" "$2" "$3" <<'PY'
-import re, sys
-cand, want, author = sys.argv[1], sys.argv[2], sys.argv[3]
-STOP = {"the","a","an","of","and","to","in","for","on","with","your","you","how","is","be",
-        "book","novel","series","vol","volume","edition"}
-def toks(s):
-    s = re.sub(r"[^a-z0-9 ]+", " ", s.lower().replace("&", " and "))
-    return {t for t in s.split() if t and t not in STOP}
-core = re.split(r"\s+[-\u2013:]\s+|:\s+", want)[0]
-need, have = toks(core), toks(cand)
-t = len(need & have) / len(need) if need else 0.0
-# the author surname must appear somewhere in the row, else it is the wrong book
-a = 1.0 if toks(author.split()[-1]) <= toks(cand) else 0.0
-print(f"{0.75*t + 0.25*a:.3f}")
-PY
+  "${MIRROR_PARSE:-mirror-parse}" --score "$1" "$2" "$3"
 }
 
 fetch_one() { # <author> <title>
@@ -93,10 +81,10 @@ fetch_one() { # <author> <title>
   html="$(curl -s --max-time 45 -A "$UA" "$SOURCE/index.php?req=$q" || true)"
   [ -n "$html" ] || { echo "  search failed (no response)"; return 0; }
 
-  # Parse the result table with a real HTML parser (scripts/lib/mirror_parse.py):
-  # a shell regex over <tr> rows is where this broke the first time.
+  # Parse the result table with the Go scorer (`mirror-parse`, ADR 0016): a shell regex over <tr> rows is where this broke the
+  # first time. The Go command is on PATH through homelab-context's dev shell and flake; `MIRROR_PARSE` overrides it for a test.
   local parsed
-  parsed="$(printf '%s' "$html" | $PY "$LIBDIR/mirror_parse.py" "$title" "$author")"
+  parsed="$(printf '%s' "$html" | "${MIRROR_PARSE:-mirror-parse}" "$title" "$author")"
   best_line="$(printf '%s\n' "$parsed" | head -1)"
   best_s="$(printf '%s' "$best_line" | cut -f1)"
   best_md5="$(printf '%s' "$best_line" | cut -f2)"
