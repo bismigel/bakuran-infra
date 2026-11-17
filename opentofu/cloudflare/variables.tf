@@ -38,3 +38,16 @@ variable "household_emails" {
   description = "Additional emails allowed through Access (from Bitwarden: access-household-emails)"
   type        = list(string)
 }
+
+# Where cloudflared sends traffic. ClusterIPs of the two ingress controllers, not host ports: see tunnel.tf.
+variable "public_target" {
+  description = "Service the public ingress controller exposes (svc ingress-nginx-controller)"
+  type        = string
+  default     = "http://10.43.46.55:80"
+}
+
+variable "admin_target" {
+  description = "Service the Access-gated ingress controller exposes (svc ingress-nginx-admin-controller)"
+  type        = string
+  default     = "http://10.43.15.7:80"
+}

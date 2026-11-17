@@ -229,3 +229,13 @@ resource "cloudflare_dns_record" "r_audiobookshelf" {
   ttl     = 1
   comment = "tunnel"
 }
+
+resource "cloudflare_dns_record" "r_argo" {
+  zone_id = var.zone_id
+  name    = "argo.bismigel.dev"
+  type    = "CNAME"
+  content = "8dcc83bd-eb95-4c0d-8f71-b92a27d37649.cfargotunnel.com"
+  proxied = true
+  ttl     = 1
+  comment = null
+}

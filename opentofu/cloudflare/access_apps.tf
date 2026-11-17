@@ -129,3 +129,34 @@ resource "cloudflare_zero_trust_access_application" "forgejo" {
   policies                   = [{ id = cloudflare_zero_trust_access_policy.forgejo.id, precedence = 1 }]
 }
 
+
+# Live since before this directory existed, and absent from it: the tools page (path-scoped, two destinations, so a
+# plain domain would gate the wrong thing) and the pane itself. Both were found by diffing the account's Access apps
+# against this file - the same audit that found vault/tools missing from the tunnel.
+resource "cloudflare_zero_trust_access_application" "tools" {
+  account_id          = var.account_id
+  name                = "Tools (private)"
+  type                = "self_hosted"
+  session_duration           = "24h"
+  self_hosted_domains        = ["tools.ciceley.cc/lab", "tools.ciceley.cc/api/lab"]
+  auto_redirect_to_identity  = false
+  enable_binding_cookie      = false
+  options_preflight_bypass   = false
+  http_only_cookie_attribute = true
+  policies                   = [{ id = "1b1906af-1588-4d62-ba33-2179f2d58047", precedence = 1 }]
+}
+
+# Story 7.5: Argo Workflows' own UI is the human pane for every runbook action. Behind Access like every other admin
+# surface, with the same 24h session - the pane can submit a procedure, so it is not less sensitive than ArgoCD.
+resource "cloudflare_zero_trust_access_application" "argo" {
+  account_id                 = var.account_id
+  name                       = "Argo Workflows"
+  type                       = "self_hosted"
+  session_duration           = "24h"
+  self_hosted_domains        = ["argo.bismigel.dev"]
+  auto_redirect_to_identity  = false
+  enable_binding_cookie      = false
+  options_preflight_bypass   = false
+  http_only_cookie_attribute = true
+  policies                   = [{ id = "58ec6a0b-609d-43b0-b2c2-f17bf08c2243", precedence = 1 }]
+}

@@ -127,3 +127,21 @@ rules; delete the lifecycle manually through the API if that is ever needed.
 The remote-managed tunnel ingress configuration is imported as
 `cloudflare_zero_trust_tunnel_cloudflared_config.main`. `tofu plan` is clean.
 R2 lifecycle is now managed by OpenTofu.
+
+## One owner
+
+This directory is the only declaration of the Cloudflare edge. `cloudflare/sync.sh` was a second one and was deleted on
+2026-11-17 after it was found stale in three ways at once (dead targets, four undeclared hostnames, two undeclared Access
+apps) — see [`../../cloudflare/README.md`](../../cloudflare/README.md). Two reconcilers do not make an edge more reliable;
+they make it possible for one of them to be wrong without anyone noticing.
+
+## Two things that are true and worth knowing
+
+- **The tunnel targets are ClusterIPs, not host ports** (`var.public_target` / `var.admin_target`). The connectors run as
+  host units on .81 and .82 but reach the ingress controllers through the cluster's service network; the
+  `127.0.0.1:3208x` NodePorts this file named until 2026-11-17 no longer listen. Verified: `ss -ltn | grep -cE ':32080|:32081'`
+  = 0 on .82, and `curl -H 'Host: argocd.bismigel.dev' http://10.43.15.7/` = 200.
+- **Seven Access policies are referenced by id**, not declared here (`books`, `media`, `longhorn`, `private_api`, `agent`,
+  `grafana`, and now `tools`/`argo`). The application's policy list takes ids, and modelling an app-scoped policy as a
+  resource needs an import shape this directory has not used yet. The two newest — `runbook` and `forgejo` — do declare
+  their policy. Recorded as debt, not as a finished state.
