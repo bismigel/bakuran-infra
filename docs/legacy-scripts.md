@@ -72,3 +72,8 @@ and deleting one would have been discovered during a restore. `bootstrap-argocd.
 The media migration's *why* (mergerfs union, the 06:00:06 NFS branch failure, the 99 %-full branch with 789 G "free") is in
 `homelab-context/docs/records/` and `STORAGE-PLAN.md`; the script's header repeats it, which is why deleting the script loses nothing
 that is not recorded twice already.
+
+## Two documents about specific scripts
+
+[`scripts/README.md`](../scripts/README.md) indexes the two script-specific pages: the book pipeline, and the `qcow2` risk acceptance
+that this repository earned the hard way.
