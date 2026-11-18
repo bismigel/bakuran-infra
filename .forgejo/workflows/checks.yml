@@ -21,10 +21,17 @@ concurrency:
 
 jobs:
   hygiene:
+    # The run token may read the repository and nothing else.
+    permissions:
+      contents: read
     runs-on: in-cluster
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      # Pinned by commit, not by tag: a tag is a pointer the action's owner can move, and this step runs on every PR.
+      # `persist-credentials: false` because the run token is otherwise left in .git/config for the next step to find.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262   # v4.4.0
+        with:
+          persist-credentials: false
       # The guard is Go (ADR 0016) and lives in homelab-context. This job runs on every PR, and what it protects is a credential
       # reaching git: an API key committed by a `git add -A` on 2026-11-01, and a qcow2 in history carrying a host private key.
       - name: Check out the guard
