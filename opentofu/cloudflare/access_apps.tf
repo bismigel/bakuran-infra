@@ -122,10 +122,7 @@ resource "cloudflare_zero_trust_access_application" "forgejo" {
 # against this file - the same audit that found vault/tools missing from the tunnel.
 resource "cloudflare_zero_trust_access_application" "tools" {
   account_id = var.account_id
-  # Named for what it actually covers (2026-11-18): the app guards `/lab` and `/api/lab`, and the hostname's ROOT
-  # answers 200 publicly - a table row in docs/reference/hardening.md records that. Calling it "private" while leaving
-  # the front door open is the kind of name that stops a reader looking.
-  name                       = "Tools (lab paths)"
+  name                       = "Tools (private)"
   type                       = "self_hosted"
   session_duration           = "24h"
   self_hosted_domains        = ["tools.ciceley.cc/lab", "tools.ciceley.cc/api/lab"]
