@@ -121,9 +121,9 @@ resource "cloudflare_zero_trust_access_application" "forgejo" {
 # plain domain would gate the wrong thing) and the pane itself. Both were found by diffing the account's Access apps
 # against this file - the same audit that found vault/tools missing from the tunnel.
 resource "cloudflare_zero_trust_access_application" "tools" {
-  account_id          = var.account_id
-  name                = "Tools (private)"
-  type                = "self_hosted"
+  account_id                 = var.account_id
+  name                       = "Tools (private)"
+  type                       = "self_hosted"
   session_duration           = "24h"
   self_hosted_domains        = ["tools.ciceley.cc/lab", "tools.ciceley.cc/api/lab"]
   auto_redirect_to_identity  = false
@@ -146,4 +146,39 @@ resource "cloudflare_zero_trust_access_application" "argo" {
   options_preflight_bypass   = false
   http_only_cookie_attribute = true
   policies                   = [{ id = "58ec6a0b-609d-43b0-b2c2-f17bf08c2243", precedence = 1 }]
+}
+
+# The container registry (story 15.11). Forgejo serves OCI under the SAME hostname as the git UI, and the app above puts
+# that whole hostname behind Access. A registry client (buildah, docker, skopeo) discovers `https://git.bismigel.dev/v2/token`
+# from the `WWW-Authenticate` header of `/v2/` and follows it - it cannot answer an SSO redirect, so today no client can
+# authenticate from anywhere that is not holding a browser session. Measured 2026-11-18 from a pod in the cluster:
+#
+#   http://forgejo.forgejo.svc:3000/v2/  -> 401, realm = https://git.bismigel.dev/v2/token
+#   https://git.bismigel.dev/v2/token    -> 302 -> bakuran.cloudflareaccess.com/.../access/login/git.bismigel.dev
+#
+# So: a PATH-scoped application for `/v2` with a `bypass` policy. Path scoping is the whole safety argument -
+# `tools.ciceley.cc/lab` above proves the provider and the API accept it, and Cloudflare matches the most specific path
+# first, so the git UI stays behind the allow policy untouched.
+#
+# This is not an open door: Forgejo's registry authenticates every request with its own token (`/v2/` answers 401 with no
+# credentials), and a token is scoped per repository and per action (`read:package` / `write:package`). What the bypass
+# removes is only the *SSO* layer, which a machine client can never satisfy.
+resource "cloudflare_zero_trust_access_policy" "forgejo_registry" {
+  account_id = var.account_id
+  name       = "Forgejo registry (machine clients, no SSO)"
+  decision   = "bypass"
+  include    = [{ everyone = {} }]
+}
+
+resource "cloudflare_zero_trust_access_application" "forgejo_registry" {
+  account_id                 = var.account_id
+  name                       = "Forgejo container registry"
+  type                       = "self_hosted"
+  session_duration           = "24h"
+  self_hosted_domains        = ["git.bismigel.dev/v2"]
+  auto_redirect_to_identity  = false
+  enable_binding_cookie      = false
+  options_preflight_bypass   = false
+  http_only_cookie_attribute = true
+  policies                   = [{ id = cloudflare_zero_trust_access_policy.forgejo_registry.id, precedence = 1 }]
 }
