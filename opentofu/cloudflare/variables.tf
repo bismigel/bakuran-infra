@@ -59,3 +59,9 @@ variable "security_mailbox" {
   type        = string
   default     = "miguelarbis@protonmail.com"
 }
+
+variable "operator_email" {
+  type        = string
+  description = "The single address allowed on operator-only surfaces (ArgoCD, Longhorn, the agent)."
+  default     = "bismigel@pm.me"
+}

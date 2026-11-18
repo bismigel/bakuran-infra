@@ -9,7 +9,7 @@ resource "cloudflare_zero_trust_access_application" "argocd" {
   options_preflight_bypass  = false
   policies = [
     {
-      id         = "230d07e8-9a63-4451-a7dd-2a84392a5012"
+      id         = cloudflare_zero_trust_access_policy.operator.id
       precedence = 1
     }
   ]

@@ -11,7 +11,7 @@ resource "cloudflare_zero_trust_access_application" "books" {
   enable_binding_cookie      = false
   options_preflight_bypass   = false
   http_only_cookie_attribute = true
-  policies                   = [{ id = "d367db8b-962f-4386-8fe6-70771202bc38", precedence = 1 }]
+  policies                   = [{ id = cloudflare_zero_trust_access_policy.household.id, precedence = 1 }]
 }
 
 resource "cloudflare_zero_trust_access_application" "media" {
@@ -28,7 +28,7 @@ resource "cloudflare_zero_trust_access_application" "media" {
   enable_binding_cookie      = false
   options_preflight_bypass   = false
   http_only_cookie_attribute = true
-  policies                   = [{ id = "1f459006-367d-4964-81f7-ff1b24949fae", precedence = 1 }]
+  policies                   = [{ id = cloudflare_zero_trust_access_policy.household.id, precedence = 1 }]
 }
 
 resource "cloudflare_zero_trust_access_application" "longhorn" {
@@ -41,7 +41,7 @@ resource "cloudflare_zero_trust_access_application" "longhorn" {
   enable_binding_cookie      = false
   options_preflight_bypass   = false
   http_only_cookie_attribute = true
-  policies                   = [{ id = "76712f1c-3b76-43fe-8cca-29f319eecafc", precedence = 1 }]
+  policies                   = [{ id = cloudflare_zero_trust_access_policy.operator.id, precedence = 1 }]
 }
 
 resource "cloudflare_zero_trust_access_application" "agent" {
@@ -54,7 +54,7 @@ resource "cloudflare_zero_trust_access_application" "agent" {
   enable_binding_cookie      = false
   options_preflight_bypass   = false
   http_only_cookie_attribute = true
-  policies                   = [{ id = "1b42de62-3604-42ae-b2fd-cca2879ba40d", precedence = 1 }]
+  policies                   = [{ id = cloudflare_zero_trust_access_policy.operator.id, precedence = 1 }]
 }
 
 # Reusable allow policy for the runbook (same allowlist as the other admin apps).
@@ -91,7 +91,7 @@ resource "cloudflare_zero_trust_access_application" "grafana" {
   enable_binding_cookie      = false
   options_preflight_bypass   = false
   http_only_cookie_attribute = true
-  policies                   = [{ id = "eccc596c-0f1a-4aa7-b284-ed91b8a32d33", precedence = 1 }]
+  policies                   = [{ id = cloudflare_zero_trust_access_policy.household.id, precedence = 1 }]
 }
 resource "cloudflare_zero_trust_access_policy" "forgejo" {
   account_id = var.account_id
@@ -121,8 +121,11 @@ resource "cloudflare_zero_trust_access_application" "forgejo" {
 # plain domain would gate the wrong thing) and the pane itself. Both were found by diffing the account's Access apps
 # against this file - the same audit that found vault/tools missing from the tunnel.
 resource "cloudflare_zero_trust_access_application" "tools" {
-  account_id                 = var.account_id
-  name                       = "Tools (private)"
+  account_id = var.account_id
+  # Named for what it actually covers (2026-11-18): the app guards `/lab` and `/api/lab`, and the hostname's ROOT
+  # answers 200 publicly - a table row in docs/reference/hardening.md records that. Calling it "private" while leaving
+  # the front door open is the kind of name that stops a reader looking.
+  name                       = "Tools (lab paths)"
   type                       = "self_hosted"
   session_duration           = "24h"
   self_hosted_domains        = ["tools.ciceley.cc/lab", "tools.ciceley.cc/api/lab"]
@@ -130,7 +133,7 @@ resource "cloudflare_zero_trust_access_application" "tools" {
   enable_binding_cookie      = false
   options_preflight_bypass   = false
   http_only_cookie_attribute = true
-  policies                   = [{ id = "1b1906af-1588-4d62-ba33-2179f2d58047", precedence = 1 }]
+  policies                   = [{ id = cloudflare_zero_trust_access_policy.household.id, precedence = 1 }]
 }
 
 # Story 7.5: Argo Workflows' own UI is the human pane for every runbook action. Behind Access like every other admin
@@ -145,7 +148,7 @@ resource "cloudflare_zero_trust_access_application" "argo" {
   enable_binding_cookie      = false
   options_preflight_bypass   = false
   http_only_cookie_attribute = true
-  policies                   = [{ id = "58ec6a0b-609d-43b0-b2c2-f17bf08c2243", precedence = 1 }]
+  policies                   = [{ id = cloudflare_zero_trust_access_policy.household.id, precedence = 1 }]
 }
 
 # The container registry (story 15.11). Forgejo serves OCI under the SAME hostname as the git UI, and the app above puts
@@ -181,4 +184,32 @@ resource "cloudflare_zero_trust_access_application" "forgejo_registry" {
   options_preflight_bypass   = false
   http_only_cookie_attribute = true
   policies                   = [{ id = cloudflare_zero_trust_access_policy.forgejo_registry.id, precedence = 1 }]
+}
+
+# ---- Policies, declared instead of referenced by UUID (2026-11-18) ----
+#
+# These seven apps pointed at bare UUIDs (`policies = [{ id = "58ec6a0b-…" }]`), which are APP-SCOPED policies: they do not
+# appear in the account's policy list and their rules — which emails, and therefore who gets in — existed only in
+# Cloudflare's UI. A hand edit there would never have appeared in a plan. Each block below was written from the live
+# definition (`GET /accounts/{id}/access/apps`, 2026-11-18), so the import is a capture, not a guess:
+#
+#   Argo Workflows, Tools, Books, Homelab Media, Grafana  -> household (two addresses)
+#   ArgoCD, Longhorn, Homelab Agent                       -> operator only (one address)
+#
+# The operator-only three are left as they are: narrower than the household list is not a finding.
+
+resource "cloudflare_zero_trust_access_policy" "household" {
+  account_id = var.account_id
+  name       = "Household"
+  decision   = "allow"
+  include = [
+    for e in var.household_emails : { email = { email = e } }
+  ]
+}
+
+resource "cloudflare_zero_trust_access_policy" "operator" {
+  account_id = var.account_id
+  name       = "Operator"
+  decision   = "allow"
+  include    = [{ email = { email = var.operator_email } }]
 }

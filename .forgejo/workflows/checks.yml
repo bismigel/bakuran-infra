@@ -24,6 +24,9 @@ jobs:
     # The run token may read the repository and nothing else.
     permissions:
       contents: read
+    # The artefact this job runs, pinned by manifest digest.
+    env:
+      CHECKS_REF: sha256:10ef515f5bce06605158c5389d2e3025326e60dd79d075a4fd75b7976a8e4761
     runs-on: in-cluster
     timeout-minutes: 10
     steps:
@@ -32,14 +35,38 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262   # v4.4.0
         with:
           persist-credentials: false
-      # The guard is Go (ADR 0016) and lives in homelab-context. This job runs on every PR, and what it protects is a credential
-      # reaching git: an API key committed by a `git add -A` on 2026-11-01, and a qcow2 in history carrying a host private key.
-      - name: Check out the guard
+      # The guard is Go (ADR 0016) and lives in homelab-context. This job runs on every PR, and what it protects is a
+      # credential reaching git: an API key committed by a `git add -A` on 2026-11-01, and a qcow2 in history carrying a
+      # host private key.
+      #
+      # Story 15.11: it arrives as an ARTEFACT, not a clone. This workflow used to `git clone` homelab-context with
+      # CONTEXT_READ_TOKEN - a read token for that repository's whole source tree - and on 2026-11-18 that token was
+      # deleted from this repository as part of the same story, which turned this job red with `could not read
+      # Username` on the clone. The failure was correct and the fix is the artefact: a `read:package` credential that
+      # can pull one image and cannot read source.
+      - name: Fetch the checks image (pinned by digest)
+        env:
+          READ_TOKEN: ${{ secrets.CHECKS_READ_TOKEN }}
+          REF: ${{ env.CHECKS_REF }}
         run: |
-          CTX="/tmp/ctx-${GITHUB_RUN_ID:-0}-${GITHUB_JOB:-job}"
-          rm -rf "$CTX"
-          git clone --depth=1 "http://oauth2:${{ secrets.CONTEXT_READ_TOKEN }}@forgejo:3000/bismigel/homelab-context.git" "$CTX"
+          set -eu
+          D="/tmp/checks-${GITHUB_RUN_ID:-0}-${GITHUB_JOB:-job}"
+          rm -rf "$D"; mkdir -p "$D"
+          R="forgejo:3000"
+          tok=$(curl -sf -u "bismigel:$READ_TOKEN" \
+            "http://$R/v2/token?service=container_registry&scope=repository:bismigel/checks:pull" \
+            | sed 's/.*"token":"\([^"]*\)".*/\1/')
+          [ -n "$tok" ] || { echo "no registry token: is CHECKS_READ_TOKEN set for this repository?"; exit 1; }
+          layer=$(curl -sf -H "Authorization: Bearer $tok" \
+            -H 'Accept: application/vnd.oci.image.manifest.v1+json' \
+            "http://$R/v2/bismigel/checks/manifests/$REF" \
+            | sed 's/.*"digest":"\(sha256:[a-f0-9]*\)".*/\1/')
+          [ -n "$layer" ] || { echo "no layer in the manifest for $REF"; exit 1; }
+          curl -sf -H "Authorization: Bearer $tok" \
+            "http://$R/v2/bismigel/checks/blobs/$layer" -o "$D/layer.tar"
+          tar -xf "$D/layer.tar" -C "$D" && rm -f "$D/layer.tar"
+          cat "$D/bin/BUILD"
       - name: The repository keeps its own rules
         run: |
-          CTX="/tmp/ctx-${GITHUB_RUN_ID:-0}-${GITHUB_JOB:-job}"
-          cd "$CTX" && CGO_ENABLED=0 go run ./cmd/check-repo-hygiene --root "$GITHUB_WORKSPACE"
+          D="/tmp/checks-${GITHUB_RUN_ID:-0}-${GITHUB_JOB:-job}"
+          "$D/bin/check-repo-hygiene" --root "$GITHUB_WORKSPACE"
