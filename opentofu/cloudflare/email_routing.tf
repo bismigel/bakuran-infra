@@ -19,7 +19,7 @@ resource "cloudflare_email_routing_address" "security" {
 # security@bismigel.dev is published in SECURITY.md in three repositories. One literal matcher, one forward - deliberately not a
 # catch-all: an estate with one operator does not want every typo'd address arriving in a personal inbox.
 #
-# BLOCKED 2026-11-18: the token at /run/secrets/cloudflare_api_token can enable routing and create a destination address, but every
+# BLOCKED 2026-11-18: the token in `secrets/homelab.yaml` (read it per README.md; the host copy went away on 2026-11-19) can enable routing and create a destination address, but every
 # call to `/zones/<id>/email/routing/rules` returns `Authentication error` (10000). That is a token *permission*, not a rule problem -
 # Email Routing rules are their own scope. So this resource is declared and cannot be applied until the token is reissued with it, or
 # the rule is created once in the dashboard and imported. Plan currently reports `1 to add` for exactly this resource.

@@ -7,8 +7,13 @@ settings, all seven Access applications and the R2 lifecycle are managed here.
 
 Use the Cloudflare token from SOPS. Never write it into a file or shell history.
 
+The token is **not** at `/run/secrets/cloudflare_api_token` any more: the `cloudflare-sync` module that declared it was
+deleted on 2026-11-17 (a daily reconciler holding a broad token), and the next activation removed the file. The value is
+still in `secrets/homelab.yaml`, so read it there with the admin age key:
+
 ```bash
-export TF_VAR_cloudflare_api_token="$(sudo cat /run/secrets/cloudflare_api_token)"
+export TF_VAR_cloudflare_api_token="$(SOPS_AGE_KEY_FILE=~/.config/sops/age/homelab.txt \
+  sops -d secrets/homelab.yaml | yq -r .cloudflare_api_token)"
 # Access allowlist for the second household member (Bitwarden: access-household-emails).
 export TF_VAR_household_emails='["<from Bitwarden>"]'
 ```
