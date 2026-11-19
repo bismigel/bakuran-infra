@@ -1,0 +1,19 @@
+#!/usr/bin/env sh
+# The guard is `cmd/pre-push` (Go, ADR 0016). Git needs an executable *path*, so this shim exists and does nothing but
+# exec it: every decision — branch protection, which checks run, what may be skipped — lives in the binary, because a
+# decision written twice is a decision that will disagree with itself. (This file used to carry a bash copy of the branch
+# guard as a fallback for "no Go toolchain", i.e. two implementations of one rule.)
+#
+# It fails CLOSED when the toolchain is missing, and names the fix. The old version printed a line and exited 0, so a
+# push from a bare shell reported "the checks were NOT run" and went through, which is how a gate becomes a comment. The
+# escape hatch is the standard, visible one: `git push --no-verify`.
+#
+# `command -v` rather than `exec … || { }`: a failed `exec` terminates the shell, so the `||` branch never runs and the
+# hook would have exited non-zero while printing nothing. Tested by running this file with `env -i PATH=/usr/bin:/bin`.
+if command -v pre-push >/dev/null 2>&1; then
+  exec pre-push "$@"
+fi
+printf '\n  pre-push: no `pre-push` on PATH, so nothing checked this push.\n' >&2
+printf '  Inside the dev shell:  nix develop -c git push\n' >&2
+printf '  Bypass deliberately:   git push --no-verify\n\n' >&2
+exit 1
