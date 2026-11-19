@@ -84,10 +84,19 @@ let
       --max-age 14d --delete-after --stats-one-line
   '';
 
-  # Irreplaceable book data is 1.6G and is *not* re-downloadable, and it lives on the
-  # mergerfs pool, so nothing above protects it: the weekly mirror is --delete and the
-  # SD card has no history. This is a second copy in a different failure domain,
+  # Irreplaceable data that is *not* re-downloadable, and lives on the mergerfs pool, so nothing above protects it: the
+  # weekly mirror is --delete and the SD card has no history. This is a second copy in a different failure domain,
   # nightly, because rclone only uploads what changed.
+  #
+  #   books, audiobooks   1.6G, since 2026-11-14
+  #   immich              the photo library, added 2026-11-19 when it moved from Longhorn to the pool. It is the one
+  #                       dataset in the estate with no replication at all (one disk, btrfs snapshots, and the 938G SD
+  #                       mirror is not a photo backup), which is exactly the case this unit exists for.
+  #
+  # The two are uploaded differently on purpose: books use `sync`, photos use `copy`. `sync` makes R2 mirror the pool,
+  # deletions included - right for a library that is re-organised by hand, wrong for photos, where a local accident must
+  # not propagate into the offsite copy. R2 is the archive of last resort for those bytes; they cost a little more by
+  # never being deleted, and that is the trade named here.
   booksMirror = pkgs.writeShellScript "books-mirror" ''
     set -euo pipefail
     env_file=/root/.config/homelab-backup.env
@@ -99,7 +108,9 @@ let
       RCLONE_CONFIG_R2_ENDPOINT="$R2_ENDPOINT"
 
     ${pkgs.util-linux}/bin/mountpoint -q /mnt/media || { echo "/mnt/media not mounted - refusing"; exit 1; }
-    for d in books audiobooks; do
+    # A directory that has become empty is the failure this guard exists for: an unmounted pool looks like an empty one,
+    # and the next step would upload nothing while reporting success.
+    for d in books audiobooks immich; do
       find "/mnt/media/$d" -type f -print -quit | grep -q . || { echo "/mnt/media/$d is empty - refusing"; exit 1; }
     done
 
@@ -107,12 +118,17 @@ let
       ${pkgs.rclone}/bin/rclone --config /dev/null sync "/mnt/media/$d" "r2:$R2_BUCKET/books/$d" \
         --stats-one-line --log-level INFO
     done
+
+    # Photos: `copy`, never `sync` - see the comment above the unit. `--transfers 4` because the pool and the WAN are the
+    # bottleneck, not rclone's default 4-per-connection chunking, and a nightly incremental is usually a few files.
+    ${pkgs.rclone}/bin/rclone --config /dev/null copy "/mnt/media/immich" "r2:$R2_BUCKET/immich" \
+      --transfers 4 --stats-one-line --log-level INFO
   '';
 in
 {
   # ---- .81: irreplaceable books, nightly ----
   systemd.services.homelab-backup-books = lib.mkIf (config.networking.hostName == "sitaw-amd") {
-    description = "Nightly copy of books and audiobooks to R2 (not re-downloadable)";
+    description = "Nightly copy of irreplaceable data to R2: books, audiobooks and the Immich photo library";
     unitConfig.OnFailure = [ "homelab-alert@%N.service" ];
     serviceConfig = {
       Type = "oneshot";
