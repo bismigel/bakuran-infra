@@ -14,8 +14,14 @@
 { config, lib, ... }:
 
 let
-  lan = "192.168.2.0/24";
   listen = "192.168.2.80";
+
+  # Who may ask. The whole point of this resolver is that it can be used *while diagnosing*, so the operator's own segment
+  # has to be in here: `192.168.20.0/24` is VLAN 20, where the admin laptop sits (measured 2026-11-19: this workstation is
+  # 192.168.20.50, and the first version of this module accepted only the LAN — every query from it timed out).
+  #
+  # One list drives both the ACL and the firewall rule below, so they cannot drift apart.
+  clients = [ "192.168.2.0/24" "192.168.20.0/24" ];
 
   # The internal names. This is the only part that has to exist in two places, and it is the reason story 4.8 was never a
   # one-liner: the router answers these from `host_entries.conf` (explicit overrides, plus `dhcpleases.conf` for names it
@@ -53,11 +59,7 @@ in {
 
       # Only the LAN and itself. The firewall below already drops everything else; this is the second lock, because a
       # resolver that answers recursion to strangers is an amplifier.
-      access-control = [
-        "127.0.0.0/8 allow"
-        "${lan} allow"
-        "0.0.0.0/0 refuse"
-      ];
+      access-control = [ "127.0.0.0/8 allow" ] ++ map (c: "${c} allow") clients ++ [ "0.0.0.0/0 refuse" ];
 
       # The same kind of resolver as the router's: recursive, DNSSEC-validating (the module sets
       # auto-trust-anchor-file with `enableRootTrustAnchor`), no forwarders. That is what makes the two interchangeable —
@@ -77,10 +79,10 @@ in {
     };
   };
 
-  # 53 from the LAN, and from nowhere else. The base module keeps `allowedTCPPorts` empty on purpose (2026-10-29): a port
-  # list accepts from any source, including a compromised container on the pod network.
-  networking.firewall.extraCommands = ''
-    iptables -I nixos-fw 1 -p udp -s ${lan} --dport 53 -j nixos-fw-accept
-    iptables -I nixos-fw 1 -p tcp -s ${lan} --dport 53 -j nixos-fw-accept
-  '';
+  # 53 from the declared clients, and from nowhere else. The base module keeps `allowedTCPPorts` empty on purpose
+  # (2026-10-29): a port list accepts from any source, including a compromised container on the pod network.
+  networking.firewall.extraCommands = lib.concatMapStrings (c: ''
+    iptables -I nixos-fw 1 -p udp -s ${c} --dport 53 -j nixos-fw-accept
+    iptables -I nixos-fw 1 -p tcp -s ${c} --dport 53 -j nixos-fw-accept
+  '') clients;
 }
