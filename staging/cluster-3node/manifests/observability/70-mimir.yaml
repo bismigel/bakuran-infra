@@ -1,0 +1,66 @@
+# Candidate B: Mimir, the LGTM metrics leg, in monolithic mode. Mimir does NOT scrape - it
+# ingests via remote-write (here, from the Prometheus agent in 80-prometheus-agent.yaml).
+# Filesystem block storage on a local-path PVC because staging has no object store; the
+# comparison is about footprint and query behaviour, not the storage backend.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mimir
+  namespace: observability
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: mimir }
+  template:
+    metadata:
+      labels: { app: mimir }
+    spec:
+      containers:
+        - name: mimir
+          image: grafana/mimir:2.13.0
+          args:
+            - -target=all
+            - -auth.multitenancy-enabled=false
+            - -blocks-storage.backend=filesystem
+            - -blocks-storage.filesystem.dir=/data/blocks
+            - -ruler-storage.backend=filesystem
+            - -ruler-storage.filesystem.dir=/data/ruler
+            # Single instance: the ring defaults expect 3 replicas, so one ingester never
+            # becomes ACTIVE and every push 500s with "send data to ingesters". In-memory
+            # rings + replication factor 1 is the monolithic-mode recipe.
+            - -ingester.ring.replication-factor=1
+            - -ingester.ring.store=inmemory
+            - -distributor.ring.store=inmemory
+            - -store-gateway.sharding-ring.store=inmemory
+            - -compactor.ring.store=inmemory
+          ports:
+            - { containerPort: 8080, name: http }
+            - { containerPort: 9009, name: grpc }
+          volumeMounts:
+            - { name: storage, mountPath: /data }
+          resources:
+            requests: { cpu: 100m, memory: 256Mi }
+            limits: { memory: 1Gi }
+      volumes:
+        - name: storage
+          persistentVolumeClaim: { claimName: mimir }
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mimir
+  namespace: observability
+spec:
+  accessModes: [ReadWriteOnce]
+  resources: { requests: { storage: 2Gi } }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mimir
+  namespace: observability
+spec:
+  selector: { app: mimir }
+  ports:
+    - { port: 8080, name: http }
+    - { port: 9009, name: grpc }

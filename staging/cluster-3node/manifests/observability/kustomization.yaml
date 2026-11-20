@@ -8,3 +8,6 @@ resources:
   - 40-prometheus.yaml
   - 50-victoriametrics.yaml
   - 60-k6-loadgen.yaml
+  - 70-mimir.yaml
+  - 80-prometheus-agent.yaml
+  - 85-agent-config.yaml
