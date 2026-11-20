@@ -91,8 +91,11 @@ in
       "$RCLONE" --config "$clean_cfg" copy "$archive" proton:homelab-backups/ \
         --immutable --transfers 2 --contimeout 30s --timeout 5m --retries 3 \
         --stats-one-line --log-level INFO
+      # `check --one-way` takes a DIRECTORY as the destination, not the full object path - the first
+      # version passed the file and died with 'is a file not a directory' after the upload had already
+      # succeeded. Pass the directory; rclone compares by name + size against the archive.
       "$RCLONE" --config "$clean_cfg" check --one-way \
-        "$archive" "proton:homelab-backups/proton-$stamp.tar.age"
+        "$archive" "proton:homelab-backups"
 
       # Deliberate, bounded retention: only archives older than 60 days.
       "$RCLONE" --config "$clean_cfg" delete proton:homelab-backups/ \
