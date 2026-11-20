@@ -59,10 +59,16 @@ in
       RCLONE=${pkgs.rclone}/bin/rclone
       AGE=${pkgs.age}/bin/age
 
+      # Force a full re-auth from the seed every run: rclone persists its session tokens back into the
+      # config, and stale ones 401-loop instead of falling back to the password. The seed
+      # (otp_secret_key) is what authenticates; the session tokens then live only in memory for this run.
+      clean_cfg=$(mktemp)
+      grep -vE '^(client_uid|client_access_token|client_refresh_token|client_salted_key_pass)' ${cfgFile} > "$clean_cfg"
+
       stamp=$(date -u +%Y%m%dT%H%M%SZ)
       stage=$(mktemp -d)
       archive="/tmp/proton-$stamp.tar.age"
-      trap 'rm -rf "$stage" "$archive"' EXIT
+      trap 'rm -rf "$stage" "$archive" "$clean_cfg"' EXIT
 
       # A consistent snapshot from R2 (the one place every prefix already lands).
       for d in ${lib.concatStringsSep " " prefixes}; do
@@ -78,14 +84,14 @@ in
       "$AGE" -d -i ${ageKey} "$archive" | tar -t >/dev/null
 
       # Append-only upload, then prove the copy matches.
-      "$RCLONE" --config ${cfgFile} copy "$archive" proton:homelab-backups/ \
+      "$RCLONE" --config "$clean_cfg" copy "$archive" proton:homelab-backups/ \
         --immutable --transfers 2 --contimeout 30s --timeout 5m --retries 3 \
         --stats-one-line --log-level INFO
-      "$RCLONE" --config ${cfgFile} check --one-way \
+      "$RCLONE" --config "$clean_cfg" check --one-way \
         "$archive" "proton:homelab-backups/proton-$stamp.tar.age"
 
       # Deliberate, bounded retention: only archives older than 60 days.
-      "$RCLONE" --config ${cfgFile} delete proton:homelab-backups/ \
+      "$RCLONE" --config "$clean_cfg" delete proton:homelab-backups/ \
         --min-age 60d --include 'proton-*.tar.age'
     '';
   };
