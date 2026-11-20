@@ -100,6 +100,12 @@ in
       # Deliberate, bounded retention: only archives older than 60 days.
       "$RCLONE" --config "$clean_cfg" delete proton:homelab-backups/ \
         --min-age 60d --include 'proton-*.tar.age'
+
+      # Record success so the staleness alert can tell 'just old' from 'missed' (see alerting.yaml
+      # ProtonBackupStale). Written only after upload AND verification succeeded, so a failed run leaves
+      # the timestamp old and the alert fires after the grace period instead of going silent.
+      printf 'homelab_backup_proton_success_timestamp_seconds %s\n' "$("$DATE" +%s)" \
+        > /var/lib/node-exporter/textfile/proton_backup.prom
     '';
   };
 
