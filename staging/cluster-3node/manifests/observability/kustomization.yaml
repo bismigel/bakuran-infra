@@ -11,3 +11,5 @@ resources:
   - 70-mimir.yaml
   - 80-prometheus-agent.yaml
   - 85-agent-config.yaml
+  - 90-loki.yaml
+  - 91-promtail.yaml
