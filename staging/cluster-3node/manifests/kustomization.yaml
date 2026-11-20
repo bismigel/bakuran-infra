@@ -18,6 +18,7 @@ resources:
   # applies it, ArgoCD adopts it" shape production uses.
   - kube-vip.yaml
   - demo.yaml
+  - observability
 
 # No labels block at all. `commonLabels` rewrites `spec.selector`, which is
 # immutable on a DaemonSet/Deployment, and even `labels[].includeSelectors: false`
