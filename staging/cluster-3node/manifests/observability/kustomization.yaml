@@ -13,3 +13,4 @@ resources:
   - 85-agent-config.yaml
   - 90-loki.yaml
   - 91-promtail.yaml
+  - 92-victoria-logs.yaml

@@ -14,6 +14,7 @@ data:
       filename: /tmp/positions.yaml
     clients:
       - url: http://loki.observability.svc:3100/loki/api/v1/push
+      - url: http://vlogs.observability.svc:9428/insert/loki/api/v1/push
     scrape_configs:
       - job_name: kubernetes-pods
         kubernetes_sd_configs:
