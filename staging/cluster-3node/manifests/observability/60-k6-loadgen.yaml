@@ -1,0 +1,53 @@
+# Periodic load, not a stress test. The MacBook hosting these VMs is old; a constant
+# hammer would cook it. k6 runs for 2 minutes every 30 minutes, 5 VUs hitting the three
+# books UIs - enough to move node CPU/network so the backends have a real (if modest)
+# ingestion signal, nowhere near enough to hurt anything.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: k6-script
+  namespace: observability
+data:
+  test.js: |
+    import http from 'k6/http';
+    import { sleep } from 'k6';
+    export const options = {
+      vus: 5,
+      duration: '2m',
+      thresholds: { http_req_duration: ['p(95)<3000'] },
+    };
+    const targets = [
+      'http://audiobookshelf.books.svc:8080',
+      'http://kavita.books.svc:5000',
+      'http://lazylibrarian.books.svc:5299',
+    ];
+    export default function () {
+      for (const t of targets) { http.get(t); }
+      sleep(1);
+    }
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: k6-load
+  namespace: observability
+spec:
+  schedule: "*/30 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: k6
+              image: grafana/k6:0.49.0
+              command: ["k6", "run", "/scripts/test.js"]
+              volumeMounts:
+                - { name: script, mountPath: /scripts, readOnly: true }
+          volumes:
+            - name: script
+              configMap: { name: k6-script }

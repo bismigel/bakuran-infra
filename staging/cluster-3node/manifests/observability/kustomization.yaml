@@ -7,3 +7,4 @@ resources:
   - 30-kube-state-metrics.yaml
   - 40-prometheus.yaml
   - 50-victoriametrics.yaml
+  - 60-k6-loadgen.yaml
