@@ -58,15 +58,19 @@ in
         RCLONE_CONFIG_R2_ENDPOINT="$R2_ENDPOINT"
       RCLONE=${pkgs.rclone}/bin/rclone
       AGE=${pkgs.age}/bin/age
+      TAR=${pkgs.gnutar}/bin/tar
+      GREP=${pkgs.gnugrep}/bin/grep
+      DATE=${pkgs.coreutils}/bin/date
+      MKTEMP=${pkgs.coreutils}/bin/mktemp
 
       # Force a full re-auth from the seed every run: rclone persists its session tokens back into the
       # config, and stale ones 401-loop instead of falling back to the password. The seed
       # (otp_secret_key) is what authenticates; the session tokens then live only in memory for this run.
-      clean_cfg=$(mktemp)
-      grep -vE '^(client_uid|client_access_token|client_refresh_token|client_salted_key_pass)' ${cfgFile} > "$clean_cfg"
+      clean_cfg=$("$MKTEMP")
+      "$GREP" -vE '^(client_uid|client_access_token|client_refresh_token|client_salted_key_pass)' ${cfgFile} > "$clean_cfg"
 
-      stamp=$(date -u +%Y%m%dT%H%M%SZ)
-      stage=$(mktemp -d)
+      stamp=$("$DATE" -u +%Y%m%dT%H%M%SZ)
+      stage=$("$MKTEMP" -d)
       archive="/tmp/proton-$stamp.tar.age"
       trap 'rm -rf "$stage" "$archive" "$clean_cfg"' EXIT
 
@@ -77,11 +81,11 @@ in
       done
 
       # Encrypt to the existing backup key; no new key to lose.
-      tar -C "$stage" -cf - ${lib.concatStringsSep " " prefixes} \
+      "$TAR" -C "$stage" -cf - ${lib.concatStringsSep " " prefixes} \
         | "$AGE" -r "$AGE_RECIPIENT" -o "$archive"
 
       # Refuse a corrupt or empty archive before it becomes the offsite copy.
-      "$AGE" -d -i ${ageKey} "$archive" | tar -t >/dev/null
+      "$AGE" -d -i ${ageKey} "$archive" | "$TAR" -t >/dev/null
 
       # Append-only upload, then prove the copy matches.
       "$RCLONE" --config "$clean_cfg" copy "$archive" proton:homelab-backups/ \
