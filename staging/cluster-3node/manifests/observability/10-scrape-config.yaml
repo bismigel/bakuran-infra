@@ -44,3 +44,12 @@ data:
           - source_labels: [__meta_kubernetes_endpoint_port_name]
             regex: metrics
             action: keep
+      # Both backends self-scrape (so one datasource can compare them) and every panel reads from
+      # Prometheus. These are management metrics - series count, memory, ingest rate - not comparison data,
+      # so having Prometheus hold them does not bias anything.
+      - job_name: prometheus-self
+        static_configs:
+          - targets: ['prometheus.observability.svc:9090']
+      - job_name: victoriametrics-self
+        static_configs:
+          - targets: ['victoriametrics.observability.svc:8428']
