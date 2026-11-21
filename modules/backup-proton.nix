@@ -88,8 +88,18 @@ in
       "$AGE" -d -i ${ageKey} "$archive" | "$TAR" -t >/dev/null
 
       # Append-only upload, then prove the copy matches.
+      #
+      # `--immutable` was here and it does not work against Proton Drive: the flag makes rclone look up
+      # the existing object's revisions before uploading, and for a path that does not exist yet Proton
+      # answers 422 `File or folder not found (Code=2501)` on
+      # `.../files/<id>/revisions` - three attempts, then the unit fails (measured 2026-11-21 18:33Z
+      # on `proton-20261121T182620Z.tar.age`, a file it was creating).
+      #
+      # `--ignore-existing` gives the property the comment was asking for: never overwrite an archive
+      # that is already there. The names carry a UTC timestamp, so a re-run cannot collide anyway; the
+      # immutability was belt-and-braces and the braces are what broke the offsite.
       "$RCLONE" --config "$clean_cfg" copy "$archive" proton:homelab-backups/ \
-        --immutable --transfers 2 --contimeout 30s --timeout 5m --retries 3 \
+        --ignore-existing --transfers 2 --contimeout 30s --timeout 5m --retries 3 \
         --stats-one-line --log-level INFO
       # `check --one-way` takes a DIRECTORY as the destination, not the full object path - the first
       # version passed the file and died with 'is a file not a directory' after the upload had already
