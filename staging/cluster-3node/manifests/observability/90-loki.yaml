@@ -36,6 +36,11 @@ metadata:
   namespace: observability
 spec:
   replicas: 1
+  # Recreate, not RollingUpdate: the PVC is ReadWriteOnce, so a new pod cannot mount it while the old one
+  # still holds it - a rolling update deadlocks with both pods Pending/Error and the volume stuck on the old
+  # node. Measured 2026-11-20: prometheus and victoriametrics each sat with two ReplicaSets fighting over one
+  # volume until this was set.
+  strategy: { type: Recreate }
   selector:
     matchLabels: { app: loki }
   template:
