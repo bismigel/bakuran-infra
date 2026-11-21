@@ -1,3 +1,14 @@
+# The comparison, sized for the hardware it runs on.
+#
+# Phase 1 (default) answers the actual question - Prometheus vs VictoriaMetrics - plus the load
+# generator that feeds both from ONE scrape config, so ingestion is measured apples-to-apples.
+#
+# Phase 2 files are complete and present but deliberately NOT listed here: Mimir + its agent
+# (70/80/85), Loki + promtail (90/91), VictoriaLogs (92), flog (96). Running all five backends at once
+# was measured on 2026-11-20 to push the staging control plane into "apiserver not ready" and etcd
+# readiness failures - three guests with 2 vCPU and 3 GiB each cannot carry a five-backend stack on top
+# of k3s. Enable one phase-2 file at a time once the phase-1 numbers are in: running them together
+# measures the hardware, not the backends.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
@@ -8,3 +19,4 @@ resources:
   - 40-prometheus.yaml
   - 50-victoriametrics.yaml
   - 60-k6-loadgen.yaml
+  - 95-avalanche.yaml

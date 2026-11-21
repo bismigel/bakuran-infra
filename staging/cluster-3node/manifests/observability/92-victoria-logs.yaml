@@ -1,0 +1,49 @@
+# VictoriaLogs: the Victoria counterpart to Loki. Single binary, columnar, LogsQL, and it speaks the
+# Loki ingest protocol - so the same promtail feeds both stores.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vlogs
+  namespace: observability
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: vlogs }
+  template:
+    metadata:
+      labels: { app: vlogs }
+    spec:
+      containers:
+        - name: vlogs
+          image: victoriametrics/victoria-logs:v1.9.1-victorialogs
+          args:
+            - -storageDataPath=/victoria-logs-data
+            - -retentionPeriod=7d
+          ports:
+            - { containerPort: 9428, name: http }
+          volumeMounts:
+            - { name: storage, mountPath: /victoria-logs-data }
+          resources:
+            requests: { cpu: 50m, memory: 128Mi }
+            limits: { memory: 512Mi }
+      volumes:
+        - name: storage
+          persistentVolumeClaim: { claimName: vlogs }
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: vlogs
+  namespace: observability
+spec:
+  accessModes: [ReadWriteOnce]
+  resources: { requests: { storage: 2Gi } }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vlogs
+  namespace: observability
+spec:
+  selector: { app: vlogs }
+  ports: [{ port: 9428, name: http }]
