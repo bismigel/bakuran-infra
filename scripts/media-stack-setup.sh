@@ -58,7 +58,16 @@ load_secret() { # <ENV_VAR> <secret-key>
   printf -v "$1" '%s' "$(secret_get "$2")"
 }
 load_secret QBT_PASSWORD         qbt-password
-load_secret NZBGEEK_API          nzbgeek-api
+# `nzbgeek_api`, not `nzbgeek-api` (fixed 2026-11-21): the Secret's key comes from
+# manifests/base/external-secrets/media-setup.yaml in bakuran-gitops, where the
+# remoteRef keeps the vault's snake_case name. Asking for `nzbgeek-api` returned an
+# empty string, which - with `set -e` and the `[ -n … ] && cmd` guard below - ended
+# the run silently right at the indexer step, before ApplicationIndexerSync and the
+# Jellyfin users. Prove it with:
+#   kubectl -n media get secret media-setup -o json | jq -r '.data|keys[]' | grep nzb
+load_secret NZBGEEK_API          nzbgeek_api
+load_secret ALTHUB_API           althub_api
+load_secret DRUNKSLUG_API        drunkslug_api
 load_secret JELLYFIN_ADMIN_USER  jellyfin-admin-user
 load_secret JELLYFIN_ADMIN_PASS  jellyfin-admin-pass
 load_secret JELLYFIN_ANTON       jellyfin-anton
@@ -387,7 +396,34 @@ ensure_sab_client "$PROWLARR" "$PW_KEY" v1 tv
 
 log "Prowlarr indexers"
 ensure_prowlarr_indexer "Nyaa.si"
-[ -n "${NZBGEEK_API:-}" ] && ensure_prowlarr_indexer "NZBgeek" "$NZBGEEK_API"
+# `if`, not `[ -n ... ] && cmd`: under `set -e` that shape ends the whole run when the
+# key is absent, which is how one misnamed Secret key hid every step after this one
+# (found 2026-11-21). An absent key must skip one line, not stop the script.
+if [ -n "${NZBGEEK_API:-}" ]; then
+  ensure_prowlarr_indexer "NZBgeek" "$NZBGEEK_API"
+else
+  echo "  (nzbgeek not in media-setup; skipped)"
+fi
+# Two more usenet indexers, so one site's takedown or outage is not the whole supply.
+# Both are Newznab *presets* inside Prowlarr (schemas named `DrunkenSlug` and `altHUB`,
+# definitionName `Newznab`) - they ship in the app, not as a Cardigann .yml, which is
+# why `ls /config/Definitions` shows neither. Only the key is passed in; baseUrl/apiPath
+# come from the preset. Verified 2026-11-21: caps answers 200 for both
+# (https://drunkenslug.com/api, https://api.althub.co.za/api).
+#
+# These append new indexer ids; LazyLibrarian pins AudioBookBay by id
+# (PROWLARR_TORZNAB .../4 in bakuran-gitops/manifests/base/books/lazylibrarian-provider.yaml),
+# so never delete and re-create an indexer without re-reading that id first.
+if [ -n "${DRUNKSLUG_API:-}" ]; then
+  ensure_prowlarr_indexer "DrunkenSlug" "$DRUNKSLUG_API"
+else
+  echo "  (drunkslug_api not in media-setup; skipped)"
+fi
+if [ -n "${ALTHUB_API:-}" ]; then
+  ensure_prowlarr_indexer "altHUB" "$ALTHUB_API"
+else
+  echo "  (althub_api not in media-setup; skipped)"
+fi
 
 echo "  pushing indexers to Sonarr/Radarr..."
 curl -sf -X POST "$PROWLARR/api/v1/command" -H "X-Api-Key: $PW_KEY" \
