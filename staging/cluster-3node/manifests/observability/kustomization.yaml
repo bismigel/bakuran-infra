@@ -20,3 +20,4 @@ resources:
   - 50-victoriametrics.yaml
   - 60-k6-loadgen.yaml
   - 95-avalanche.yaml
+  - 97-grafana.yaml
