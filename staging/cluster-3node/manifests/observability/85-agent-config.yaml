@@ -1,0 +1,50 @@
+# The agent's config: the same scrape jobs as 10-scrape-config.yaml plus remote_write to Mimir.
+# Kept separate because Prometheus (baseline) and VictoriaMetrics scrape directly and must NOT
+# remote-write. If a scrape job changes, change BOTH files - identical targets is the whole point.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: agent-config
+  namespace: observability
+data:
+  agent.yml: |
+    global:
+      scrape_interval: 30s
+    scrape_configs:
+      - job_name: node-exporter
+        kubernetes_sd_configs:
+          - role: node
+        relabel_configs:
+          - action: labelmap
+            regex: __meta_kubernetes_node_label_(.+)
+          - target_label: __address__
+            replacement: kubernetes.default.svc:443
+          - source_labels: [__meta_kubernetes_node_name]
+            regex: (.+)
+            target_label: __metrics_path__
+            replacement: /api/v1/nodes/$1/proxy/metrics
+        scheme: https
+        authorization:
+          credentials_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+        tls_config:
+          insecure_skip_verify: true
+      - job_name: kube-state-metrics
+        static_configs:
+          - targets: ['kube-state-metrics.observability.svc:8080']
+      - job_name: coredns
+        kubernetes_sd_configs:
+          - role: endpoints
+            namespaces:
+              names: [kube-system]
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_service_name]
+            regex: kube-dns
+            action: keep
+          - source_labels: [__meta_kubernetes_endpoint_port_name]
+            regex: metrics
+            action: keep
+      - job_name: avalanche
+        static_configs:
+          - targets: ['avalanche.observability.svc:9001']
+    remote_write:
+      - url: http://mimir.observability.svc:8080/api/v1/push

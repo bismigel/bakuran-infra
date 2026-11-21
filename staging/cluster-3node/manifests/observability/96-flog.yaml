@@ -1,0 +1,22 @@
+# Log volume generator. flog writes synthetic access-log lines to stdout; promtail ships the SAME
+# lines to Loki and VictoriaLogs, so the log comparison is one source, two stores.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: flog
+  namespace: observability
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: flog }
+  template:
+    metadata:
+      labels: { app: flog }
+    spec:
+      containers:
+        - name: flog
+          image: mingrammer/flog:0.4.3
+          args: ["-f", "logfmt", "-l", "-d", "1ms", "-t", "log"]
+          resources:
+            requests: { cpu: 20m, memory: 32Mi }
+            limits: { memory: 128Mi }

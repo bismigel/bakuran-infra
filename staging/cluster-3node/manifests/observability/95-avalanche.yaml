@@ -1,0 +1,46 @@
+# Metrics load generator for the comparison. avalanche emits a large, labelled series set that all
+# three backends scrape from the SAME scrape config, so ingestion is measured apples-to-apples
+# rather than "prometheus looks slow because it has more targets".
+#
+# The series count is the knob: 50 000 series is roughly an order of magnitude more than the whole
+# production estate (~6 000), so it stresses the ingestion path without being noise.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: avalanche
+  namespace: observability
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: avalanche }
+  template:
+    metadata:
+      labels: { app: avalanche }
+    spec:
+      containers:
+        - name: avalanche
+          image: prometheuscommunity/avalanche:v0.5.0
+          args:
+            # ~15 000 series (600 metrics x 25 series), not the 50 000 first tried: the staging host is a
+            # 15 GiB MacBook and the full five-backend stack already sits at load ~7. 15k is still 2-3x the
+            # production estate, which is enough to differentiate the backends without thrashing the host.
+            - --metric-count=600
+            - --label-count=6
+            - --series-count=25
+            - --value-interval=15
+            - --series-interval=60
+            - --label-interval=120
+            - --port=9001
+          ports: [{ containerPort: 9001, name: metrics }]
+          resources:
+            requests: { cpu: 100m, memory: 128Mi }
+            limits: { memory: 512Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: avalanche
+  namespace: observability
+spec:
+  selector: { app: avalanche }
+  ports: [{ port: 9001, name: metrics }]
