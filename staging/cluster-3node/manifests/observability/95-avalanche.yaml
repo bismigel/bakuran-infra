@@ -29,11 +29,10 @@ spec:
             - --series-count=25
             - --value-interval=15
             - --series-interval=60
-            - --label-interval=120
             - --port=9001
           ports: [{ containerPort: 9001, name: metrics }]
           resources:
-            requests: { cpu: 100m, memory: 128Mi }
+            requests: { cpu: 50m, memory: 64Mi }
             limits: { memory: 512Mi }
 ---
 apiVersion: v1
