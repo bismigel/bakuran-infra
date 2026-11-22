@@ -45,3 +45,13 @@ resource "cloudflare_dns_record" "miguel_webhook" {
   proxied = true
   ttl     = 1
 }
+
+resource "cloudflare_dns_record" "ciceley_easyshortlist" {
+  zone_id = var.ciceley_zone_id
+  name    = "easyshortlist.ciceley.cc"
+  type    = "CNAME"
+  content = "8dcc83bd-eb95-4c0d-8f71-b92a27d37649.cfargotunnel.com"
+  proxied = true
+  ttl     = 1
+  comment = "EasyShortlist (CV screening)"
+}

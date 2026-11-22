@@ -46,6 +46,9 @@ resource "cloudflare_zero_trust_tunnel_cloudflared_config" "main" {
       # configuration against the file that was supposed to describe it.
       { hostname = "vault.bismigel.dev", service = var.public_target },
       { hostname = "tools.ciceley.cc", service = var.public_target },
+      # EasyShortlist is PUBLIC: only its /admin path is gated (the Access application below), not the ingress.
+      # Same target as the other public hosts; routing it to admin_target would put the whole site behind Access.
+      { hostname = "easyshortlist.ciceley.cc", service = var.public_target },
       { hostname = "runbook.bismigel.dev", service = var.admin_target },
       { service = "http_status:404" },
     ]

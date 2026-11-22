@@ -210,3 +210,23 @@ resource "cloudflare_zero_trust_access_policy" "operator" {
   decision   = "allow"
   include    = [{ email = { email = var.operator_email } }]
 }
+
+# EasyShortlist: the site is public, the admin view is not. Cloudflare matches the most specific path, so
+# `easyshortlist.ciceley.cc/admin` is gated and the rest of the host is untouched - the same shape as
+# `tools.ciceley.cc/lab`. `operator`, not `household`: the admin view is the estate owner's.
+#
+# After apply, the application's AUD tag goes into Bitwarden as `easyshortlist-cf-access-aud` and the team domain
+# as `easyshortlist-cf-access-team`; the app verifies `Cf-Access-Jwt-Assertion` itself, so a request that reaches
+# it around the edge still gets 403 on /admin.
+resource "cloudflare_zero_trust_access_application" "easyshortlist_admin" {
+  account_id                 = var.account_id
+  name                       = "EasyShortlist admin"
+  type                       = "self_hosted"
+  session_duration           = "8h"
+  self_hosted_domains        = ["easyshortlist.ciceley.cc/admin"]
+  auto_redirect_to_identity  = false
+  enable_binding_cookie      = false
+  options_preflight_bypass   = false
+  http_only_cookie_attribute = true
+  policies                   = [{ id = cloudflare_zero_trust_access_policy.operator.id, precedence = 1 }]
+}
