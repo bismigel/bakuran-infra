@@ -1,6 +1,9 @@
 { config, pkgs, lib, ... }:
 
 let
+  # One sender for every host-side alert (see modules/lib/alert-send.nix for why this exists: five copies of
+  # `curl … || true` to a NodePort that story 10.10 closed).
+  alertSend = import ./lib/alert-send.nix { inherit pkgs; };
   backup = pkgs.writeShellScript "homelab-backup-credentials" ''
     set -euo pipefail
     env_file=/root/.config/homelab-backup.env
@@ -53,9 +56,9 @@ let
         RCLONE_CONFIG_R2_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY" \
         RCLONE_CONFIG_R2_ENDPOINT="$R2_ENDPOINT"
       alert() { # <name> <dataset> <summary> <severity>
-        ${pkgs.curl}/bin/curl -fsS -m 10 -X POST -H 'Content-Type: application/json' \
-          -d "[{\"labels\":{\"alertname\":\"$1\",\"severity\":\"$4\",\"instance\":\"$(cat /proc/sys/kernel/hostname)\",\"dataset\":\"$2\"},\"annotations\":{\"summary\":\"$3\"}}]" \
-          http://127.0.0.1:30903/api/v2/alerts || true
+        printf '[{"labels":{"alertname":"%s","severity":"%s","instance":"%s","dataset":"%s"},"annotations":{"summary":"%s"}}]' \
+          "$1" "$4" "$(cat /proc/sys/kernel/hostname)" "$2" "$3" | ${alertSend}/bin/homelab-alert-send \
+          || echo "WARNING: $1 could not be delivered (see the spool under /var/lib/homelab-alerts)" >&2
       }
       now=$(date +%s); rc=0
       for spec in appdata:36 credentials:36; do
@@ -90,9 +93,9 @@ let
       key=/root/.config/homelab-backup.agekey
       work=$(mktemp -d); trap 'rm -rf "$work"' EXIT
       alert() {
-        ${pkgs.curl}/bin/curl -fsS -m 10 -X POST -H 'Content-Type: application/json' \
-          -d "[{\"labels\":{\"alertname\":\"BackupVerifyFailed\",\"severity\":\"critical\",\"instance\":\"$(cat /proc/sys/kernel/hostname)\",\"dataset\":\"appdata\"},\"annotations\":{\"summary\":\"$1\"}}]" \
-          http://127.0.0.1:30903/api/v2/alerts || true
+        printf '[{"labels":{"alertname":"BackupVerifyFailed","severity":"critical","instance":"%s","dataset":"appdata"},"annotations":{"summary":"%s"}}]' \
+          "$(cat /proc/sys/kernel/hostname)" "$1" | ${alertSend}/bin/homelab-alert-send \
+          || echo "WARNING: BackupVerifyFailed could not be delivered (see /var/lib/homelab-alerts)" >&2
       }
       trap 'alert "restore verification failed (line $LINENO)"' ERR
       [ -s "$env_file" ] || { alert "missing $env_file"; exit 1; }
@@ -122,7 +125,8 @@ let
     '';
 in
 {
-  # Template unit: push a failed unit to Alertmanager (NodePort 30903, loopback).
+  # Template unit: push a failed unit to Alertmanager through homelab-alert-send (endpoint discovered, retried,
+  # spooled on failure).
   #
   # Two problems fixed 2026-10-27, both visible in a single notification:
   #
@@ -144,9 +148,10 @@ in
           homelab-smoke*)               name=SmokeTestFailed;   sev=warning  ;;
           *)                            name=SystemdUnitFailed; sev=critical ;;
         esac
-        ${pkgs.curl}/bin/curl -fsS -m 10 -X POST -H 'Content-Type: application/json' \
-          -d "[{\"labels\":{\"alertname\":\"$name\",\"severity\":\"$sev\",\"instance\":\"$host\",\"unit\":\"$unit\"},\"annotations\":{\"summary\":\"$unit failed on $host (auto-resolves in ~5 min, not a recovery)\"}}]" \
-          http://127.0.0.1:30903/api/v2/alerts || true
+        printf '[{"labels":{"alertname":"%s","severity":"%s","instance":"%s","unit":"%s"},"annotations":{"summary":"%s failed on %s (auto-resolves in ~5 min, not a recovery)"}}]' \
+          "$name" "$sev" "$host" "$unit" "$unit" "$host" \
+          | ${alertSend}/bin/homelab-alert-send \
+          || echo "WARNING: the failed-unit alert for $unit could not be delivered (see /var/lib/homelab-alerts)" >&2
       ''} %i";
     };
   };

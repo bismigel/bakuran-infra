@@ -6,6 +6,8 @@
 # the config. Prose drifts; this runs weekly and posts to Alertmanager when the
 # documented facts and the live cluster disagree.
 let
+  # Shared alert delivery (see modules/lib/alert-send.nix).
+  alertSend = import ./lib/alert-send.nix { inherit pkgs; };
   verify = pkgs.writeShellScript "docs-verify" ''
     set -u
     host="$(cat /proc/sys/kernel/hostname)"
@@ -97,9 +99,9 @@ sitaw-amd /var/lib/longhorn"
     fi
 
     if [ "$fail" -ne 0 ]; then
-      ${pkgs.curl}/bin/curl -fsS -m 10 -X POST -H 'Content-Type: application/json' \
-        -d "[{\"labels\":{\"alertname\":\"DocsDrift\",\"severity\":\"warning\",\"instance\":\"$host\"},\"annotations\":{\"summary\":\"documented facts no longer match the cluster\",\"description\":\"docs-verify on $host found drift: NETWORK.md's network claims, the Longhorn inventory, or the backup age key. Fix the doc, or the state it describes. Re-run the unit on that host for the DRIFT lines.\"}}]" \
-        http://127.0.0.1:30903/api/v2/alerts || true
+      printf '[{"labels":{"alertname":"DocsDrift","severity":"warning","instance":"%s"},"annotations":{"summary":"documented facts no longer match the cluster","description":"docs-verify on %s found drift: NETWORK.md network claims, the Longhorn inventory, or the backup age key. Fix the doc, or the state it describes. Re-run the unit on that host for the DRIFT lines."}}]' \
+        "$host" "$host" | ${alertSend}/bin/homelab-alert-send \
+        || echo "WARNING: DocsDrift could not be delivered (see /var/lib/homelab-alerts)" >&2
       exit 1
     fi
     echo "docs-verify: NETWORK.md cluster facts and the Longhorn disk inventory still match"
