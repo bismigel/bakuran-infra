@@ -90,6 +90,7 @@ this router are outside it and are load-bearing, so they get their own check:
 
 | checked | why it is not in code |
 |---|---|
+| WAN does not renew a pre-boot DHCP lease | a syshook, not a provider object: `/usr/local/etc/rc.syshook.d/early/04-drop-stale-dhcp-lease`, installed from `scripts/04-drop-stale-dhcp-lease` (runbook 22 step 4). OPNsense persists `/var/db/dhclient.leases.em1` across a reboot, so after a power cut `dhclient` spent 1m54s renewing an address that no longer existed and only sent a fresh DISCOVER 18s before expiry (measured 2026-11-23). The hook deletes the file before configd starts, turning the first attempt into a DISCOVER; the WAN MAC is unchanged, so the Bell ADMZ binding is untouched |
 | VLAN 20 device exists with tag 20 | the object is (`opnsense_interfaces_vlan`), the *assignment* is not |
 | `192.168.20.1` on that interface | no provider resource for interface addresses |
 | an interface is assigned to it | same |
