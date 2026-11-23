@@ -52,7 +52,12 @@ let
     # tar of /data is proportionate. What it protects is the state GitHub does not
     # have - users, mirror definitions and their stored credentials.
     dump forgejo   forgejo     /data           forgejo
-    dump monitoring prometheus /prometheus    prometheus
+    # Prometheus was removed on 2026-11-21 (#172: one metrics stack — VictoriaMetrics stores,
+    # vmalert evaluates). This line stayed behind, so `kubectl exec deploy/prometheus` failed
+    # every night, the SKIP counted as a failure, and the guard below therefore never uploaded
+    # the appdata archive at all: R2's newest appdata object was 2026-11-21 while the job had been
+    # red since. It is removed rather than repointed at VictoriaMetrics: the TSDB is retention-
+    # limited and reconstructible, and a 20 GiB nightly archive is a storage decision, not a fix.
     dump_live duwende hermes   /opt/data      hermes
     # Immich — the DB must be dumped (never file-copied) and the photo library
     # lives on the server pod's upload volume.
