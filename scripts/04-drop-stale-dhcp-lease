@@ -1,0 +1,15 @@
+#!/bin/sh
+# Drop the persisted DHCP lease for the WAN before dhclient starts.
+#
+# Measured 2026-11-23 (homelab-context: docs/records/2026-11-23-why-the-internet-takes-three-minutes-after-a-power-cut.md):
+# after a power cut dhclient read /var/db/dhclient.leases.em1, which still held the pre-cut
+# address, and spent ~1m54s trying to RENEW it (Reason TIMEOUT at 14:08:51) before sending a
+# fresh DISCOVER. The hub was answering all along - the client was not asking.
+#
+# Deleting the lease at boot makes the first DHCP attempt a DISCOVER, which is what a router that
+# just lost power needs. The WAN MAC does not change, so the Bell ADMZ binding is untouched.
+lease=/var/db/dhclient.leases.em1
+if [ -f "$lease" ]; then
+  logger -t dhcp-stale-lease "dropping $lease before dhclient starts (fresh DISCOVER instead of a doomed renewal)"
+  rm -f "$lease"
+fi
