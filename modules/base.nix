@@ -1,5 +1,9 @@
 { config, pkgs, lib, sshPubKey, ... }:
 
+let
+  # Shared alert delivery (see modules/lib/alert-send.nix).
+  alertSend = import ./lib/alert-send.nix { inherit pkgs; };
+in
 {
   imports = [ ./cloudflared.nix ];
 
@@ -345,9 +349,9 @@
         [ "$built" -gt 0 ] || exit 0
         age=$(( ( $(${pkgs.coreutils}/bin/date +%s) - built ) / 86400 ))
         if [ "$age" -ge 30 ]; then
-          ${pkgs.curl}/bin/curl -fsS -m 10 -X POST -H 'Content-Type: application/json' \
-            -d "[{\"labels\":{\"alertname\":\"SystemStale\",\"severity\":\"warning\",\"instance\":\"$host\"},\"annotations\":{\"summary\":\"$host has not been updated in $age days\"}}]" \
-            http://127.0.0.1:30903/api/v2/alerts || true
+          printf '[{"labels":{"alertname":"SystemStale","severity":"warning","instance":"%s"},"annotations":{"summary":"%s has not been updated in %s days"}}]' \
+            "$host" "$host" "$age" | ${alertSend}/bin/homelab-alert-send \
+            || echo "WARNING: SystemStale could not be delivered (see /var/lib/homelab-alerts)" >&2
         fi
       '';
     };
