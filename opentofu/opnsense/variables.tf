@@ -1,7 +1,7 @@
 variable "opnsense_uri" {
-  description = "OPNsense base URL, e.g. https://192.168.2.1"
+  description = "OPNsense base URL, e.g. https://192.168.2.254"
   type        = string
-  default     = "https://192.168.2.1"
+  default     = "https://192.168.2.254"
 }
 
 variable "opnsense_api_key" {

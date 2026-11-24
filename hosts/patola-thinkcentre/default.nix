@@ -24,14 +24,14 @@
   networking.interfaces.eno1.ipv4.addresses = [
     { address = "192.168.2.80"; prefixLength = 24; }
   ];
-  networking.defaultGateway = "192.168.2.1";
+  networking.defaultGateway = "192.168.2.254";
   # DNS via the router's unbound, NOT 1.1.1.1 through the WireGuard tunnel.
   # Resolving through the tunnel means an egress fault becomes a DNS fault: on
   # 2026-11-01 wireguard-proton0 did not start, so `lookup ghcr.io` failed and
   # forty pods landed in ImagePullBackOff. The router is on the LAN; if it is
   # unreachable nothing else works either. Verified 2026-11-01: unbound on .1
   # answers for example.com with NOERROR and two records.
-  networking.nameservers = [ "192.168.2.1" ];
+  networking.nameservers = [ "192.168.2.254" ];
 
   # Hardware: i5-6500T (Skylake), 16 GB, SanDisk 256G SATA SSD, Intel I219-V.
   # File systems come from disko.
