@@ -101,7 +101,7 @@ in
     interface     = lib.mkOption { type = lib.types.str;  default = "proton0"; };
     endpoint      = lib.mkOption { type = lib.types.str; };
     peerPublicKey = lib.mkOption { type = lib.types.str; };
-    gateway       = lib.mkOption { type = lib.types.str;  default = "192.168.2.1"; };
+    gateway       = lib.mkOption { type = lib.types.str;  default = "192.168.2.254"; };
     device        = lib.mkOption { type = lib.types.str;  default = "eno1"; };
   };
 
