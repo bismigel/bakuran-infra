@@ -1,3 +1,16 @@
+# STABLE DEVICE NAMES ARE MANDATORY HERE (2026-11-24).
+#
+# This file used to name `/dev/nvme0n1` and `/dev/sda`. Device letters are not stable across a
+# reboot or a reinstall, and on 2026-11-24 the letters landed differently at install time than
+# afterwards: `/dev/sda` was the 1.8 TB TOSHIBA media library, so `nixos-anywhere` (which runs
+# disko) reformatted the library instead of the 465 GB staging disk. The library's btrfs
+# subvolumes - media, books, audiobooks, snapshots - were destroyed. Books and audiobooks were
+# recoverable from R2; the media library was not backed up and is gone.
+#
+# A device letter is a race. A `/dev/disk/by-id` path is a promise: it names the hardware, so a
+# reinstall either writes the disk you meant or fails to find it. Every host's disko.nix should
+# use by-id paths for this reason - sitaw is converted; the others are still letters and carry the
+# same hazard.
 {
   # Wipe BOTH disks on sitaw-amd:
   #   /dev/nvme0n1 — ESP (1G) + root (100G) + data (rest) at /mnt/media-nvme
@@ -6,7 +19,7 @@
     disk = {
       main = {
         type = "disk";
-        device = "/dev/nvme0n1";
+        device = "/dev/disk/by-id/nvme-KLEVV_CRAS_C700_RGB_M.2_NVMe_SSD_480GB_E201912030050056";
         content = {
           type = "gpt";
           partitions = {
@@ -41,7 +54,7 @@
       };
       hdd = {
         type = "disk";
-        device = "/dev/sda";
+        device = "/dev/disk/by-id/ata-WDC_WD5000AAKX-60U6AA0_WD-WCC2E5ZV3FFF";
         content = {
           type = "gpt";
           partitions = {
