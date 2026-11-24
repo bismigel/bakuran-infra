@@ -5,7 +5,7 @@
 # Why this exists: the Bell hub and gw-opnsense's LAN both used to own 192.168.2.1. That made
 # dhclient's unicast renewal to the hub land on the router's own loopback (netstat -rn4 showed
 # `192.168.2.1 -> lo0`), so the 600-second lease EXPIREd and re-BOUNDed by broadcast every 10
-# minutes - a 1-2s WAN flap, measured 2026-11-24. em0 has moved to 192.168.2.254 (a UI-set value,
+# minutes - a 1-2s WAN flap, measured 2026-11-24. em0 has moved to 192.168.10.1 (a UI-set value,
 # not in tofu), so 192.168.2.1 is no longer local - but without this route the /24 connected route
 # would still send the renewal to the LAN switch (ARP timeout) instead of the hub.
 #

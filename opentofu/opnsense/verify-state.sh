@@ -8,7 +8,7 @@
 #
 #   ./verify-state.sh          exit 0 = complete, 1 = something needs the UI (runbook 23)
 set -u
-H="${OPNSENSE_HOST:-192.168.2.254}"
+H="${OPNSENSE_HOST:-192.168.10.1}"
 
 out=$(ssh -o BatchMode=yes -o ConnectTimeout=8 "root@$H" sh -s 2>/dev/null <<'REMOTE'
 dev=""

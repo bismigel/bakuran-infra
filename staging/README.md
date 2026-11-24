@@ -58,7 +58,7 @@ CIDR discipline, and it is not optional:
 |---|---|---|
 | Pods | `10.42.0.0/16` | `10.52.0.0/16` |
 | Services | `10.43.0.0/16` | `10.53.0.0/16` |
-| Cluster addresses | `192.168.2.0/24` | `10.10.50.0/24` |
+| Cluster addresses | `192.168.10.0/24` | `10.10.50.0/24` |
 
 If these overlap, a stray route or a shared WireGuard config produces
 intermittent "which cluster am I debugging" failures that cost days.
@@ -164,7 +164,7 @@ the kubelet does not account for.
 
 ### 2026-10-28 — Cilium `k8sServiceHost` from a node IP to the API VIP
 
-**Question.** Production runs `kube-vip` holding `192.168.2.100:6443`, but Cilium's
+**Question.** Production runs `kube-vip` holding `192.168.10.100:6443`, but Cilium's
 `k8sServiceHost` still names one node (`.82`). Pointing it at the VIP would make the
 CNI independent of that node — but it rolls the Cilium DaemonSet, and a CNI rollout
 is not something to try first in the lab.
@@ -449,7 +449,7 @@ the last section.
 
 ### 2026-10-28 — the API VIP, and what a cold boot costs
 
-**The question.** Production's Cilium points at `192.168.2.100`, held by
+**The question.** Production's Cilium points at `192.168.10.100`, held by
 `kube-vip`. That was the one production property staging could not rehearse at
 all: the rehearsal log below admits it ("not covered by this rehearsal"). If the
 VIP and the CNI can deadlock on a cold boot, we should know before a reboot

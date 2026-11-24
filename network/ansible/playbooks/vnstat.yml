@@ -69,4 +69,4 @@
         msg:
           - "os-vnstat is installed. It monitors NOTHING until interfaces are chosen:"
           - "  Services -> VnStat -> enable WAN and LAN"
-          - "Verify afterwards with:  ops/../? -- or: curl -sk -u $KEY:$SECRET https://192.168.2.1/api/vnstat/service/status"
+          - "Verify afterwards with:  ops/../? -- or: curl -sk -u $KEY:$SECRET https://192.168.10.1/api/vnstat/service/status"

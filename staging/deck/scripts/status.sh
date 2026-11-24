@@ -8,4 +8,4 @@ KUBECONFIG="$STAGING_KUBECONFIG" kubectl get nodes
 KUBECONFIG="$STAGING_KUBECONFIG" kubectl -n staging get pods,svc
 
 ssh -o BatchMode=yes "root@$DECK_HOST" \
-  'echo -n "production API: "; curl -s -o /dev/null -w "%{http_code}\n" --max-time 3 https://192.168.2.82:6443 || echo blocked'
+  'echo -n "production API: "; curl -s -o /dev/null -w "%{http_code}\n" --max-time 3 https://192.168.10.82:6443 || echo blocked'

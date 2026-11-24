@@ -32,14 +32,14 @@ remote. Admin apps behind Access use a **24h** session; media **730h**.
 
 ## Cluster placement
 
-- **Intel `calamansi-intel` (192.168.2.81)** — media: Jellyfin, arr
+- **Intel `calamansi-intel` (192.168.10.81)** — media: Jellyfin, arr
   (Sonarr/Radarr/Prowlarr/Bazarr), download clients, media-mcp, kepler, node-exporter;
   host services: cloudflared, ProtonVPN + kill switch.
-- **AMD `sitaw-amd` (192.168.2.82)** — the single ArgoCD control plane +
+- **AMD `sitaw-amd` (192.168.10.82)** — the single ArgoCD control plane +
   sites/APIs, homepage, monitoring (prometheus/grafana/alertmanager/ksm/kepler,
   login watchers), observability, cert-manager, external-secrets, ingress-nginx,
   duwende, and the daily Cloudflare-edge reconcile timer.
-- **MacBook `kamatis-mbp` (192.168.2.83)** — 3rd k3s server (etcd), tainted except
+- **MacBook `kamatis-mbp` (192.168.10.83)** — 3rd k3s server (etcd), tainted except
   **Immich** (server/postgres/valkey on `/mnt/data`; ML runs on `.82`).
 
 ## Secrets & exposure
@@ -53,8 +53,8 @@ remote. Admin apps behind Access use a **24h** session; media **730h**.
 
 ## Cluster Info
 
-- **Servers** (one cluster, 3-member etcd): calamansi-intel (192.168.2.81, Intel) ·
-  sitaw-amd (192.168.2.82, AMD) · kamatis-mbp (192.168.2.83, MacBook)
+- **Servers** (one cluster, 3-member etcd): calamansi-intel (192.168.10.81, Intel) ·
+  sitaw-amd (192.168.10.82, AMD) · kamatis-mbp (192.168.10.83, MacBook)
 - **k3s**: 1.34.5
 - **NixOS**: 25.11
 - **VPN**: WireGuard (ProtonVPN, US-NJ endpoint) on calamansi-intel — key is a SOPS secret
@@ -76,7 +76,7 @@ than declarative manifests:
 
 ```bash
 QBT_PASSWORD='<qbt webui password>' ./scripts/media-stack-setup.sh
-# from another host: HOST=192.168.2.81 KUBECTL="ssh root@192.168.2.81 k3s kubectl" ...
+# from another host: HOST=192.168.10.81 KUBECTL="ssh root@192.168.10.81 k3s kubectl" ...
 ```
 
 It derives the Sonarr/Radarr/Prowlarr API keys from the running pods, so no

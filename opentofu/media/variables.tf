@@ -1,6 +1,6 @@
 variable "radarr_url" {
   type    = string
-  default = "http://192.168.2.81:7878"
+  default = "http://192.168.10.81:7878"
 }
 
 variable "radarr_api_key" {
@@ -10,7 +10,7 @@ variable "radarr_api_key" {
 
 variable "sonarr_url" {
   type    = string
-  default = "http://192.168.2.81:8989"
+  default = "http://192.168.10.81:8989"
 }
 
 variable "sonarr_api_key" {

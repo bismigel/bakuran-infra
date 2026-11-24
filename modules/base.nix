@@ -129,19 +129,19 @@ in
     networking.firewall.extraCommands = ''
       # flannel SNATs cross-node pod egress to the node IP, so allow the three
       # nodes as well as the pod CIDR. Other LAN hosts stay blocked.
-      iptables -I nixos-fw 1 -p tcp -m iprange --src-range 192.168.2.80-192.168.2.84 --dport 9101 -j nixos-fw-accept
+      iptables -I nixos-fw 1 -p tcp -m iprange --src-range 192.168.10.80-192.168.10.84 --dport 9101 -j nixos-fw-accept
       iptables -I nixos-fw 1 -p tcp -s 10.42.0.0/16 --dport 9101 -j nixos-fw-accept
 
       # Control-plane ports are node-to-node only (etcd) or nodes + pods
       # (kubelet, which metrics-server and the apiserver reach). They are
       # removed from allowedTCPPorts in each host file; 6443 stays on the LAN
       # because the admin kubectl talks to the API directly.
-      iptables -I nixos-fw 1 -p tcp -m iprange --src-range 192.168.2.80-192.168.2.84 -m multiport --dports 2379,2380,10250 -j nixos-fw-accept
+      iptables -I nixos-fw 1 -p tcp -m iprange --src-range 192.168.10.80-192.168.10.84 -m multiport --dports 2379,2380,10250 -j nixos-fw-accept
       iptables -I nixos-fw 1 -p tcp -s 10.42.0.0/16 -m multiport --dports 10250 -j nixos-fw-accept
   
       # iSCSI targets (Longhorn engines live here) - NODES ONLY. An open 3260 is
       # the port that lets something mount, and then corrupt, a volume.
-      iptables -I nixos-fw 1 -p tcp -m iprange --src-range 192.168.2.80-192.168.2.84 \
+      iptables -I nixos-fw 1 -p tcp -m iprange --src-range 192.168.10.80-192.168.10.84 \
         -m multiport --dports 3260,3261,3262,3263,3264 -j nixos-fw-accept
   
       # Longhorn instance-manager + the hostNetwork exporters (node-exporter,
@@ -149,7 +149,7 @@ in
       # sources are the pod CIDR and the nodes themselves.
       iptables -I nixos-fw 1 -p tcp -s 10.42.0.0/16 \
         -m multiport --dports 9500,9501,9502,9503,9504,9505,9100,9102,9962,9963,9964 -j nixos-fw-accept
-      iptables -I nixos-fw 1 -p tcp -m iprange --src-range 192.168.2.80-192.168.2.84 \
+      iptables -I nixos-fw 1 -p tcp -m iprange --src-range 192.168.10.80-192.168.10.84 \
         -m multiport --dports 9500,9501,9502,9503,9504,9505,9100,9102,9962,9963,9964 -j nixos-fw-accept
     '';
 

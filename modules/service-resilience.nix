@@ -8,7 +8,7 @@
 #     for seven hours and the public edge ran on a single connector.
 #
 #   wireguard-proton0  refused to start (correctly - "eno1 never became usable for
-#     176.113.74.82 via 192.168.2.1 - refusing to blackhole the node") and then
+#     176.113.74.82 via 192.168.10.1 - refusing to blackhole the node") and then
 #     never retried. Forty minutes with no egress, which became no DNS, which
 #     became forty pods in ImagePullBackOff.
 #

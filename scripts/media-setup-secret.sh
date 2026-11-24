@@ -12,7 +12,7 @@
 set -euo pipefail
 export NIXPKGS_ALLOW_UNFREE="${NIXPKGS_ALLOW_UNFREE:-1}"
 : "${BWS_ACCESS_TOKEN:?set BWS_ACCESS_TOKEN to the Bitwarden machine-account token}"
-HOST="${HOST:-192.168.2.81}"
+HOST="${HOST:-192.168.10.81}"
 KEYS_FROM="${KEYS_FROM:-bitwarden}" # bitwarden | pods
 NS="${NS:-media}"
 

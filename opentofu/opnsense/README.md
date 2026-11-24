@@ -54,7 +54,7 @@ reports **no changes** (idempotent).
 ### Two provider limitations worth knowing before writing rules
 
 1. **`dns_servers` is a `Set`, so order is not preserved.** Asking for
-   `["192.168.2.1", "1.1.1.1"]` applies as `1.1.1.1,192.168.2.1`, and Kea sends them in that
+   `["192.168.10.1", "1.1.1.1"]` applies as `1.1.1.1,192.168.10.1`, and Kea sends them in that
    order — clients try `1.1.1.1` first, which on `.81` is routed inside the WireGuard tunnel.
    There is no ordered alternative in the provider (no `opnsense_kea_dhcpv4_option` resource),
    so the subnet hands out a **single** resolver and the fallback lives in unbound's upstreams.
