@@ -42,6 +42,18 @@ resource "opnsense_kea_dhcpv4_reservation" "kamatis_mbp" {
   description = "staging host (KVM guests), not a cluster member"
 }
 
+# The third cluster node was the one host without a reservation. It is statically addressed in
+# bakuran-infra (like the others), so this changes nothing at runtime - it is the record that makes
+# .80 unambiguous, and it is what a DHCP-served device would need if it ever took a lease.
+# MAC read from the box itself (eno1) on 2026-11-23, not copied from a document.
+resource "opnsense_kea_dhcpv4_reservation" "patola_thinkcentre" {
+  subnet_id   = local.kea_lan_subnet_id
+  ip_address  = "192.168.2.80"
+  hw_address  = "00:23:24:d7:57:d7"
+  hostname    = "patola-thinkcentre"
+  description = "cluster: third etcd member, control plane, Immich postgres/redis"
+}
+
 resource "opnsense_kea_dhcpv4_reservation" "eap650" {
   subnet_id   = local.kea_lan_subnet_id
   ip_address  = "192.168.2.2"
