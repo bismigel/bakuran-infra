@@ -29,8 +29,8 @@ resource "opnsense_firewall_filter_rule" "clients_admin_to_mgmt" {
 }
 
 # DNS must be allowed BEFORE the block, because the DHCP scope for this VLAN hands out
-# 192.168.2.1 as the resolver - and 192.168.2.1 is inside the network the next rule blocks.
-# Without this, every client on VLAN 20 gets a lease, hands 192.168.2.1 the query, and has it
+# 192.168.2.254 as the resolver - and 192.168.2.254 is inside the network the next rule blocks.
+# Without this, every client on VLAN 20 gets a lease, hands 192.168.2.254 the query, and has it
 # dropped: "connected, no internet" for a reason that looks like a Wi-Fi fault.
 # Found by reading the rule set, not by a client failing (the switch was still down).
 resource "opnsense_firewall_filter_rule" "clients_dns" {
@@ -42,7 +42,7 @@ resource "opnsense_firewall_filter_rule" "clients_dns" {
   ip_protocol      = "inet"
   protocol         = "TCP/UDP" # one rule for both; a bare 'any' cannot carry a destination port
   source_net       = local.clients_net
-  destination_net  = "192.168.2.1"
+  destination_net  = "192.168.2.254"
   destination_port = "53"
 }
 

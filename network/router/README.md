@@ -49,7 +49,7 @@ The alerting path itself is covered by the `Watchdog` alert: it always fires, so
 ## Installation (not yet in Ansible — deliberate note)
 
 ```sh
-scp network/router/homelab-heartbeat.sh root@192.168.2.1:/usr/local/etc/homelab-heartbeat.sh
+scp network/router/homelab-heartbeat.sh root@192.168.2.254:/usr/local/etc/homelab-heartbeat.sh
 # the bot token lives at /usr/local/etc/homelab-heartbeat.token (mode 600),
 # copied from the cluster's alertmanager-telegram secret
 cat > /etc/cron.d/homelab-heartbeat <<'CRON'

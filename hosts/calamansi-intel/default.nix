@@ -24,7 +24,7 @@
   # forty pods landed in ImagePullBackOff. The router is on the LAN; if it is
   # unreachable nothing else works either. Verified 2026-11-01: unbound on .1
   # answers for example.com with NOERROR and two records.
-  networking.nameservers = [ "192.168.2.1" ];
+  networking.nameservers = [ "192.168.2.254" ];
 
   # The clients VLAN (192.168.20.0/24) lives behind the router, not on this host's
   # wire, so the main table has no route for it. Combined with the tunnel's policy
@@ -44,7 +44,7 @@
     wantedBy = [ "multi-user.target" ];
     serviceConfig = { Type = "oneshot"; RemainAfterExit = true; };
     script = ''
-      ${pkgs.iproute2}/bin/ip route replace 192.168.20.0/24 via 192.168.2.1 dev eno1
+      ${pkgs.iproute2}/bin/ip route replace 192.168.20.0/24 via 192.168.2.254 dev eno1
     '';
   };
 

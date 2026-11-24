@@ -26,7 +26,7 @@ resource "opnsense_kea_dhcpv4_subnet" "lan" {
 
   pools = "192.168.2.150 - 192.168.2.240"
 
-  routers = ["192.168.2.1"]
+  routers = ["192.168.2.254"]
 
   # ONLY the router's unbound. Deliberately a single entry, and here is why.
   #
@@ -44,10 +44,10 @@ resource "opnsense_kea_dhcpv4_subnet" "lan" {
   # degrades every app that resolves a name.
   #
   # THE ORDER MATTERS AND IS NOT GUARANTEED BY THIS FILE. `dns_servers` is a Set, so what arrives is alphabetical:
-  # "192.168.2.1" sorts before "192.168.2.80" and that is the order we want - but it is luck, not design. The apply is
+  # "192.168.2.254" sorts before "192.168.2.80" and that is the order we want - but it is luck, not design. The apply is
   # accepted only if reading the config back from the router puts the router first; if it ever reverses, the documented
-  # fallback is CoreDNS multi-upstream (`forward . 192.168.2.1 192.168.2.80`), which does preserve order.
-  dns_servers = ["192.168.2.1", "192.168.2.80"]
+  # fallback is CoreDNS multi-upstream (`forward . 192.168.2.254 192.168.2.80`), which does preserve order.
+  dns_servers = ["192.168.2.254", "192.168.2.80"]
 
   # LOAD-BEARING. With `auto_collect = true` (the default) the OPNsense GUI keeps option data in
   # sync from the interface configuration and **`routers`, `dns_servers` and `ntp_servers` are
@@ -82,7 +82,7 @@ resource "opnsense_kea_dhcpv4_subnet" "clients" {
   # Both resolvers, router first - the same line as the LAN subnet and for the same reason (story 4.8). This is the
   # subnet the admin laptop is on, so it is also the subnet an outage is diagnosed from: a fallback resolver nobody's
   # client is told about is not a fallback.
-  dns_servers = ["192.168.2.1", "192.168.2.80"]
+  dns_servers = ["192.168.2.254", "192.168.2.80"]
 
   # Load-bearing, same as the LAN subnet: with auto_collect on, routers/dns/ntp are ignored
   # while the apply reports success.

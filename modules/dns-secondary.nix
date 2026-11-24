@@ -8,7 +8,7 @@
 # failure produces the symptom. Why .80 and not .82: .82 is already the single point for the media pool, an ingress
 # replica, two CNPG instances and the Argo pane; the fallback belongs somewhere that carries no stateful role.
 #
-# PHASE 1 OF STORY 4.8 — this resolver is advertised by **nobody**. Kea still hands out 192.168.2.1 only, so this changes
+# PHASE 1 OF STORY 4.8 — this resolver is advertised by **nobody**. Kea still hands out 192.168.2.254 only, so this changes
 # nothing until that line in `opentofu/opnsense/kea.tf` changes, which is gated on a read-back (see the ADR: `dns_servers`
 # is a Set in the provider, so order is not preserved and the router must come first).
 { config, lib, ... }:

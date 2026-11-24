@@ -11,8 +11,8 @@ provider "opnsense" {
   api_secret = var.opnsense_api_secret
 
   # The OPNsense WebGUI certificate is self-signed and carries **no IP SAN**, so TLS
-  # verification against https://192.168.2.1 cannot succeed:
-  #     x509: cannot validate certificate for 192.168.2.1 because it doesn't contain any
+  # verification against https://192.168.2.254 cannot succeed:
+  #     x509: cannot validate certificate for 192.168.2.254 because it doesn't contain any
   #     IP SANs
   # Verified 2026-11-01 against the live box with a read-only interfaces data source.
   #

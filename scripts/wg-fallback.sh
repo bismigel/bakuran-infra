@@ -24,7 +24,7 @@ set -uo pipefail
 IF="${IF:-proton0}"
 CONF="${CONF:-/root/proton0-fallback.conf}"
 ADDR="${ADDR:-10.2.0.2/32}"
-GW="${GW:-192.168.2.1}"
+GW="${GW:-192.168.2.254}"
 DEV="${DEV:-eno1}"
 EP="${EP:-176.113.74.82}"
 
