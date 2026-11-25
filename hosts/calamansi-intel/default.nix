@@ -8,6 +8,7 @@
     ../../modules/backup-local.nix
     ../../modules/backup-verify.nix
     ../../modules/backup.nix
+    ../../modules/backup-etcd.nix
     ../../modules/wireguard-metrics.nix
     ../../modules/wireguard-election.nix
     ../../modules/wireguard-reconcile.nix

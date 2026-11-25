@@ -9,6 +9,7 @@
     # /mnt/data/backup-r2 on this host, deliberately a different machine from the
     # SD media mirror (2026-11-03).
     ../../modules/backup-local.nix
+    ../../modules/backup-etcd.nix
     # The second DNS resolver (story 4.8, ADR 0020 in homelab-context). On this host because it carries no stateful role,
     # unlike .82, which is already the estate's single point for the media pool.
     ../../modules/dns-secondary.nix
