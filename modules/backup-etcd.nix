@@ -101,10 +101,15 @@ let
 
     # Freshness: a snapshot that stopped being taken is the failure this unit exists to expose.
     # Nothing is deleted when this fires - the stale files are still the only copy.
+    #
+    # An EMPTY directory is not a failure. k3s writes the etcd snapshot on the node that holds the
+    # snapshot job (the leader), not on every server; measured 2026-11-25, patola and calamansi each
+    # held one and sitaw - a follower that joins patola - held none. Failing here meant a red unit
+    # every day on whichever node was not the leader, which trains everyone to ignore it. What this
+    # unit must catch is a node that has snapshots which have STOPPED being refreshed.
     status=0
     if [ -z "$newest_mtime" ]; then
-      echo "error: no etcd-snapshot-* files in $snapshot_dir" >&2
-      status=1
+      echo "no etcd-snapshot-* files in $snapshot_dir (this node is not the snapshot leader); nothing to upload"
     else
       age=$(( $(date +%s) - ''${newest_mtime%.*} ))
       if [ "$age" -gt $(( max_age_hours * 3600 )) ]; then
