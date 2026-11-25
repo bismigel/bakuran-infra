@@ -39,14 +39,10 @@ tofu plan                  # needs state (backend) + credentials
 ### The backend now works — state lives in R2
 
 `tofu init` initially failed with `no EC2 IMDS role found` because the S3 backend had no
-credentials. It needs the **same R2 key the backup job already uses** (`homelab-backups` bucket,
-same endpoint) mapped onto the AWS variable names:
-
-```sh
-set -a; . ~/.config/opentofu/r2.env; set +a      # R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY
-export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID" AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
-export AWS_DEFAULT_REGION=auto
-```
+credentials. It needs the **same R2 key the backup job uses** (`homelab-backups` bucket), mapped onto
+the AWS variable names. `env.sh` does that from Bitwarden Secrets Manager (`r2-access-key-id`,
+`r2-secret-access-key`), so `. ./env.sh` is the whole setup. (A local `~/.config/opentofu/r2.env` copy
+was the old instruction; it went stale and broke `plan` with `SignatureDoesNotMatch` — 2026-11-25.)
 
 Verified 2026-11-01: `init` succeeds, `plan` locks and unlocks state in R2, and a second `plan`
 reports **no changes** (idempotent).

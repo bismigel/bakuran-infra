@@ -8,7 +8,11 @@
 # SSH and runs it). Idempotency lives in the script: it compares every value before writing,
 # and prints OK/CHANGED/DRIFT lines.
 - name: gw-opnsense — identity and access
-  hosts: opnsense
+  # The HOST by name, never `opnsense`: since #30 (2026-11-17) the inventory has both a group `opnsense` (this
+  # router over ssh) and a host `opnsense` in `router` (ansible_connection: local, for the API plays). Ansible
+  # resolves the name to the host, so this play ran its script on the workstation for eight days and reported
+  # "DRIFT" from `php` not being installed there. Found 2026-11-25.
+  hosts: gw-opnsense
   gather_facts: false
   tasks:
     # check_mode: no on both tasks. The rendering has to happen for real or `rendered` has no

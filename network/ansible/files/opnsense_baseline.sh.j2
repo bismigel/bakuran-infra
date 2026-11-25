@@ -67,17 +67,27 @@ foreach ($config['system']['user'] as $i => $u) {
 if ($idx === null) { echo "NO_ROOT_USER\n"; exit(3); }
 
 # --- authorized keys: the union, never a replacement ---
+# OPNsense stores this field BASE64-ENCODED. Until 2026-11-25 it was compared as plaintext: the audit always
+# reported the key "missing" (it was there), and an apply would have appended a plaintext key to the base64
+# blob - on a router whose password login is off. Decode, compare by "type body" (a comment is not identity),
+# and encode on write. A value that is not base64 of key lines is refused rather than guessed at.
 $have = (string)($config['system']['user'][$idx]['authorizedkeys'] ?? '');
-$lines = preg_split('/\r?\n/', $have, -1, PREG_SPLIT_NO_EMPTY);
+$dec = $have === '' ? '' : base64_decode($have, true);
+if ($have !== '' && ($dec === false || !preg_match('/^(ssh-|ecdsa-|sk-)/m', $dec))) {
+    echo "AUTHKEYS_UNREADABLE: root's authorizedkeys is not base64 of key lines - not touching it\n"; exit(3);
+}
+$lines = preg_split('/\r?\n/', $dec, -1, PREG_SPLIT_NO_EMPTY);
+$ident = function ($k) { $p = preg_split('/\s+/', trim($k)); return ($p[0] ?? '') . ' ' . ($p[1] ?? ''); };
+$haveIds = array_map($ident, $lines);
 $missing = [];
 foreach (preg_split('/\r?\n/', $wantKeys, -1, PREG_SPLIT_NO_EMPTY) as $k) {
-    if (!in_array($k, $lines, true)) { $missing[] = $k; }
+    if (!in_array($ident($k), $haveIds, true)) { $missing[] = trim($k); }
 }
 if ($missing) {
     $drift[] = "authorizedkeys: " . count($missing) . " key(s) missing";
     if (!$audit) {
         foreach ($missing as $k) { $lines[] = $k; }
-        $config['system']['user'][$idx]['authorizedkeys'] = implode("\n", $lines);
+        $config['system']['user'][$idx]['authorizedkeys'] = base64_encode(implode("\n", $lines) . "\n");
         $changed = true;
     }
 }
