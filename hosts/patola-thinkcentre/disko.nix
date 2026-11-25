@@ -2,6 +2,9 @@
   # Single 256G SATA SSD, laid out like the other nodes:
   #   ESP (1G) + root (100G) + data (rest at /mnt/data)
   #
+  # The disk is named by /dev/disk/by-id path, not by a device letter: a letter is chosen by probe
+  # order, and the installer's order is not the installed system's order.
+  #
   # Root is capped at 100G on purpose, same as sitaw-amd/calamansi-intel: a
   # partition boundary is the only thing that stops container images, logs or a
   # runaway workload from eating the whole disk and taking etcd with it.
@@ -14,7 +17,7 @@
     disk = {
       main = {
         type = "disk";
-        device = "/dev/sda";
+        device = "/dev/disk/by-id/ata-SanDisk_SD8TB8U256G1001_165255423115";
         content = {
           type = "gpt";
           partitions = {
