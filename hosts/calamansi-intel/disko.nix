@@ -3,6 +3,9 @@
   #   /dev/nvme0n1 — ESP (1G) + root (100G) + data (rest) at /mnt/scratch
   #   /dev/sda     — single ext4 at /mnt/longhorn
   #
+  # Both disks are named by /dev/disk/by-id path, not by a device letter: a letter is chosen by probe
+  # order, and the installer's order is not the installed system's order.
+  #
   # Both were media branches of the mergerfs union until 2026-11-02. After the
   # cutover the library is served from .82 over NFS, so these partitions were
   # repurposed (STORAGE-PLAN.md section 4c):
@@ -14,7 +17,7 @@
     disk = {
       main = {
         type = "disk";
-        device = "/dev/nvme0n1";
+        device = "/dev/disk/by-id/nvme-KXG50ZNV256G_TOSHIBA_58KS101ATP5T";
         content = {
           type = "gpt";
           partitions = {
@@ -49,7 +52,7 @@
       };
       hdd = {
         type = "disk";
-        device = "/dev/sda";
+        device = "/dev/disk/by-id/ata-MTFDDAK256TBN-1AR1ZABHA_UFZMN01J194VZB";
         content = {
           type = "gpt";
           partitions = {
