@@ -289,6 +289,9 @@
   systemd.tmpfiles.rules = [
     "d /root/.cloudflared 0700 root root -"
     "d /var/lib/rancher/k3s/storage/pvc-d064afbb-41a9-42d1-a8a4-0e57506fb893_monitoring_victoriametrics 0777 root root -"
+    # Same failure, same cause: Immich's machine-learning cache is a local-path volume too, and the
+    # pod sat in ContainerCreating with FailedMount after the reinstall.
+    "d /var/lib/rancher/k3s/storage/pvc-c52c577b-449d-4347-854c-ad1b908fcefb_immich_immich-ml-cache 0777 root root -"
   ];
 
   system.stateVersion = lib.mkForce "25.11";
