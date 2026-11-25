@@ -163,6 +163,27 @@
     # Enable systemd-resolved for DNS
       services.resolved.enable = true;
 
+    # Reverse lookups of node addresses must answer instantly. rpc.mountd on sitaw-amd resolves every NFS
+    # client's address when its auth cache expires; on 2026-11-25 each such lookup took ~15 s (nsswitch asks
+    # resolved first, `[!UNAVAIL=return]`, and resolved tried LLMNR and mDNS for the LAN address before
+    # giving up, while the router answers NXDOMAIN in 0 ms). nfsd's threads waited in cache_check, kubelet
+    # piled 400+ threads onto the hung /mnt/media mounts (load 413 on .82, 204 on .80), and sabnzbd sat
+    # unready for 4 h. `exportfs -f` released it at 17:42 UTC.
+    #
+    # Both halves, because either alone leaves a 15 s lookup somewhere: the node names are declared, so
+    # resolved answers them from /etc/hosts (forward and reverse); and LLMNR/mDNS are off, so any other LAN
+    # address falls straight through to DNS. Nothing in the estate resolves names over LLMNR or mDNS - the
+    # cluster uses addresses, and these are servers.
+    networking.hosts = {
+      "192.168.10.80" = [ "patola-thinkcentre" ];
+      "192.168.10.81" = [ "calamansi-intel" ];
+      "192.168.10.82" = [ "sitaw-amd" ];
+    };
+    services.resolved.llmnr = "false";
+    services.resolved.extraConfig = ''
+      MulticastDNS=no
+    '';
+
   # NOTE: the WireGuard/VPN interface lives in the *host* config (calamansi-intel
   # only) and takes its key from SOPS — not here.
 }
