@@ -38,6 +38,12 @@ SW_VLANS='{% for v in switch_baseline.vlans %}{{ v.vlan }}:{{ v.ports | join(" "
 
 AUDIT=0
 [ "${1:-}" = "--audit" ] && AUDIT=1
+# A `network reload` on this switch tears the bridge down: every port, the CPU port included, goes
+# link-down for ~7 s (measured 2026-11-25 11:38, `logread`, while renumbering lan). That is a LAN-wide
+# outage - the cluster's etcd and Longhorn traffic cross this switch. So a run that would change
+# anything under network.* refuses unless the caller says the flap is acceptable now.
+ALLOW_FLAP=0
+for a in "$@"; do [ "$a" = "--allow-lan-flap" ] && ALLOW_FLAP=1; done
 
 CHANGED=0
 DRIFT=""
@@ -75,8 +81,30 @@ check_list system.ntp.server               "${SW_NTP}"
 check_set network.lan.ipaddr               "${SW_LAN_IPADDR}"
 check_set network.lan.gateway              "${SW_LAN_GATEWAY}"
 check_list network.lan.dns                 "${SW_LAN_DNS}"
-check_set network.@device[1].stp           "${SW_STP}"
-check_set network.@device[1].igmp_snooping "${SW_IGMP}"
+# STP and IGMP snooping belong to the BRIDGE (`network.switch`, type bridge). Until 2026-11-25 they were
+# written to @device[1] - `switch.1`, the VLAN-1 device - where netifd ignores them: uci said 1, the
+# kernel said `stp_state 0`, `multicast_snooping 0`, and router.md said "enabled". The stale copies are
+# removed so nobody reads them as the setting.
+check_set network.switch.stp               "${SW_STP}"
+check_set network.switch.igmp_snooping     "${SW_IGMP}"
+for o in stp igmp_snooping; do
+  if [ "$(uci -q get "network.@device[1].name")" = "switch.1" ] && uci -q get "network.@device[1].$o" >/dev/null; then
+    DRIFT="$DRIFT
+  network.@device[1].$o: inert copy on switch.1 -> removed"
+    CHANGED=1
+    [ "$AUDIT" = "1" ] || uci -q delete "network.@device[1].$o"
+  fi
+done
+# And what the kernel runs, not only what uci holds.
+for pair in "stp_state:${SW_STP}" "multicast_snooping:${SW_IGMP}"; do
+  f="${pair%%:*}"; w="${pair#*:}"; h="$(cat "/sys/class/net/switch/bridge/$f" 2>/dev/null || echo '?')"
+  # stp_state is 1 (kernel STP) or 2 (user-space) when on; either counts.
+  [ "$w" = "1" ] && [ "$h" != "0" ] && [ "$h" != "?" ] && continue
+  [ "$h" = "$w" ] && continue
+  DRIFT="$DRIFT
+  runtime bridge $f: '$h' -> '$w'"
+  CHANGED=1
+done
 # The key must exist before passwords are turned off. This runs FIRST and is the reason the
 # ordering matters: on 2026-11-01 a factory reset removed the key while the baseline would have
 # disabled password auth in the same run - a device nobody could log into.
@@ -170,14 +198,32 @@ ensure_bridge_vlan() {
     DRIFT="$DRIFT
     vlan $want_vlan ports: '$have' -> '$norm'"
     CHANGED=1
-    [ "$AUDIT" = "1" ] || {
-      uci -q delete "network.$found.ports"
-      for p in $want_ports; do uci add_list "network.$found.ports=$p"; done
-      _pifs=$IFS; IFS=' '
-      IFS=$_pifs
-    }
+    [ "$AUDIT" = "1" ] || write_ports "$found" "$want_ports"
+    return 0
+  fi
+  # uci agreeing is not enough: `list ports 'lan1:t lan2:t'` (ONE item with a space) normalises to the
+  # same text as two items, and netifd applies only the first port of it. VLAN 30 sat like that from
+  # 2026-11-03 to 2026-11-25 - uci and this audit said 'lan1:t lan2:t', the bridge carried lan1:t only.
+  # So compare with what netifd actually programmed.
+  run=$(jsonfilter -s "$RUN_STATUS" -e "@[\"bridge-vlans\"][@.id=$want_vlan].ports[*]" 2>/dev/null | tr '\n' ' ' | sed 's/ *$//')
+  if [ -n "$RUN_STATUS" ] && [ "$run" != "$norm" ]; then
+    DRIFT="$DRIFT
+    vlan $want_vlan running ports: '${run:-<none>}' -> '$norm' (rewritten as one list item per port)"
+    CHANGED=1
+    [ "$AUDIT" = "1" ] || write_ports "$found" "$want_ports"
   fi
 }
+
+# One `list ports` item per port. IFS must be a space *for this loop*: the record loop below
+# runs with a newline-only IFS, under which "lan1:t lan2:t" stays one word (the 2026-11-03 bug).
+write_ports() {
+  uci -q delete "network.$1.ports"
+  _pifs=$IFS; IFS=' '
+  for p in $2; do uci add_list "network.$1.ports=$p"; done
+  IFS=$_pifs
+}
+# What netifd programmed into the bridge; empty if ubus is unavailable (then only uci is compared).
+RUN_STATUS="$(ubus call network.device status '{"name":"switch"}' 2>/dev/null || true)"
 
 # NOT `echo ... | while read`: a pipeline runs the loop in a SUBSHELL, so DRIFT and CHANGED
 # set inside it are thrown away. The first version of this block did exactly that and the audit
@@ -227,6 +273,13 @@ fi
 if [ "$AUDIT" = "1" ]; then
   echo "DRIFT:$DRIFT"
   exit 2
+fi
+
+if [ "$ALLOW_FLAP" != "1" ] && [ -n "$(uci changes network 2>/dev/null)" ]; then
+  uci revert network
+  echo "REFUSED: these changes need a network reload, which drops every switch port for ~7 s:$DRIFT"
+  echo "Nothing was written. Re-run with -e allow_lan_flap=1 when a LAN-wide blip is acceptable."
+  exit 3
 fi
 
 # Commit every config this script touches. Missing one is invisible: `uci get` still

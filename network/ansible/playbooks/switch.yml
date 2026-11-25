@@ -1,6 +1,7 @@
 # Apply (or audit) the switch baseline.
 #
-#   ansible-playbook playbooks/switch.yml              # apply, report what changed
+#   ansible-playbook playbooks/switch.yml              # apply; refuses (exit 3) if it would reload the network
+#   ansible-playbook playbooks/switch.yml -e allow_lan_flap=1   # apply, accepting a ~7 s LAN-wide port flap
 #   ansible-playbook playbooks/switch.yml -e audit=1   # read-only drift report, fails on drift
 #
 # OpenWrt has no Python, so this uses `script` (Ansible copies it over SSH and runs it —
@@ -21,7 +22,8 @@
 
     - name: run it on the switch (apply, or audit when -e audit=1)
       ansible.builtin.script:
-        cmd: "{{ rendered.dest }}{{ ' --audit' if (audit | default('0')) == '1' else '' }}"
+        # allow_lan_flap=1: the run may reload the network, which drops every port for ~7 s (exit 3 = refused).
+        cmd: "{{ rendered.dest }}{{ ' --audit' if (audit | default('0')) == '1' else '' }}{{ ' --allow-lan-flap' if (allow_lan_flap | default('0')) == '1' else '' }}"
       register: result
       changed_when: "'CHANGED:' in result.stdout"
       failed_when: result.rc not in [0, 2]
