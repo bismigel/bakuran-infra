@@ -56,7 +56,18 @@ if [ "$exists" -eq 0 ]; then
     uci commit firewall
     CHANGED_FW=1
 else
-    echo "firewall rule already present"
+    # Present is not enough: the rule must name the scraper's *current* address. Matching by name alone let the
+    # 2026-11-24 renumber leave it on 192.168.2.82, and the switch silently refused every scrape (found 2026-11-25).
+    sec=$(uci show firewall 2>/dev/null | sed -n "s/^firewall\.\([^.]*\)\.name='prometheus-scrape'$/\1/p" | head -1)
+    have=$(uci get "firewall.$sec.src_ip" 2>/dev/null || echo unset)
+    if [ "$have" != "$EXPECTED" ]; then
+        echo "firewall rule src_ip: $have -> $EXPECTED"
+        uci set "firewall.$sec.src_ip=$EXPECTED"
+        uci commit firewall
+        CHANGED_FW=1
+    else
+        echo "firewall rule already present, src_ip $EXPECTED"
+    fi
 fi
 
 [ "${CHANGED_FW:-0}" = "1" ] && /etc/init.d/firewall reload >/dev/null 2>&1
