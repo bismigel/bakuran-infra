@@ -49,14 +49,34 @@
     # all three nodes answer 401 (auth enforced) on http://10.43.200.10:5000/v2/, so the address is reachable from the
     # host without a hostPort and without exposing the registry to the LAN.
     #
-    # No credentials here on purpose: this file lives in the Nix store, which is world-readable. Pods carry
-    # `imagePullSecrets: [registry-cred]` instead, so the password stays in a Secret.
-    environment.etc."rancher/k3s/registries.yaml".text = ''
-      mirrors:
-        registry.bismigel.dev:
-          endpoint:
-            - "http://10.43.200.10:5000"
-    '';
+    # The zot password is not here: pods carry `imagePullSecrets: [registry-cred]` for that registry.
+    #
+    # GHCR credentials ARE here (epic 17.4, ADR 0021 §5): the node itself pulls the estate's private images from
+    # ghcr.io/bismigel with a read-only token (`read:packages` only, GitHub classic PAT `k3s-nodes-ghcr-pull`, Bitwarden
+    # `ghcr-pull-token`, sops key `ghcr_pull_token`), so a rebuilt cluster pulls them before any Secret exists. That is
+    # why this file is a sops-nix template and not `environment.etc` text: the Nix store is world-readable, and
+    # /run/secrets/rendered is root-only. /etc/rancher/k3s/registries.yaml is a symlink to the rendered file.
+    #
+    # k3s reads this file only when it starts. A deploy changes the file and leaves k3s running with the old one;
+    # restart k3s one node at a time (`systemctl restart k3s`, wait for Ready) to apply it. Pods survive the restart.
+    sops.secrets."ghcr_pull_token" = {
+      sopsFile = ../secrets/homelab.yaml;
+    };
+    sops.templates."k3s-registries.yaml" = {
+      path = "/etc/rancher/k3s/registries.yaml";
+      mode = "0400";
+      content = ''
+        mirrors:
+          registry.bismigel.dev:
+            endpoint:
+              - "http://10.43.200.10:5000"
+        configs:
+          ghcr.io:
+            auth:
+              username: bismigel
+              password: "${config.sops.placeholder."ghcr_pull_token"}"
+      '';
+    };
 
     # The above is the documented way to do this, and on containerd 2.x (k3s 1.34) it does nothing on its own: the
     # generated config points containerd at a certs.d directory, and k3s wrote no entry there for a mirror-only
