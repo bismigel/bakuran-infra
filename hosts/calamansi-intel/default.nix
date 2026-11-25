@@ -98,13 +98,13 @@
                 "x-systemd.requires-mounts-for=/mnt/media" ];
   };
 
-  # Read-only snapshots of the books/audiobooks subvolumes, taken on .82.
-  fileSystems."/mnt/media-snapshots" = {
-    device = "192.168.10.82:/mnt/media-snapshots";
-    fsType = "nfs";
-    options = [ "nfsvers=4.2" "ro" "_netdev" "nofail" "soft" "timeo=30" "retrans=3"
-                "x-systemd.requires-mounts-for=/mnt/media" ];
-  };
+  # /mnt/media-snapshots was here: a read-only NFS mount of btrfs snapshots of the books
+  # subvolumes, taken on .82. Removed 2026-11-25, because those snapshots cannot exist any more -
+  # the media disk is ext4 since the 2026-11-25 rework and the btrfs snapshot timer was deleted with
+  # it. The export silently disappeared while the mount stayed declared, and `nofail` is why this
+  # was not noticed: activation kept warning that the unit failed while everything else worked.
+  #
+  # Nothing consumed it: the only references left anywhere were two rows in duwende's context table.
 
   # The old union branches stay MOUNTED and untouched for a week: they are the
   # rollback. Reverting this file restores the mergerfs pool exactly as it was.
