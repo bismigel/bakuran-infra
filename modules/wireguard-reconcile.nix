@@ -42,6 +42,17 @@ let
       ip route replace "$EPIP/32" via "$GW" dev "$DEV" table main && log "pinned $EPIP via $GW dev $DEV"
     fi
 
+    # 1b. replies to the router's other LANs go back through the router, not the tunnel. Only
+    #     192.168.10.0/24 is on-link; everything else matches the tunnel's default (table 51820), so
+    #     on 2026-11-25 this node answered the admin laptop (192.168.20.50, VLAN 20) out of $IF:
+    #     no ping, no ssh, from the one client allowed to manage the LAN. A main-table /24 is picked
+    #     by the `suppress_prefixlength 0` rule (pref 32764) before the tunnel rule (32765).
+    for NET in ${lib.concatStringsSep " " cfg.returnRoutes}; do
+      if ! ip route show table main "$NET" | grep -q "via $GW dev $DEV"; then
+        ip route replace "$NET" via "$GW" dev "$DEV" table main && log "return route $NET via $GW dev $DEV"
+      fi
+    done
+
     # 2. the key the repo holds must be the key the interface uses
     want_fp=$(tr -d '\n' < "$KEY" | sha256sum | cut -c1-16)
     live_fp=$(wg show "$IF" private-key 2>/dev/null | tr -d '\n' | sha256sum | cut -c1-16)
@@ -103,6 +114,9 @@ in
     peerPublicKey = lib.mkOption { type = lib.types.str; };
     gateway       = lib.mkOption { type = lib.types.str;  default = "192.168.10.1"; };
     device        = lib.mkOption { type = lib.types.str;  default = "eno1"; };
+    # Subnets behind the router that must be answered via the LAN gateway, not the tunnel:
+    # VLAN 20 (CLIENTS; the admin laptop lives there). VLAN 30 has no subnet yet.
+    returnRoutes  = lib.mkOption { type = lib.types.listOf lib.types.str; default = [ "192.168.20.0/24" ]; };
   };
 
   config = {
