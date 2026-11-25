@@ -90,8 +90,12 @@ let
       if [ -s "$w/immich-db.sql.gz" ]; then
         if ${pkgs.age}/bin/age -r "$AGE_RECIPIENT" < "$w/immich-db.sql.gz" \
              > "$sealed/immich-db.sql.gz.age" \
-           && ${pkgs.rclone}/bin/rclone copy "$sealed/immich-db.sql.gz.age" \
+           && ${pkgs.rclone}/bin/rclone copyto "$sealed/immich-db.sql.gz.age" \
                 "r2:$R2_BUCKET/immich-dump/immich-db.sql.gz.age"; then
+          # copyto, not copy: `rclone copy FILE DEST` treats DEST as a directory, so until 2026-11-25
+          # this wrote immich-dump/immich-db.sql.gz.age/immich-db.sql.gz.age. The age metric (which
+          # lists immich-dump/ for files) then reported an error, and a restore following the
+          # documented path would have found nothing there.
           echo "  immich-dump ok ($(du -h "$sealed/immich-db.sql.gz.age" | cut -f1))"
         else
           echo "  immich-dump FAILED"; rm -f "$sealed/immich-db.sql.gz.age"; failed=$((failed + 1))
