@@ -8,6 +8,7 @@
     ../../modules/backup-local.nix
     ../../modules/backup.nix
     ../../modules/backup-apps.nix
+    ../../modules/backup-etcd.nix
     ../../modules/backup-age-metrics.nix
     ../../modules/backup-proton.nix
     ../../modules/docs-verify.nix
