@@ -172,13 +172,13 @@
   # first 128 MB that the post-accident filesystem metadata overwrote, so every btrfs root is
   # unreachable even though the 64 MiB and 256 GiB superblock copies survive.
   fileSystems."/mnt/media" = {
-    device = "/dev/disk/by-id/ata-WDC_WD5000AAKX-60U6AA0_WD-WCC2E5ZV3FFF";
+    device = "/dev/disk/by-id/ata-WDC_WD5000AAKX-60U6AA0_WD-WCC2E5ZV3FFF-part1";
     fsType = "ext4";
     options = [ "noatime" "nofail" "x-systemd.device-timeout=10s" "x-systemd.mount-timeout=30s" ];
   };
   # Longhorn's dedicated disk. ext4, nothing else on it: it is a replica store.
   fileSystems."/mnt/longhorn" = {
-    device = "/dev/disk/by-id/ata-TOSHIBA_MG04ACA200NY_18F1Y0C8F7EE";
+    device = "/dev/disk/by-id/ata-TOSHIBA_MG04ACA200NY_18F1Y0C8F7EE-part1";
     fsType = "ext4";
     options = [ "noatime" "nofail" "x-systemd.device-timeout=10s" "x-systemd.mount-timeout=30s" ];
   };
