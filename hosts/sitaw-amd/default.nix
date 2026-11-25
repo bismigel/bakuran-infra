@@ -294,6 +294,24 @@
     "d /var/lib/rancher/k3s/storage/pvc-c52c577b-449d-4347-854c-ad1b908fcefb_immich_immich-ml-cache 0777 root root -"
   ];
 
+  # The pool's copy of the photo library: the NFS target of bakuran-gitops immich-library-to-pool and the source of
+  # the photos' R2 upload (modules/backup-local.nix). The 2026-11-24 rebuild left it missing, so every nightly sync sat
+  # in FailedMount ("reason given by server: No such file or directory") and the R2 photo copy stopped advancing.
+  #
+  # Not a tmpfiles rule: tmpfiles can run before the pool is mounted (`nofail`), and would then create the directory
+  # on the root filesystem, where the nightly rsync would fill / with photos. This unit only runs on the mounted pool.
+  systemd.services.media-pool-dirs = {
+    description = "Create the pool directories the cluster mounts over NFS";
+    wantedBy = [ "multi-user.target" ];
+    after = [ "mnt-media.mount" ];
+    unitConfig = {
+      RequiresMountsFor = "/mnt/media";
+      ConditionPathIsMountPoint = "/mnt/media";
+    };
+    serviceConfig = { Type = "oneshot"; RemainAfterExit = true; };
+    script = "install -d -m 0755 /mnt/media/immich";
+  };
+
   system.stateVersion = lib.mkForce "25.11";
 
   # ---- NOT a tunnel candidate (reverted 2026-11-14, same day) ----
