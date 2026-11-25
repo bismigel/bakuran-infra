@@ -62,6 +62,11 @@ let
     # Immich — the DB must be dumped (never file-copied) and the photo library
     # lives on the server pod's upload volume.
     #
+    # The cluster is `immich-postgres` (renamed from `immich-pg` on 2026-11-25, because the old
+    # object's status was wedged at Initialized=True against a data directory that never got past
+    # initdb, and CNPG would neither bootstrap nor start Postgres in it - a fresh object on a fresh
+    # volume bootstraps fine, and the object name decides the volume name).
+    #
     # The database is a CloudNativePG cluster since story 8.2, so this asks for
     # whichever pod currently holds the primary rather than a fixed name. It used
     # to exec into `immich-postgres-0`, which no longer exists: from 2026-11-05
@@ -71,7 +76,7 @@ let
     #
     # `pg_dump` over the local socket as the `postgres` superuser needs no
     # password and is unaffected by a promotion (the label follows the role).
-    if $K -n immich get pod -l cnpg.io/cluster=immich-pg,role=primary \
+    if $K -n immich get pod -l cnpg.io/cluster=immich-postgres,role=primary \
          -o jsonpath='{.items[0].metadata.name}' > "$w/pgpod" 2>/dev/null \
        && [ -s "$w/pgpod" ] \
        && $K -n immich exec "$(cat "$w/pgpod")" -c postgres -- \
