@@ -54,7 +54,18 @@
   services.k3s = {
     enable = true;
     role = "server";
-    clusterInit = true;
+    # JOINS, IT DOES NOT SEED (2026-11-25).
+    #
+    # This host was the cluster's seed (`clusterInit = true`) and also the `serverAddr` of the other two
+    # servers, which made the node most likely to be offline the one the whole cluster needed to start.
+    # Measured 2026-11-24/25: sitaw hung, and a reboot of either other node would have failed to start
+    # k3s because it could only join through `.82`.
+    #
+    # It now joins patola-thinkcentre (`.80`), which stays up, and takes its token from SOPS like the
+    # other joiners. Reinstalling this host is therefore a normal rejoin, not a new cluster.
+    clusterInit = false;
+    serverAddr = "https://192.168.10.80:6443";
+    tokenFile = config.sops.secrets."k3s_cluster_token".path;
     extraFlags = toString [
       # The API VIP (kube-vip, gitops manifests/base/monitoring/kube-vip.yaml) has to be
       # in the serving certificate or clients get a TLS name error.
@@ -244,6 +255,11 @@
   # --- SOPS-managed secrets (decrypted with the host SSH key) ---
   sops.defaultSopsFile = ../../secrets/homelab.yaml;
   sops.age.sshKeyPaths = [ "/etc/ssh/ssh_host_ed25519_key" ];
+  # The token this host now needs, because it joins the cluster instead of seeding it.
+  sops.secrets."k3s_cluster_token" = {
+    owner = "root";
+    mode = "0400";
+  };
   sops.secrets."cloudflared_credentials" = {
     path = "/root/.cloudflared/8dcc83bd-eb95-4c0d-8f71-b92a27d37649.json";
     owner = "root";
