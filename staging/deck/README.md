@@ -26,7 +26,7 @@ Prepared scaffold, not deployed. The production cluster is untouched.
 ## Run
 
 ```bash
-export DECK_HOST=192.168.2.90
+export DECK_HOST=192.168.10.90
 ./scripts/up.sh
 ./scripts/status.sh
 ./scripts/down.sh
@@ -37,7 +37,7 @@ The staging overlay currently targets the `status-api` repository.
 ## Isolation checks
 
 - Production API and NodePorts must be unreachable from the Deck.
-- Staging pods must not reach `192.168.2.81`, `.82` or `.83`.
+- Staging pods must not reach `192.168.10.81`, `.82` or `.83`.
 - No staging ingress is created.
 - No production ArgoCD application is registered.
 

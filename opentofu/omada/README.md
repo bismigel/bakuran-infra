@@ -29,7 +29,7 @@ firewall rules. Omada must only know VLAN 20 exists so an SSID can bind to it.
 ## Then
 
 ```sh
-export TF_VAR_omada_url=https://192.168.2.32:8043
+export TF_VAR_omada_url=https://192.168.10.32:8043
 export TF_VAR_omada_username=...      # from the vault
 export TF_VAR_omada_password=...
 export TF_VAR_wifi_psk=...            # write-only, never in state
@@ -71,7 +71,7 @@ LoadBalancer plus one port per function, for no benefit.
 | 29810 | udp | controller ↔ device **discovery** |
 | 29811–29814 | tcp | manage / adopt / upgrade / v5 manage |
 
-**What it changes:** the AP's controller address becomes `192.168.2.82` (or `omada.internal`
+**What it changes:** the AP's controller address becomes `192.168.10.82` (or `omada.internal`
 repointed to it). Nothing else in the design moves — `omada_network`, `omada_wlan_group` and
 `omada_wireless_network` keep working, they just talk to a different `TF_VAR_omada_url`.
 

@@ -14,7 +14,7 @@
 set -uo pipefail
 
 NODE="${1:-calamansi-intel}"
-SSH_HOST="${SSH_HOST:-192.168.2.81}"
+SSH_HOST="${SSH_HOST:-192.168.10.81}"
 IFACE="${IFACE:-proton0}"
 # The unit that owns the link depends on the implementation: since the
 # 2026-10-28 cutover it is wireguard-proton0.service, not wg-quick-proton0.

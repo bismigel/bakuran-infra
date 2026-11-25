@@ -20,7 +20,7 @@ locals {
 
 resource "opnsense_kea_dhcpv4_reservation" "sitaw_amd" {
   subnet_id   = local.kea_lan_subnet_id
-  ip_address  = "192.168.2.82"
+  ip_address  = "192.168.10.82"
   hw_address  = "b4:2e:99:d6:84:29"
   hostname    = "sitaw-amd"
   description = "cluster: platform node (ArgoCD, ingress, NFS)"
@@ -28,7 +28,7 @@ resource "opnsense_kea_dhcpv4_reservation" "sitaw_amd" {
 
 resource "opnsense_kea_dhcpv4_reservation" "calamansi_intel" {
   subnet_id   = local.kea_lan_subnet_id
-  ip_address  = "192.168.2.81"
+  ip_address  = "192.168.10.81"
   hw_address  = "10:62:e5:18:d9:43"
   hostname    = "calamansi-intel"
   description = "cluster: media node (QSV, /mnt/media)"
@@ -36,7 +36,7 @@ resource "opnsense_kea_dhcpv4_reservation" "calamansi_intel" {
 
 resource "opnsense_kea_dhcpv4_reservation" "kamatis_mbp" {
   subnet_id   = local.kea_lan_subnet_id
-  ip_address  = "192.168.2.83"
+  ip_address  = "192.168.10.83"
   hw_address  = "40:6c:8f:4c:7f:0c"
   hostname    = "kamatis-mbp"
   description = "staging host (KVM guests), not a cluster member"
@@ -48,7 +48,7 @@ resource "opnsense_kea_dhcpv4_reservation" "kamatis_mbp" {
 # MAC read from the box itself (eno1) on 2026-11-23, not copied from a document.
 resource "opnsense_kea_dhcpv4_reservation" "patola_thinkcentre" {
   subnet_id   = local.kea_lan_subnet_id
-  ip_address  = "192.168.2.80"
+  ip_address  = "192.168.10.80"
   hw_address  = "00:23:24:d7:57:d7"
   hostname    = "patola-thinkcentre"
   description = "cluster: third etcd member, control plane, Immich postgres/redis"
@@ -56,7 +56,7 @@ resource "opnsense_kea_dhcpv4_reservation" "patola_thinkcentre" {
 
 resource "opnsense_kea_dhcpv4_reservation" "eap650" {
   subnet_id   = local.kea_lan_subnet_id
-  ip_address  = "192.168.2.2"
+  ip_address  = "192.168.10.2"
   hw_address  = "ec:b9:31:02:4d:c0"
   hostname    = "eap650"
   description = "Omada AP - was floating at .151 because no reservation ever applied"
@@ -68,7 +68,7 @@ resource "opnsense_kea_dhcpv4_reservation" "eap650" {
 # web UI - the one interface in this estate with no automation path.
 resource "opnsense_kea_dhcpv4_reservation" "omada_controller" {
   subnet_id   = local.kea_lan_subnet_id
-  ip_address  = "192.168.2.60"
+  ip_address  = "192.168.10.60"
   hw_address  = "fc:b0:de:18:16:5b"
   hostname    = "omada-controller"
   description = "Omada controller (admin laptop) - the AP is told to find it at omada.internal"

@@ -13,7 +13,7 @@ domain, and it is already the thing everything else depends on.
 
 | check | why this one |
 |---|---|
-| `https://192.168.2.100:6443/readyz` | the k3s API VIP. **Any** HTTP answer proves the control plane is alive — `401` is normal, because `/readyz` needs auth. A dead cluster gives no answer at all (`000`). |
+| `https://192.168.10.100:6443/readyz` | the k3s API VIP. **Any** HTTP answer proves the control plane is alive — `401` is normal, because `/readyz` needs auth. A dead cluster gives no answer at all (`000`). |
 | `https://status.bismigel.dev/` | tunnel → edge → cluster, end to end, from outside |
 
 ## Alertmanager, without reaching into the cluster
@@ -49,7 +49,7 @@ The alerting path itself is covered by the `Watchdog` alert: it always fires, so
 ## Installation (not yet in Ansible — deliberate note)
 
 ```sh
-scp network/router/homelab-heartbeat.sh root@192.168.2.254:/usr/local/etc/homelab-heartbeat.sh
+scp network/router/homelab-heartbeat.sh root@192.168.10.1:/usr/local/etc/homelab-heartbeat.sh
 # the bot token lives at /usr/local/etc/homelab-heartbeat.token (mode 600),
 # copied from the cluster's alertmanager-telegram secret
 cat > /etc/cron.d/homelab-heartbeat <<'CRON'

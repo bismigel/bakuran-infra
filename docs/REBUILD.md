@@ -34,9 +34,9 @@ Each host: **100 GiB root** on the NVMe + a **media data** partition (NVMe rest)
 ```bash
 cd bakuran-infra
 nix run github:nix-community/nixos-anywhere -- --flake .#sitaw-amd \
-  --target-host root@192.168.2.82 \
+  --target-host root@192.168.10.82 \
   --ssh-option UserKnownHostsFile=/dev/null --ssh-option StrictHostKeyChecking=no
-# repeat for .#calamansi-intel -> root@192.168.2.81
+# repeat for .#calamansi-intel -> root@192.168.10.81
 ```
 
 **⚠ Gotcha — stale Proxmox LVM.** If a machine previously ran Proxmox, a `pve`
@@ -83,7 +83,7 @@ ARGO_REPO_SSH_KEY=/path/to/key ./scripts/bootstrap-argocd.sh
 There is **one cluster**, not two. After the first server (`sitaw-amd`,
 `clusterInit`) is up, the other hosts join as servers using the **cluster token**
 (SOPS secret `k3s_cluster_token`) via `serverAddr`:
-- `.81`/`.83`: `services.k3s = { role = "server"; serverAddr = "https://192.168.2.82:6443";
+- `.81`/`.83`: `services.k3s = { role = "server"; serverAddr = "https://192.168.10.82:6443";
   tokenFile = config.sops.secrets."k3s_cluster_token".path; }`.
 - Open etcd ports **2379/2380** between nodes (firewall).
 - Install a fresh host with

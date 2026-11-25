@@ -6,11 +6,11 @@
 #
 #   BWS_ACCESS_TOKEN=<machine-account-token> ./scripts/media-usenet-secret.sh
 #
-# HOST can override the target (default 192.168.2.81).
+# HOST can override the target (default 192.168.10.81).
 set -euo pipefail
 export NIXPKGS_ALLOW_UNFREE="${NIXPKGS_ALLOW_UNFREE:-1}"
 : "${BWS_ACCESS_TOKEN:?set BWS_ACCESS_TOKEN to the Bitwarden machine-account token}"
-HOST="${HOST:-192.168.2.81}"
+HOST="${HOST:-192.168.10.81}"
 NS="${NS:-downloads}"
 
 bws() { nix run --impure nixpkgs#bws -- "$@"; }

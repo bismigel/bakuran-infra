@@ -11,7 +11,7 @@
 #     which is seeded from Bitwarden (scripts/media-setup-secret.sh).
 #
 # Usage (on a k3s node, or with the NodePorts reachable + kubectl):
-#   HOST=192.168.2.81 KUBECTL="k3s kubectl" ./scripts/media-bazarr-setup.sh
+#   HOST=192.168.10.81 KUBECTL="k3s kubectl" ./scripts/media-bazarr-setup.sh
 #
 # Requires: bash, curl, and jq (falls back to a nix-store jq).
 set -euo pipefail

@@ -56,11 +56,11 @@ been verified.
 ```
 # the new config is present, encrypted in git and rendered on the host
 grep -c "wg_fallback_<name>" secrets/homelab.yaml        -> 1
-ssh root@192.168.2.81 'ls -l /root/wg-configs/<name>.conf'   -> symlink, 0600 root:root
-ssh root@192.168.2.81 'wg-switch list'                   -> <name> listed, not "* active"
+ssh root@192.168.10.81 'ls -l /root/wg-configs/<name>.conf'   -> symlink, 0600 root:root
+ssh root@192.168.10.81 'wg-switch list'                   -> <name> listed, not "* active"
 
 # it works before it is made permanent
-ssh root@192.168.2.81 'wg-switch <name>'                 -> "ok: handshake Ns ago via <endpoint>"
+ssh root@192.168.10.81 'wg-switch <name>'                 -> "ok: handshake Ns ago via <endpoint>"
 
 # then declare it, because wg-switch is runtime-only and gets reverted within 60 s
 #   bakuran.wireguard.endpoint  +  the peer/private key SOPS entries
@@ -83,7 +83,7 @@ selected by the policy was silently dropped — no leak, but no egress — and `
 "Running" and "Healthy" the whole time. Restarting the Cilium agent on `.81` fixed it immediately.
 
 ```
-ssh root@192.168.2.81 'cat /sys/class/net/proton0/ifindex'
+ssh root@192.168.10.81 'cat /sys/class/net/proton0/ifindex'
 kubectl -n kube-system get pods -l k8s-app=cilium --field-selector spec.nodeName=calamansi-intel -o name \
   | xargs kubectl -n kube-system delete
 # then prove egress: a selected pod must report the Proton exit, not the house address

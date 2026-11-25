@@ -151,7 +151,7 @@
       user = "root";
       nodes = {
         calamansi-intel = {
-          hostname = "192.168.2.81";
+          hostname = "192.168.10.81";
           # Activation here can restart k3s - changing `nodeLabel` changes the k3s unit - and the default confirmation
           # window is short enough that deploy-rs calls the deploy failed while k3s is still coming back, then rolls back
           # a change that was going to work. Measured twice on 2026-11-14 (both flip attempts); the second one rolled back
@@ -165,21 +165,21 @@
           };
         };
         sitaw-amd = {
-          hostname = "192.168.2.82";
+          hostname = "192.168.10.82";
           profiles.system = {
             user = "root";
             path = deploy-rs.lib.x86_64-linux.activate.nixos self.nixosConfigurations.sitaw-amd;
           };
         };
       patola-thinkcentre = {
-        hostname = "192.168.2.80";
+        hostname = "192.168.10.80";
         profiles.system = {
           user = "root";
           path = deploy-rs.lib.x86_64-linux.activate.nixos self.nixosConfigurations.patola-thinkcentre;
         };
       };
         kamatis-mbp = {
-          hostname = "192.168.2.83";
+          hostname = "192.168.10.83";
           profiles.system = {
             user = "root";
             path = deploy-rs.lib.x86_64-linux.activate.nixos self.nixosConfigurations.kamatis-mbp;

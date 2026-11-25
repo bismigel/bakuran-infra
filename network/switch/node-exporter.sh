@@ -5,7 +5,7 @@
 # host, it has no git-tracked configuration, and `opkg` state was, until 2026-11-13, hand-made and recorded nowhere. This
 # script is that record. Run it after a reflash, a factory reset, or `opkg upgrade` surprises you.
 #
-#   ssh root@192.168.2.3 'sh -s' < switch/node-exporter.sh
+#   ssh root@192.168.10.3 'sh -s' < switch/node-exporter.sh
 #
 # What it configures, and why each part is not optional:
 #
@@ -14,14 +14,14 @@
 #   * `listen_interface 'lan'` — the package defaults to **loopback**, which is invisible to Prometheus. This is the
 #     single setting most likely to be lost and hardest to notice: the exporter is running, the port is listening, and
 #     nothing can scrape it.
-#   * a firewall rule admitting **tcp/9100 from 192.168.2.82 only** — not the whole LAN. The metric endpoint exposes host
+#   * a firewall rule admitting **tcp/9100 from 192.168.10.82 only** — not the whole LAN. The metric endpoint exposes host
 #     inventory (interfaces, addresses, processes), so it is scoped to the one client that needs it.
 #
 # Verified idempotent on 2026-11-13: a second run changes nothing. The scrape job is `switch` in
 # bakuran-gitops manifests/base/monitoring/monitoring.yaml, and the dashboard is `grafana-dashboard-switch`.
 set -eu
 
-EXPECTED="${PROM_SCRAPE_SRC:-192.168.2.82}"
+EXPECTED="${PROM_SCRAPE_SRC:-192.168.10.82}"
 MISSING=$(opkg list-installed 2>/dev/null | grep -c 'prometheus-node-exporter-lua' || true)
 
 if [ "$MISSING" -lt 1 ]; then

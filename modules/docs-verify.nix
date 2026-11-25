@@ -20,9 +20,9 @@ let
     [ "$svc" = "10.43.0.1" ] || note "service clusterIP is '$svc', NETWORK.md says 10.43.0.1"
 
     # NETWORK.md 3: node addresses and pod CIDRs
-    expected="calamansi-intel 192.168.2.81 10.42.3.0/24
-patola-thinkcentre 192.168.2.80 10.42.1.0/24
-sitaw-amd 192.168.2.82 10.42.0.0/24"
+    expected="calamansi-intel 192.168.10.81 10.42.3.0/24
+patola-thinkcentre 192.168.10.80 10.42.1.0/24
+sitaw-amd 192.168.10.82 10.42.0.0/24"
     actual="$($k get nodes -o custom-columns=NAME:.metadata.name,IP:.status.addresses[0].address,POD:.spec.podCIDR --no-headers 2>/dev/null \
       | awk '{print $1" "$2" "$3}' | sort)"
     [ "$actual" = "$(printf '%s\n' "$expected" | sort)" ] || note "node/podCIDR table differs from NETWORK.md 3"
