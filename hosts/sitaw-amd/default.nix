@@ -146,8 +146,12 @@
   #
   # -d single / -m dup: one device means no data redundancy, but btrfs keeps TWO copies
   # of metadata, so a bad sector costs a file rather than the tree.
+  # Device named by id since 2026-11-24. This filesystem was identified by UUID, which a fresh
+  # filesystem does not have - and the disk itself was reached through `/dev/sda`, which at install
+  # time was the 1.8 TB library rather than the 465 GB staging disk, so a reinstall reformatted the
+  # wrong disk. A by-id path names the hardware: it either finds that disk or fails loudly.
   fileSystems."/mnt/media" = {
-    device = "/dev/disk/by-uuid/bda38db8-bda8-4503-b7a6-c3969b021e68";
+    device = "/dev/disk/by-id/ata-TOSHIBA_MG04ACA200NY_18F1Y0C8F7EE";
     fsType = "btrfs";
     options = [ "subvol=@media" "noatime" "space_cache=v2" "nofail" ];
   };
@@ -155,17 +159,17 @@
   # snapshotted and sent independently. zstd only on text: video does not compress and
   # the CPU is better spent on QSV.
   fileSystems."/mnt/media/books" = {
-    device = "/dev/disk/by-uuid/bda38db8-bda8-4503-b7a6-c3969b021e68";
+    device = "/dev/disk/by-id/ata-TOSHIBA_MG04ACA200NY_18F1Y0C8F7EE";
     fsType = "btrfs";
     options = [ "subvol=@books" "noatime" "compress=zstd:1" "nofail" ];
   };
   fileSystems."/mnt/media/audiobooks" = {
-    device = "/dev/disk/by-uuid/bda38db8-bda8-4503-b7a6-c3969b021e68";
+    device = "/dev/disk/by-id/ata-TOSHIBA_MG04ACA200NY_18F1Y0C8F7EE";
     fsType = "btrfs";
     options = [ "subvol=@audiobooks" "noatime" "compress=zstd:1" "nofail" ];
   };
   fileSystems."/mnt/media-snapshots" = {
-    device = "/dev/disk/by-uuid/bda38db8-bda8-4503-b7a6-c3969b021e68";
+    device = "/dev/disk/by-id/ata-TOSHIBA_MG04ACA200NY_18F1Y0C8F7EE";
     fsType = "btrfs";
     options = [ "subvol=@snapshots" "noatime" "nofail" ];
   };
