@@ -163,13 +163,13 @@
   fileSystems."/mnt/media" = {
     device = "/dev/disk/by-id/ata-WDC_WD5000AAKX-60U6AA0_WD-WCC2E5ZV3FFF";
     fsType = "ext4";
-    options = [ "noatime" "nofail" ];
+    options = [ "noatime" "nofail" "x-systemd.device-timeout=10s" "x-systemd.mount-timeout=30s" ];
   };
   # Longhorn's dedicated disk. ext4, nothing else on it: it is a replica store.
   fileSystems."/mnt/longhorn" = {
     device = "/dev/disk/by-id/ata-TOSHIBA_MG04ACA200NY_18F1Y0C8F7EE";
     fsType = "ext4";
-    options = [ "noatime" "nofail" ];
+    options = [ "noatime" "nofail" "x-systemd.device-timeout=10s" "x-systemd.mount-timeout=30s" ];
   };
 
   environment.systemPackages = [ pkgs.btrfs-progs ];
