@@ -146,62 +146,36 @@
   #
   # -d single / -m dup: one device means no data redundancy, but btrfs keeps TWO copies
   # of metadata, so a bad sector costs a file rather than the tree.
+  # THE MEDIA LIBRARY IS ON THE 465 GB WDC DISK (2026-11-24).
+  #
+  # It used to be a btrfs filesystem on the 1.8 TB TOSHIBA with separate subvolumes for media,
+  # books, audiobooks and snapshots. That filesystem was destroyed when the installer targeted
+  # `/dev/sda` and the TOSHIBA happened to be `sda` at the time; btrfs recovery is impossible
+  # because the chunk-tree root lives in the first 128 MB the new ext4 metadata overwrote.
+  #
+  # The 1.8 TB TOSHIBA now serves a better purpose: a Longhorn disk (SMART 2026-11-24: PASSED,
+  # 0 reallocated sectors, 5 216 power-on hours - the healthiest disk in the estate, which is
+  # chronically short of Longhorn capacity). The 465 GB WDC keeps the 175 GB / 513 media files
+  # that survived. It is a 2011 desktop drive with 42 306 hours on it: fine for re-downloadable
+  # media, wrong for anything else - so nothing precious goes here.
   fileSystems."/mnt/media" = {
-    device = "/dev/disk/by-uuid/bda38db8-bda8-4503-b7a6-c3969b021e68";
-    fsType = "btrfs";
-    options = [ "subvol=@media" "noatime" "space_cache=v2" "nofail" ];
+    device = "/dev/disk/by-id/ata-WDC_WD5000AAKX-60U6AA0_WD-WCC2E5ZV3FFF";
+    fsType = "ext4";
+    options = [ "noatime" "nofail" ];
   };
-  # Separate subvolumes for the two irreplaceable collections, so each can be
-  # snapshotted and sent independently. zstd only on text: video does not compress and
-  # the CPU is better spent on QSV.
-  fileSystems."/mnt/media/books" = {
-    device = "/dev/disk/by-uuid/bda38db8-bda8-4503-b7a6-c3969b021e68";
-    fsType = "btrfs";
-    options = [ "subvol=@books" "noatime" "compress=zstd:1" "nofail" ];
-  };
-  fileSystems."/mnt/media/audiobooks" = {
-    device = "/dev/disk/by-uuid/bda38db8-bda8-4503-b7a6-c3969b021e68";
-    fsType = "btrfs";
-    options = [ "subvol=@audiobooks" "noatime" "compress=zstd:1" "nofail" ];
-  };
-  fileSystems."/mnt/media-snapshots" = {
-    device = "/dev/disk/by-uuid/bda38db8-bda8-4503-b7a6-c3969b021e68";
-    fsType = "btrfs";
-    options = [ "subvol=@snapshots" "noatime" "nofail" ];
+  # Longhorn's dedicated disk. ext4, nothing else on it: it is a replica store.
+  fileSystems."/mnt/longhorn" = {
+    device = "/dev/disk/by-id/ata-TOSHIBA_MG04ACA200NY_18F1Y0C8F7EE";
+    fsType = "ext4";
+    options = [ "noatime" "nofail" ];
   };
 
   environment.systemPackages = [ pkgs.btrfs-progs ];
 
-  # Snapshot the irreplaceable collections every 6h, keep 7 days of them. Read-only
-  # snapshots are cheap (metadata) and protect against rm, a bad import, and an app
-  # writing garbage over a database.
-  systemd.services.btrfs-snapshot-books = {
-    description = "Read-only btrfs snapshots of books and audiobooks";
-    after = [ "mnt-media-books.mount" "mnt-media-audiobooks.mount" ];
-    requires = [ "mnt-media-books.mount" "mnt-media-audiobooks.mount" ];
-    serviceConfig.Type = "oneshot";
-    script = ''
-      set -eu
-      stamp=$(date +%Y-%m-%dT%H%M)
-      for sv in books audiobooks; do
-        ${pkgs.btrfs-progs}/bin/btrfs subvolume snapshot -r /mnt/media/$sv \
-          /mnt/media-snapshots/$sv-$stamp
-      done
-      # Keep 7 days: filenames sort lexicographically by timestamp.
-      for sv in books audiobooks; do
-        ls -1d /mnt/media-snapshots/$sv-* 2>/dev/null | sort | head -n -28 | while read -r old; do
-          ${pkgs.btrfs-progs}/bin/btrfs subvolume delete "$old" >/dev/null
-        done
-      done
-    '';
-  };
-  systemd.timers.btrfs-snapshot-books = {
-    wantedBy = [ "timers.target" ];
-    timerConfig = {
-      OnCalendar = "*-*-* 00/6:20";
-      Persistent = true;
-    };
-  };
+  # There is no btrfs snapshot timer any more: books and audiobooks live on ext4 under
+  # /mnt/media, and their protection is the R2 copy (`books/`, 1.55 GiB, verified 2026-11-24)
+  # rather than local read-only snapshots. That is a real reduction in local history - the fix, if
+  # they grow, is a dedicated btrfs disk, not a timer that pretends ext4 can snapshot.
 
   # Exports. The nested subvolumes are exported EXPLICITLY, not via `crossmnt`:
   # NFS does not cross mountpoints, so exporting /mnt/media alone would present empty
@@ -214,15 +188,10 @@
   # Narrower than it looks: it is the LAN, no routing is involved, and the same `no_root_squash`
   # rationale applies (the *arr containers run as UID 0 — measured 2026-11-04).
   services.nfs.server.exports = ''
-    /mnt/media            192.168.2.0/24(rw,sync,no_subtree_check,no_root_squash)
-    /mnt/media/books      192.168.2.0/24(rw,sync,no_subtree_check,no_root_squash)
-    /mnt/media/audiobooks 192.168.2.0/24(rw,sync,no_subtree_check,no_root_squash)
-    /mnt/media-snapshots  192.168.2.81(ro,sync,no_subtree_check,no_root_squash)
-    # Retired when .81 stops using mergerfs; keep until the rollback week is over.
-    /mnt/media-sda        192.168.2.81(rw,sync,no_subtree_check,no_root_squash)
-    # Backup disks (USB, 2026-10-28). .81 writes the weekly media mirror to the SD
-    # card; this host writes the offline R2 copy to /mnt/scratch.
-    /mnt/backup-sd        192.168.2.81(rw,sync,no_subtree_check,no_root_squash)
+    # One export: books/audiobooks are plain directories on the same filesystem now, so there is no
+    # mountpoint for NFS to refuse to cross. This is the LAN, no routing involved.
+    /mnt/media            192.168.10.0/24(rw,sync,no_subtree_check,no_root_squash)
+    /mnt/backup-sd        192.168.10.81(rw,sync,no_subtree_check,no_root_squash)
   '';
 
   # Two USB disks used as a *weekly* backup target, not as mergerfs branches:
