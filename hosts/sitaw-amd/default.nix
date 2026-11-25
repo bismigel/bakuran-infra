@@ -278,7 +278,18 @@
     owner = "root";
     mode = "0400";
   };
-  systemd.tmpfiles.rules = [ "d /root/.cloudflared 0700 root root -" ];
+  # The monitor's store is a local-path volume, pinned to this host on purpose (a monitor must not
+  # live on the storage it reports on - manifests/base/monitoring/exporters/victoriametrics.yaml).
+  # local-path volumes are plain directories, and a reinstall removes them while the PV keeps
+  # pointing at the path: the pod then sits in ContainerCreating with FailedMount, which is quiet
+  # enough to go unnoticed for hours - it did, for seven, on 2026-11-25.
+  #
+  # The UUID is the victoriametrics PVC's volume name. If that PVC is recreated, the rule must follow
+  # it; a stale rule is harmless (an unused empty directory), its absence is not.
+  systemd.tmpfiles.rules = [
+    "d /root/.cloudflared 0700 root root -"
+    "d /var/lib/rancher/k3s/storage/pvc-d064afbb-41a9-42d1-a8a4-0e57506fb893_monitoring_victoriametrics 0777 root root -"
+  ];
 
   system.stateVersion = lib.mkForce "25.11";
 
