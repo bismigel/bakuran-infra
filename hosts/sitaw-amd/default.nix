@@ -171,14 +171,26 @@
   # The old btrfs library on the TOSHIBA could not be recovered: the chunk-tree root sits in the
   # first 128 MB that the post-accident filesystem metadata overwrote, so every btrfs root is
   # unreachable even though the 64 MiB and 256 GiB superblock copies survive.
+  # Media lives on the healthy 1.8 TB TOSHIBA (1000 GiB partition) since 2026-11-25, and the
+  # 42 306-hour WDC became a Longhorn replica store instead: a failure there costs one copy of a
+  # volume rather than the library. Layout is declared in `disko-media.nix` and
+  # `disko-longhorn-wdc.nix` - applied by hand, in that order, because step 2 wipes the disk that
+  # still holds the media when step 1 runs. These four entries are the mounts that follow.
   fileSystems."/mnt/media" = {
-    device = "/dev/disk/by-id/ata-WDC_WD5000AAKX-60U6AA0_WD-WCC2E5ZV3FFF-part1";
+    device = "/dev/disk/by-id/ata-TOSHIBA_MG04ACA200NY_18F1Y0C8F7EE-part1";
     fsType = "ext4";
     options = [ "noatime" "nofail" "x-systemd.device-timeout=10s" "x-systemd.mount-timeout=30s" ];
   };
   # Longhorn's dedicated disk. ext4, nothing else on it: it is a replica store.
+  # The TOSHIBA's second partition.
+  # The old media drive, now a replica store.
+  fileSystems."/mnt/longhorn-wdc" = {
+    device = "/dev/disk/by-id/ata-WDC_WD5000AAKX-60U6AA0_WD-WCC2E5ZV3FFF-part1";
+    fsType = "ext4";
+    options = [ "noatime" "nofail" "x-systemd.device-timeout=10s" "x-systemd.mount-timeout=30s" ];
+  };
   fileSystems."/mnt/longhorn" = {
-    device = "/dev/disk/by-id/ata-TOSHIBA_MG04ACA200NY_18F1Y0C8F7EE-part1";
+    device = "/dev/disk/by-id/ata-TOSHIBA_MG04ACA200NY_18F1Y0C8F7EE-part2";
     fsType = "ext4";
     options = [ "noatime" "nofail" "x-systemd.device-timeout=10s" "x-systemd.mount-timeout=30s" ];
   };
