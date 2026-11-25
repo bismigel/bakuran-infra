@@ -1,3 +1,12 @@
+# disko manages the OS DISK ONLY (2026-11-24).
+#
+# It used to declare a data disk for the media library. That entry named `/dev/sda`, and at install
+# time the kernel had enumerated the 1.8 TB TOSHIBA as `sda`, so the installer formatted the library
+# instead of the 465 GB staging disk. The bytes are unrecoverable: the btrfs chunk-tree root sat in
+# the first 128 MB the new metadata overwrote.
+#
+# A data disk is not part of an OS install. It is mounted by `fileSystems` in default.nix, by
+# `/dev/disk/by-id` path, and never formatted by anything in this repository.
 # STABLE DEVICE NAMES ARE MANDATORY HERE (2026-11-24).
 #
 # This file used to name `/dev/nvme0n1` and `/dev/sda`. Device letters are not stable across a
@@ -47,23 +56,6 @@
                 type = "filesystem";
                 format = "ext4";
                 mountpoint = "/mnt/media-nvme";
-              };
-            };
-          };
-        };
-      };
-      hdd = {
-        type = "disk";
-        device = "/dev/disk/by-id/ata-WDC_WD5000AAKX-60U6AA0_WD-WCC2E5ZV3FFF";
-        content = {
-          type = "gpt";
-          partitions = {
-            data = {
-              size = "100%";
-              content = {
-                type = "filesystem";
-                format = "ext4";
-                mountpoint = "/mnt/media-sda";
               };
             };
           };
