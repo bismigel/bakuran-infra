@@ -10,12 +10,12 @@ all:
     router:
       hosts:
         opnsense:
-          ansible_host: 192.168.2.254
+          ansible_host: 192.168.10.1
           ansible_connection: local
     opnsense:
       hosts:
         gw-opnsense:
-          ansible_host: 192.168.2.254
+          ansible_host: 192.168.10.1
           ansible_user: root
           ansible_ssh_private_key_file: ~/.ssh/id_ed25519
           ansible_connection: ssh
@@ -23,7 +23,7 @@ all:
     openwrt:
       hosts:
         gs108tv3:
-          ansible_host: 192.168.2.3
+          ansible_host: 192.168.10.3
           ansible_user: root
           ansible_ssh_private_key_file: ~/.ssh/id_ed25519
           ansible_connection: ssh

@@ -18,13 +18,13 @@
 #         CONF=/root/other.conf scripts/wg-fallback.sh
 #
 # Save the config BEFORE the cutover, while the tunnel is up:
-#   ssh root@192.168.2.81 'umask 077; wg showconf proton0 > /root/proton0-fallback.conf'
+#   ssh root@192.168.10.81 'umask 077; wg showconf proton0 > /root/proton0-fallback.conf'
 set -uo pipefail
 
 IF="${IF:-proton0}"
 CONF="${CONF:-/root/proton0-fallback.conf}"
 ADDR="${ADDR:-10.2.0.2/32}"
-GW="${GW:-192.168.2.254}"
+GW="${GW:-192.168.10.1}"
 DEV="${DEV:-eno1}"
 EP="${EP:-176.113.74.82}"
 

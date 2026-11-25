@@ -8,20 +8,20 @@
 # failure produces the symptom. Why .80 and not .82: .82 is already the single point for the media pool, an ingress
 # replica, two CNPG instances and the Argo pane; the fallback belongs somewhere that carries no stateful role.
 #
-# PHASE 1 OF STORY 4.8 — this resolver is advertised by **nobody**. Kea still hands out 192.168.2.254 only, so this changes
+# PHASE 1 OF STORY 4.8 — this resolver is advertised by **nobody**. Kea still hands out 192.168.10.1 only, so this changes
 # nothing until that line in `opentofu/opnsense/kea.tf` changes, which is gated on a read-back (see the ADR: `dns_servers`
 # is a Set in the provider, so order is not preserved and the router must come first).
 { config, lib, ... }:
 
 let
-  listen = "192.168.2.80";
+  listen = "192.168.10.80";
 
   # Who may ask. The whole point of this resolver is that it can be used *while diagnosing*, so the operator's own segment
   # has to be in here: `192.168.20.0/24` is VLAN 20, where the admin laptop sits (measured 2026-11-19: this workstation is
   # 192.168.20.50, and the first version of this module accepted only the LAN — every query from it timed out).
   #
   # One list drives both the ACL and the firewall rule below, so they cannot drift apart.
-  clients = [ "192.168.2.0/24" "192.168.20.0/24" ];
+  clients = [ "192.168.10.0/24" "192.168.20.0/24" ];
 
   # The internal names. This is the only part that has to exist in two places, and it is the reason story 4.8 was never a
   # one-liner: the router answers these from `host_entries.conf` (explicit overrides, plus `dhcpleases.conf` for names it
@@ -37,13 +37,13 @@ let
   # failover test asks for `jellyfin.lan` and an external name — both declared. That asymmetry is written down in ADR 0020
   # rather than hidden here.
   internalNames = {
-    "jellyfin.lan" = "192.168.2.84";
-    "patola-thinkcentre.internal" = "192.168.2.80";
-    "calamansi-intel.internal" = "192.168.2.81";
-    "sitaw-amd.internal" = "192.168.2.82";
-    "kamatis-mbp.internal" = "192.168.2.83";
-    "eap650.internal" = "192.168.2.2";
-    "omada-controller.internal" = "192.168.2.60";
+    "jellyfin.lan" = "192.168.10.84";
+    "patola-thinkcentre.internal" = "192.168.10.80";
+    "calamansi-intel.internal" = "192.168.10.81";
+    "sitaw-amd.internal" = "192.168.10.82";
+    "kamatis-mbp.internal" = "192.168.10.83";
+    "eap650.internal" = "192.168.10.2";
+    "omada-controller.internal" = "192.168.10.60";
     "admin-laptop.internal" = "192.168.20.50";
   };
 in {
@@ -73,7 +73,7 @@ in {
       # better, which is a behaviour difference exactly when the router is the one that is down.
       local-zone = [ "\"internal.\" transparent" "\"lan.\" transparent" ];
       # The quotes are required, not decorative: unbound takes the whole `name IN A addr` as one value and refuses an
-      # unquoted one ("unknown keyword '192.168.2.80'"). The NixOS renderer does not add them, and `unbound-checkconf`
+      # unquoted one ("unknown keyword '192.168.10.80'"). The NixOS renderer does not add them, and `unbound-checkconf`
       # on the generated file is what caught it before this unit ever started on the host.
       local-data = lib.mapAttrsToList (name: ip: "\"${name} IN A ${ip}\"") internalNames;
     };

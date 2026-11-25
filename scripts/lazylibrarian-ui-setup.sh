@@ -12,7 +12,7 @@
 # `npm i playwright`. HOST can override the kubectl target.
 set -euo pipefail
 
-HOST="${HOST:-192.168.2.81}"
+HOST="${HOST:-192.168.10.81}"
 NS="${NS:-media}"
 CM_NAME="lazylibrarian-ui-setup"
 JOB_NAME="lazylibrarian-ui-setup"

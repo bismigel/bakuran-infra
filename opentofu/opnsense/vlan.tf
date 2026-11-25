@@ -18,7 +18,7 @@ resource "opnsense_system_vlan" "clients" {
   device           = "vlan01"
   tag              = 20
   priority         = 0
-  description = "CLIENTS (Wi-Fi) - cannot reach 192.168.2.0/24 except the admin laptop"
+  description      = "CLIENTS (Wi-Fi) - cannot reach 192.168.10.0/24 except the admin laptop"
 }
 
 # VLAN 30 — the IoT network. Created here so the device exists and OPNsense enumerates it;
@@ -33,5 +33,5 @@ resource "opnsense_system_vlan" "iot" {
   device           = "vlan02"
   tag              = 30
   priority         = 0
-  description = "IOT - cheap devices, internet and DNS only, no access to 192.168.2.0/24 or 192.168.20.0/24"
+  description      = "IOT - cheap devices, internet and DNS only, no access to 192.168.10.0/24 or 192.168.20.0/24"
 }

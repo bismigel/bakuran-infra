@@ -14,7 +14,7 @@
         # control plane rather than a generic one.
         argocdVersion = "v3.5.5";
 
-        # The staging stand-in for production's 192.168.2.100. Nothing else on
+        # The staging stand-in for production's 192.168.10.100. Nothing else on
         # br-staging uses it: the host is .1 and the guests are .10-.12.
         vip = "10.10.50.100";
         # Cilium talks to the LOCAL API, matching production since 2026-11-15: a cold boot must not

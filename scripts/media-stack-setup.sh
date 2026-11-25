@@ -13,7 +13,7 @@
 # Usage (on a k3s node, or anywhere with the NodePorts reachable + kubectl):
 #   QBT_PASSWORD='<webui password>' ./scripts/media-stack-setup.sh
 #   # remote:
-#   HOST=192.168.2.81 QBT_PASSWORD='...' ./scripts/media-stack-setup.sh
+#   HOST=192.168.10.81 QBT_PASSWORD='...' ./scripts/media-stack-setup.sh
 #
 # Requires: bash, curl, and jq (falls back to `nix run nixpkgs#jq`).
 set -euo pipefail

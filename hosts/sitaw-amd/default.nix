@@ -22,16 +22,16 @@
   networking.useDHCP = false;
   networking.interfaces.enp8s0.useDHCP = false;
   networking.interfaces.enp8s0.ipv4.addresses = [
-    { address = "192.168.2.82"; prefixLength = 24; }
+    { address = "192.168.10.82"; prefixLength = 24; }
   ];
-  networking.defaultGateway = "192.168.2.254";
+  networking.defaultGateway = "192.168.10.1";
   # DNS via the router's unbound, NOT 1.1.1.1 through the WireGuard tunnel.
   # Resolving through the tunnel means an egress fault becomes a DNS fault: on
   # 2026-11-01 wireguard-proton0 did not start, so `lookup ghcr.io` failed and
   # forty pods landed in ImagePullBackOff. The router is on the LAN; if it is
   # unreachable nothing else works either. Verified 2026-11-01: unbound on .1
   # answers for example.com with NOERROR and two records.
-  networking.nameservers = [ "192.168.2.254" ];
+  networking.nameservers = [ "192.168.10.1" ];
 
   # Hardware (Ryzen 5 4600G / B450 / NVMe root). File systems come from disko.
   boot.initrd.availableKernelModules = [
@@ -77,7 +77,7 @@
       "--kube-apiserver-arg=audit-log-maxage=30"
       "--kube-apiserver-arg=audit-log-maxbackup=10"
       "--kube-apiserver-arg=audit-log-maxsize=100"
-      "--tls-san=192.168.2.100"
+      "--tls-san=192.168.10.100"
       # Cilium serves services now (story 10.10): kubeProxyReplacement=true in bakuran-gitops. Two datapaths
       # cannot coexist — while both ran, cross-node scrapes broke (cAdvisor through the API proxy and Longhorn
       # pod metrics, measured 2026-11-11). The two changes are one operation, split per node only for blast radius.
@@ -108,7 +108,7 @@
     enable = true;
     # 2379/2380 = etcd client/peer (k3s HA join), 10250 = kubelet
     # 2379/2380/10250 are node-to-node only; base.nix allowlists them to
-    # 192.168.2.81-83 (+ pod CIDR for kubelet) via firewall.extraCommands.
+    # 192.168.10.81-83 (+ pod CIDR for kubelet) via firewall.extraCommands.
     # 2049 (NFS) and 111 (rpcbind) are scoped to the nodes and the pod CIDR in
     # extraCommands below: only .81's mergerfs and in-cluster consumers need them,
     # and an open NFS export is a write path into the media pool.
@@ -118,17 +118,17 @@
     allowedTCPPorts = [ 22 6443 80 443 4240 4244 ];
     allowedUDPPorts = [ 8472 ];
     # 8096 on the LAN NIC only, since 2026-11-05 (story 8.3): Jellyfin is served at the kube-vip
-    # service address 192.168.2.84, which any node may hold. This is *not* a NodePort exception —
+    # service address 192.168.10.84, which any node may hold. This is *not* a NodePort exception —
     # the edge lock above still keeps NodePorts loopback-only; it is the one service VIP the estate
     # exposes to the LAN, because TV clients cannot use Cloudflare Access.
     interfaces.enp8s0.allowedTCPPorts = [ 8096 ];
     # `extraCommands` is defined in modules/base.nix; mkAfter appends instead of
     # conflicting with it.
     extraCommands = lib.mkAfter ''
-      iptables -I nixos-fw 1 -p tcp -m iprange --src-range 192.168.2.80-192.168.2.84 \
+      iptables -I nixos-fw 1 -p tcp -m iprange --src-range 192.168.10.80-192.168.10.84 \
         -m multiport --dports 2049,111 -j nixos-fw-accept
       iptables -I nixos-fw 1 -p tcp -s 10.42.0.0/16 -m multiport --dports 2049 -j nixos-fw-accept
-      iptables -I nixos-fw 1 -p udp -m iprange --src-range 192.168.2.80-192.168.2.84 \
+      iptables -I nixos-fw 1 -p udp -m iprange --src-range 192.168.10.80-192.168.10.84 \
         -m multiport --dports 2049,111 -j nixos-fw-accept
     '';
   };
@@ -183,7 +183,7 @@
   # directories where books and audiobooks actually live - a silent, plausible-looking
   # way to lose the two collections that cannot be re-downloaded.
   services.nfs.server.enable = true;
-  # `192.168.2.0/24` instead of `.81` alone, since 2026-11-05 (story 8.3). The library is now
+  # `192.168.10.0/24` instead of `.81` alone, since 2026-11-05 (story 8.3). The library is now
   # mounted *inside* pods rather than through a hostPath on `.81`, so the export has to serve
   # whichever node the pod lands on — that is the whole point of making Jellyfin reschedulable.
   # Narrower than it looks: it is the LAN, no routing is involved, and the same `no_root_squash`

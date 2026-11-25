@@ -20,7 +20,7 @@ IF="${IF:-proton0}"
 EP="${EP:-176.113.74.82}"
 PORT="${PORT:-51820}"
 PEER="${PEER:-nLx6LJgXWOtnlKV65ruYMGjiw4DERImZGCpN3lolm1I=}"
-GW="${GW:-192.168.2.254}"
+GW="${GW:-192.168.10.1}"
 DEV="${DEV:-eno1}"
 KEYFILE="${KEYFILE:-/run/secrets/wg_proton_private_key}"
 

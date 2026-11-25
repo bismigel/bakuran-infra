@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-: "${DECK_HOST:?set DECK_HOST, for example 192.168.2.90}"
+: "${DECK_HOST:?set DECK_HOST, for example 192.168.10.90}"
 STAGING_KUBECONFIG="${STAGING_KUBECONFIG:-/tmp/staging-deck-kubeconfig}"
 STATUS_API_DIR="${STATUS_API_DIR:-$HOME/projects/status-api}"
 

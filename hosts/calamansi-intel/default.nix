@@ -24,7 +24,7 @@
   # forty pods landed in ImagePullBackOff. The router is on the LAN; if it is
   # unreachable nothing else works either. Verified 2026-11-01: unbound on .1
   # answers for example.com with NOERROR and two records.
-  networking.nameservers = [ "192.168.2.254" ];
+  networking.nameservers = [ "192.168.10.1" ];
 
   # The clients VLAN (192.168.20.0/24) lives behind the router, not on this host's
   # wire, so the main table has no route for it. Combined with the tunnel's policy
@@ -44,7 +44,7 @@
     wantedBy = [ "multi-user.target" ];
     serviceConfig = { Type = "oneshot"; RemainAfterExit = true; };
     script = ''
-      ${pkgs.iproute2}/bin/ip route replace 192.168.20.0/24 via 192.168.2.254 dev eno1
+      ${pkgs.iproute2}/bin/ip route replace 192.168.20.0/24 via 192.168.10.1 dev eno1
     '';
   };
 
@@ -78,20 +78,20 @@
   # soft/timeo/retrans: a dead .82 must fail reads quickly rather than hang every
   # media pod for minutes, exactly as the backup-sd mount already does.
   fileSystems."/mnt/media" = {
-    device = "192.168.2.82:/mnt/media";
+    device = "192.168.10.82:/mnt/media";
     fsType = "nfs";
     options = [ "nfsvers=4.2" "_netdev" "nofail" "soft" "timeo=30" "retrans=3" ];
   };
 
   fileSystems."/mnt/media/books" = {
-    device = "192.168.2.82:/mnt/media/books";
+    device = "192.168.10.82:/mnt/media/books";
     fsType = "nfs";
     options = [ "nfsvers=4.2" "_netdev" "nofail" "soft" "timeo=30" "retrans=3"
                 "x-systemd.requires-mounts-for=/mnt/media" ];
   };
 
   fileSystems."/mnt/media/audiobooks" = {
-    device = "192.168.2.82:/mnt/media/audiobooks";
+    device = "192.168.10.82:/mnt/media/audiobooks";
     fsType = "nfs";
     options = [ "nfsvers=4.2" "_netdev" "nofail" "soft" "timeo=30" "retrans=3"
                 "x-systemd.requires-mounts-for=/mnt/media" ];
@@ -99,7 +99,7 @@
 
   # Read-only snapshots of the books/audiobooks subvolumes, taken on .82.
   fileSystems."/mnt/media-snapshots" = {
-    device = "192.168.2.82:/mnt/media-snapshots";
+    device = "192.168.10.82:/mnt/media-snapshots";
     fsType = "nfs";
     options = [ "nfsvers=4.2" "ro" "_netdev" "nofail" "soft" "timeo=30" "retrans=3"
                 "x-systemd.requires-mounts-for=/mnt/media" ];
@@ -270,7 +270,7 @@
     nodeLabel = [ "homelab.io/media-pool=true" "homelab.io/wg-egress=true" "homelab.io/qsv=true" ];
     enable = true;
     role = "server";
-    serverAddr = "https://192.168.2.82:6443";
+    serverAddr = "https://192.168.10.82:6443";
     tokenFile = config.sops.secrets."k3s_cluster_token".path;
     extraFlags = toString [
       # PIN the node's identity to the LAN address. k3s otherwise auto-detects it
@@ -279,8 +279,8 @@
       # advertised that address, which the other members cannot reach. The node then
       # never became Ready (found by rebooting .81 on 2026-10-28, right after the
       # WireGuard migration changed the boot ordering).
-      "--node-ip=192.168.2.81"
-      "--advertise-address=192.168.2.81"
+      "--node-ip=192.168.10.81"
+      "--advertise-address=192.168.10.81"
       # The API VIP (kube-vip, gitops manifests/base/monitoring/kube-vip.yaml) has to be
       # in the serving certificate or clients get a TLS name error.
       # Secrets are encrypted at rest (story 10.1). Without this every Secret is stored as plaintext JSON in
@@ -302,7 +302,7 @@
       "--kube-apiserver-arg=audit-log-maxage=30"
       "--kube-apiserver-arg=audit-log-maxbackup=10"
       "--kube-apiserver-arg=audit-log-maxsize=100"
-      "--tls-san=192.168.2.100"
+      "--tls-san=192.168.10.100"
       # Cilium serves services now (story 10.10): kubeProxyReplacement=true in bakuran-gitops. Two datapaths
       # cannot coexist — while both ran, cross-node scrapes broke (cAdvisor through the API proxy and Longhorn
       # pod metrics, measured 2026-11-11). The two changes are one operation, split per node only for blast radius.
@@ -335,7 +335,7 @@
     # 8096 = Jellyfin, 8989/7878/9696/6767 = *arrs, 8081/8082 = qbt/sab
     # (hostPorts for LAN/browser access; the tunnel stays the only remote path)
     # 2379/2380/10250 are node-to-node only; base.nix allowlists them to
-    # 192.168.2.81-83 (+ pod CIDR for kubelet) via firewall.extraCommands.
+    # 192.168.10.81-83 (+ pod CIDR for kubelet) via firewall.extraCommands.
     # The media UIs are LAN-reachable **by design** through `hostPort` on this node
     # (TV and phone clients cannot do Cloudflare Access, and the LAN NodePorts are
     # loopback-only). Do not read this list as the exposure boundary: hostPort
@@ -376,7 +376,7 @@
             # a phone or TV on the clients VLAN, while the same clients could reach
             # everything on .82. Internal subnets return here; anything else is
             # forced through the tunnel below.
-            ip daddr { 192.168.2.0/24, 192.168.20.0/24, 10.0.0.0/8, 100.64.0.0/10, 127.0.0.0/8, 169.254.0.0/16 } return
+            ip daddr { 192.168.10.0/24, 192.168.20.0/24, 10.0.0.0/8, 100.64.0.0/10, 127.0.0.0/8, 169.254.0.0/16 } return
             ip6 daddr { fe80::/10, fc00::/7, ::1/128 } return
             oifname "proton0" return
             udp dport 51820 return

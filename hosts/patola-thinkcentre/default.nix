@@ -22,16 +22,16 @@
   networking.useDHCP = false;
   networking.interfaces.eno1.useDHCP = false;
   networking.interfaces.eno1.ipv4.addresses = [
-    { address = "192.168.2.80"; prefixLength = 24; }
+    { address = "192.168.10.80"; prefixLength = 24; }
   ];
-  networking.defaultGateway = "192.168.2.254";
+  networking.defaultGateway = "192.168.10.1";
   # DNS via the router's unbound, NOT 1.1.1.1 through the WireGuard tunnel.
   # Resolving through the tunnel means an egress fault becomes a DNS fault: on
   # 2026-11-01 wireguard-proton0 did not start, so `lookup ghcr.io` failed and
   # forty pods landed in ImagePullBackOff. The router is on the LAN; if it is
   # unreachable nothing else works either. Verified 2026-11-01: unbound on .1
   # answers for example.com with NOERROR and two records.
-  networking.nameservers = [ "192.168.2.254" ];
+  networking.nameservers = [ "192.168.10.1" ];
 
   # Hardware: i5-6500T (Skylake), 16 GB, SanDisk 256G SATA SSD, Intel I219-V.
   # File systems come from disko.
@@ -63,7 +63,7 @@
     nodeLabel = [ "homelab.io/qsv=true" ];
     enable = true;
     role = "server";
-    serverAddr = "https://192.168.2.82:6443";
+    serverAddr = "https://192.168.10.82:6443";
     tokenFile = config.sops.secrets."k3s_cluster_token".path;
     extraFlags = toString [
       # The API VIP (kube-vip, gitops manifests/base/monitoring/kube-vip.yaml) has to be
@@ -87,7 +87,7 @@
       "--kube-apiserver-arg=audit-log-maxage=30"
       "--kube-apiserver-arg=audit-log-maxbackup=10"
       "--kube-apiserver-arg=audit-log-maxsize=100"
-      "--tls-san=192.168.2.100"
+      "--tls-san=192.168.10.100"
       # Cilium serves services now (story 10.10): kubeProxyReplacement=true in bakuran-gitops. Two datapaths
       # cannot coexist — while both ran, cross-node scrapes broke (cAdvisor through the API proxy and Longhorn
       # pod metrics, measured 2026-11-11). The two changes are one operation, split per node only for blast radius.
@@ -116,11 +116,11 @@
   networking.firewall = {
     enable = true;
     # 2379/2380/10250 are node-to-node only; base.nix allowlists them to
-    # 192.168.2.81-84 (+ pod CIDR for kubelet) via firewall.extraCommands.
+    # 192.168.10.81-84 (+ pod CIDR for kubelet) via firewall.extraCommands.
     allowedTCPPorts = [ 22 6443 4240 4244 ];
     allowedUDPPorts = [ 8472 ];
     # 8096 on the LAN NIC only, since 2026-11-05 (story 8.3). Jellyfin is reachable at the kube-vip
-    # service address 192.168.2.84, which any node may hold — `.80` was the node it landed on, and its
+    # service address 192.168.10.84, which any node may hold — `.80` was the node it landed on, and its
     # firewall allowed only 22/6443/4240/4244, so the VIP answered ICMP and timed out on TCP. The
     # cluster's own nodes masked this: their IPVS intercepts the VIP locally, so they returned 200
     # while every real client got nothing.

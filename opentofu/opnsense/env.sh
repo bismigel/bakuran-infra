@@ -20,6 +20,6 @@ jq()  { if command -v jq >/dev/null 2>&1; then command jq "$@"; else nix run nix
 
 export TF_VAR_opnsense_api_key="$(bws secret get "$OPNSENSE_KEY_ID" -o json | jq -r .value)"
 export TF_VAR_opnsense_api_secret="$(bws secret get "$OPNSENSE_SECRET_ID" -o json | jq -r .value)"
-export TF_VAR_opnsense_uri="${TF_VAR_opnsense_uri:-https://192.168.2.254}"
+export TF_VAR_opnsense_uri="${TF_VAR_opnsense_uri:-https://192.168.10.1}"
 
 echo "opnsense: credentials loaded into the environment (values not printed)"

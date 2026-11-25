@@ -19,14 +19,14 @@
 # against a live DHCP server, which failed twice and is not a trade worth making.
 
 resource "opnsense_kea_dhcpv4_subnet" "lan" {
-  subnet = "192.168.2.0/24"
+  subnet = "192.168.10.0/24"
 
   # Matches the live value: changing it is not part of this change.
   description = "homelab LAN"
 
-  pools = "192.168.2.150 - 192.168.2.240"
+  pools = "192.168.10.150 - 192.168.10.240"
 
-  routers = ["192.168.2.254"]
+  routers = ["192.168.10.1"]
 
   # ONLY the router's unbound. Deliberately a single entry, and here is why.
   #
@@ -44,10 +44,10 @@ resource "opnsense_kea_dhcpv4_subnet" "lan" {
   # degrades every app that resolves a name.
   #
   # THE ORDER MATTERS AND IS NOT GUARANTEED BY THIS FILE. `dns_servers` is a Set, so what arrives is alphabetical:
-  # "192.168.2.254" sorts before "192.168.2.80" and that is the order we want - but it is luck, not design. The apply is
+  # "192.168.10.1" sorts before "192.168.10.80" and that is the order we want - but it is luck, not design. The apply is
   # accepted only if reading the config back from the router puts the router first; if it ever reverses, the documented
-  # fallback is CoreDNS multi-upstream (`forward . 192.168.2.254 192.168.2.80`), which does preserve order.
-  dns_servers = ["192.168.2.254", "192.168.2.80"]
+  # fallback is CoreDNS multi-upstream (`forward . 192.168.10.1 192.168.10.80`), which does preserve order.
+  dns_servers = ["192.168.10.1", "192.168.10.80"]
 
   # LOAD-BEARING. With `auto_collect = true` (the default) the OPNsense GUI keeps option data in
   # sync from the interface configuration and **`routers`, `dns_servers` and `ntp_servers` are
@@ -67,12 +67,12 @@ resource "opnsense_kea_dhcpv4_subnet" "lan" {
 # while the staging host is down. Recorded in README.md rather than half-done here.
 #
 # This subnet is what segmentation needs: Wi-Fi clients get addresses here and cannot reach
-# 192.168.2.0/24 (the management/infra network) except for the one laptop that administers
+# 192.168.10.0/24 (the management/infra network) except for the one laptop that administers
 # the estate, which is identified by a fixed reservation and allowed by the rule in
 # firewall-clients.tf.
 resource "opnsense_kea_dhcpv4_subnet" "clients" {
   subnet      = "192.168.20.0/24"
-  description = "CLIENTS (Wi-Fi) - cannot reach 192.168.2.0/24 except the admin laptop"
+  description = "CLIENTS (Wi-Fi) - cannot reach 192.168.10.0/24 except the admin laptop"
 
   # .150-.200 for ordinary clients; .50 is held for the admin laptop's reservation below.
   pools = "192.168.20.150 - 192.168.20.200"
@@ -82,7 +82,7 @@ resource "opnsense_kea_dhcpv4_subnet" "clients" {
   # Both resolvers, router first - the same line as the LAN subnet and for the same reason (story 4.8). This is the
   # subnet the admin laptop is on, so it is also the subnet an outage is diagnosed from: a fallback resolver nobody's
   # client is told about is not a fallback.
-  dns_servers = ["192.168.2.254", "192.168.2.80"]
+  dns_servers = ["192.168.10.1", "192.168.10.80"]
 
   # Load-bearing, same as the LAN subnet: with auto_collect on, routers/dns/ntp are ignored
   # while the apply reports success.
