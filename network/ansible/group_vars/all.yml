@@ -14,7 +14,12 @@ switch_baseline:
   # DHCP server here would be a rogue one.
   dnsmasq_enabled: false
   odhcpd_enabled: false
-  stp: true
+  # STP off, decided 2026-11-25. This is the only switch and nothing hangs a second path off it, so
+  # there is no loop for STP to break - and with it on, every port link-up waits ~16 s (2 x forward_delay)
+  # before forwarding, which a node reboot or a cable reseat pays each time. It was never really on
+  # anyway: until bakuran-infra #70 it was written to switch.1, where netifd ignores it (stp_state 0).
+  # Revisit if a second switch or a redundant uplink is added.
+  stp: false
   igmp_snooping: true
   # 802.1Q, DSA-style (OpenWrt 21+). VLAN 1 is the management/infra network and stays
   # untagged on every port, so nothing that already works changes when a tagged VLAN is
