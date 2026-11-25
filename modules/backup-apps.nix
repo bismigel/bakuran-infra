@@ -14,7 +14,7 @@ let
       RCLONE_CONFIG_R2_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY" \
       RCLONE_CONFIG_R2_ENDPOINT="$R2_ENDPOINT"
     K="k3s kubectl"
-    w=$(mktemp -d); trap 'rm -rf "$w"' EXIT
+    w=$(mktemp -d); sealed=$(mktemp -d); trap 'rm -rf "$w" "$sealed"' EXIT
     failed=0
     dump() { # <ns> <deploy> <path> <name>
       if $K -n "$1" exec "deploy/$2" -- sh -c "cd '$3' && tar czf - ." > "$w/$4.tgz" 2>/dev/null; then
@@ -77,6 +77,21 @@ let
        && $K -n immich exec "$(cat "$w/pgpod")" -c postgres -- \
             pg_dump -U postgres -d immich 2>/dev/null | gzip > "$w/immich-db.sql.gz"; then
       echo "  immich-db ok ($(du -h "$w/immich-db.sql.gz" | cut -f1))"
+      # The dump also goes to R2 as its own small, separately-sealed object, so a rest
+      # rehearsal does not have to fetch the 6.8 GB archive first. It is written
+      # outside `$w` on purpose: the tarball's contents must not change. The same
+      # recipient as `appdata/`, so restoring both needs one key. A failed seal or
+      # upload counts against `$failed` exactly like a failed dump.
+      if [ -s "$w/immich-db.sql.gz" ]; then
+        if ${pkgs.age}/bin/age -r "$AGE_RECIPIENT" < "$w/immich-db.sql.gz" \
+             > "$sealed/immich-db.sql.gz.age" \
+           && ${pkgs.rclone}/bin/rclone copy "$sealed/immich-db.sql.gz.age" \
+                "r2:$R2_BUCKET/immich-dump/immich-db.sql.gz.age"; then
+          echo "  immich-dump ok ($(du -h "$sealed/immich-db.sql.gz.age" | cut -f1))"
+        else
+          echo "  immich-dump FAILED"; rm -f "$sealed/immich-db.sql.gz.age"; failed=$((failed + 1))
+        fi
+      fi
     else
       echo "  immich-db SKIP"; rm -f "$w/immich-db.sql.gz"; failed=$((failed + 1))
     fi
