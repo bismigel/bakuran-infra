@@ -63,9 +63,7 @@ switch_baseline:
 # locks someone out or writes a secret that cannot be verified), and the VLAN interface objects
 # (writing them produces something OPNsense does not enumerate — ROUTER.md 7c).
 opnsense_baseline:
-  # The ISP gateway drops ICMP, so monitoring it reports a permanent outage.
-  # Verified 2026-11-03: 100% loss to 142.124.37.107, replies from 1.1.1.1.
-  gateway_monitor_ip: "1.1.1.1"
+  # gateway_monitor_ip moved to opentofu/opnsense/gateway.tf (2026-11-25).
   ssh_authorized_keys:
     - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAILj/syjQTnLwTGNHC4IKec2QXJpzXOExBQKGJI6/p4Mz nix-station-opencode"
   # Interlocked: the baseline refuses to disable passwords unless a key would remain.
@@ -74,9 +72,11 @@ opnsense_baseline:
   webgui_session_timeout: "60"
   webgui_auth_timeout: "5"
 
-  # The two facts OpenTofu cannot express, so they live here instead. Both are load-bearing: lose
-  # either and VLAN 20 has no address and no DHCP while every declarative resource still matches.
-  kea_interfaces: "lan,opt1"
+  # VLAN 20's interface assignment. OpenTofu (`opnsense_interface_assignment.clients`) adopts and owns its
+  # settings since 2026-11-25 but cannot CREATE an assignment, so this stays as the rebuild bootstrap and
+  # cross-check. Lose it and VLAN 20 has no address while every other declaration still matches.
+  # kea_interfaces moved to opentofu/opnsense/kea.tf (opnsense_kea_dhcpv4_settings), 2026-11-25. Left unset,
+  # the baseline skips its Kea section.
   vlan_interface:
     handle: "opt1"
     descr: "CLIENTS"

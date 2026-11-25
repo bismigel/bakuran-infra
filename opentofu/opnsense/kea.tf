@@ -96,3 +96,16 @@ resource "opnsense_kea_dhcpv4_reservation" "admin_laptop" {
   hostname    = "admin-laptop"
   description = "the one device allowed to reach management from the clients VLAN (2026-11-01)"
 }
+
+# Kea's general settings, adopted 2026-11-25 (provider 0.31.1; there was no resource for them at 0.14).
+# `interfaces` is load-bearing: drop `opt1` and VLAN 20 has a subnet nobody serves. It was the Ansible
+# baseline's `kea_interfaces` until this import; that check was removed so the fact lives here only.
+# Destroy is a no-op on the appliance (singleton: it leaves state, the settings stay).
+resource "opnsense_kea_dhcpv4_settings" "this" {
+  dhcp_socket_type = "raw"
+  enabled          = true
+  firewall_rules   = true
+  interfaces       = ["lan", "opt1"]
+  manual_config    = false
+  valid_lifetime   = 4000
+}

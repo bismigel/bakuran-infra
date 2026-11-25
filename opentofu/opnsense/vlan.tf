@@ -35,3 +35,55 @@ resource "opnsense_system_vlan" "iot" {
   priority         = 0
   description      = "IOT - cheap devices, internet and DNS only, no access to 192.168.10.0/24 or 192.168.20.0/24"
 }
+
+
+# The CLIENTS interface (opt1 on VLAN device vlan01, tag 20), adopted 2026-11-25. This resource adopts an
+# existing assignment and manages its IP settings; it cannot create one (ROUTER.md 7c), so creating it on a
+# rebuilt router stays a manual step, and the Ansible baseline's vlan_interface check remains the bootstrap.
+# `lan` and `wan` are deliberately not adopted: the LAN address is manual (README, lockout risk).
+resource "opnsense_interface_assignment" "clients" {
+  block_bogons                     = true
+  block_private                    = false
+  description                      = "CLIENTS"
+  device                           = "vlan01"
+  dhcp6_identity_association_id    = ""
+  dhcp6_information_only           = false
+  dhcp6_interface_id               = ""
+  dhcp6_prefix_id                  = ""
+  dhcp6_prefix_length              = "64"
+  dhcp6_prefix_only                = false
+  dhcp6_rapid_commit               = false
+  dhcp6_request_dns                = true
+  dhcp6_request_options            = ""
+  dhcp6_send_options               = ""
+  dhcp6_send_prefix_hint           = false
+  dhcp6_vlan_priority              = ""
+  dhcp_honor_mtu                   = false
+  dhcp_hostname                    = ""
+  dhcp_reject_from                 = []
+  dhcp_request_options             = ""
+  dhcp_send_options                = ""
+  dhcp_vlan_priority               = ""
+  disable_checksum_offloading      = false
+  disable_large_receive_offloading = false
+  disable_segmentation_offloading  = false
+  enabled                          = true
+  ipv4_address                     = "192.168.20.1"
+  ipv4_gateway                     = ""
+  ipv4_mode                        = "staticv4"
+  ipv4_prefix_length               = 24
+  ipv6_address                     = ""
+  ipv6_allow_manual_dhcpv6         = false
+  ipv6_gateway                     = ""
+  ipv6_identity_association_id     = ""
+  ipv6_interface_id                = ""
+  ipv6_mode                        = "none"
+  ipv6_prefix_id                   = ""
+  ipv6_prefix_range                = ""
+  ipv6_track_interface             = ""
+  mss                              = 0
+  mtu                              = 0
+  name                             = "opt1"
+  override_hardware_settings       = false
+  vlan_hardware_filtering          = "enable"
+}

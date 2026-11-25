@@ -58,3 +58,57 @@ resource "opnsense_unbound_host_override" "jellyfin_lan" {
   server      = "192.168.10.84"
   description = "Jellyfin via the kube-vip LoadBalancer address, for LAN clients (http://jellyfin.lan:8096)"
 }
+
+
+# Unbound's general/advanced settings, adopted 2026-11-25. Values are what the router ran on that date,
+# imported with `-generate-config-out` and a no-change plan - not chosen afresh. `dnssec` moved here from
+# the Ansible baseline. Hosts, aliases, ACLs, DNSBL and forwards are NOT owned by this resource.
+# Destroy leaves the appliance's settings as they are.
+resource "opnsense_unbound_general" "resolver" {
+  acl_default_action                    = "allow"
+  active_interface                      = []
+  aggressive_nsec                       = true
+  cache_flush                           = false
+  dns64                                 = false
+  dns64_prefix                          = ""
+  dnssec                                = true
+  dnssec_stripped                       = false
+  enable_prefetch                       = false
+  enable_prefetch_key                   = false
+  enable_wpad                           = false
+  enabled                               = true
+  extended_statistics                   = false
+  forwarding_enabled                    = false
+  hide_identity                         = false
+  hide_version                          = false
+  insecure_domains                      = [""]
+  keep_probing_hosts                    = false
+  local_zone_type                       = "transparent"
+  log_local_actions                     = false
+  log_queries                           = false
+  log_replies                           = false
+  log_servfail                          = false
+  msg_cache_size                        = ""
+  no_aaaa_records                       = false
+  no_register_link_local6               = false
+  no_register_records                   = false
+  outgoing_interface                    = []
+  port                                  = "53"
+  private_addresses                     = ["0.0.0.0/8", "10.0.0.0/8", "100.64.0.0/10", "169.254.0.0/16", "172.16.0.0/12", "192.0.2.0/24", "192.168.0.0/16", "198.18.0.0/15", "198.51.100.0/24", "2001:db8::/32", "203.0.113.0/24", "233.252.0.0/24", "::1/128", "fc00::/8", "fd00::/8", "fe80::/10"]
+  private_domains                       = [""]
+  qname_min_strict                      = false
+  register_dhcp                         = true
+  register_dhcp_domain                  = ""
+  register_dhcp_static                  = true
+  rrset_cache_size                      = ""
+  serve_expired_client_response_timeout = ""
+  serve_expired_enabled                 = false
+  serve_expired_record_reply_ttl        = ""
+  serve_expired_reset_ttl               = false
+  serve_expired_ttl                     = ""
+  stats                                 = true
+  tag_query_reply                       = false
+  txt_support                           = false
+  validation_level                      = 0
+  verbosity_level                       = 1
+}

@@ -8,13 +8,20 @@ This file only says what the root is for and how to run it without hurting anyth
 Only objects the provider actually supports and that are safe to own
 (`NETWORK-AS-CODE.md` §4):
 
-| yes | no — manual, forever |
+| yes | no — manual, or owned elsewhere |
 |---|---|
-| firewall aliases | interface assignment (`em0`/`em1`) |
+| firewall aliases | interface assignment of `em0`/`em1` (`lan`/`wan`) |
 | firewall filter rules (**disabled first**) | the LAN IP and the anti-lockout rule |
-| Kea subnets + reservations | the admin GUI/SSH access rule |
-| VLAN interfaces | root user / SSH keys (`Auth/User` unsupported) |
-| | Unbound, ntpd, IDS, firmware |
+| Kea subnets + reservations + **general settings** (`interfaces`) | the admin GUI/SSH access rule, and the two install-default "allow LAN to any" GUI rules |
+| VLAN devices | root user / SSH keys — the Ansible baseline (`network/ansible`) |
+| the CLIENTS assignment `opt1` (adopt-only: cannot create) | ntpd, IDS, firmware; DNSBL `cache_ttl` (Ansible) |
+| Unbound: host override, DNSBL, **general/advanced settings** (`dnssec`) | |
+| the WAN_DHCP **gateway** (its monitor target) | |
+
+Bold rows were adopted 2026-11-25 with provider 0.31.1 (import-only plan, no appliance writes); the
+Ansible baseline's copies of those facts (`kea_interfaces`, `gateway_monitor_ip`, DNSSEC) were removed
+so each fact has one owner. Measured that day: every user-made object the API exposes is in state —
+the rest of the router's filter rules are OPNsense's automatic ones.
 
 ## Why here and not `bakuran-gitops`
 

@@ -12,7 +12,7 @@ terraform {
       #
       # Migrated from `browningluke/opnsense` 0.26.0 on 2026-11-04: same objects, new provider,
       # imported rather than recreated (no apply touched the appliance).
-      version = "= 0.14.0"
+      version = "= 0.31.1"
     }
   }
 
