@@ -9,7 +9,7 @@
 # query, and lands in the panes an operator actually watches.
 #
 # What this writes (node_exporter textfile, the same mechanism as stray-cni and wireguard):
-#   homelab_backup_newest_timestamp_seconds{dataset="appdata"|"credentials"}   unix ts of the newest object
+#   homelab_backup_newest_timestamp_seconds{dataset="appdata"|"credentials"|"immich-dump"}   unix ts of the newest object
 #   homelab_backup_age_seconds{dataset="..."}                                 now - that timestamp
 #   homelab_backup_metrics_error{dataset="..."}                               1 when the listing failed
 #   homelab_backup_metrics_last_run_seconds                                   heartbeat for the unit itself
@@ -42,7 +42,7 @@ let
     now=$(date +%s)
     echo "homelab_backup_metrics_last_run_seconds $now" >> "$tmp"
 
-    for ds in appdata credentials; do
+    for ds in appdata credentials immich-dump; do
       if mt=$(${pkgs.rclone}/bin/rclone lsjson "r2:$R2_BUCKET/$ds/" --files-only 2>/dev/null \
               | ${pkgs.jq}/bin/jq -r 'sort_by(.ModTime)|last|.ModTime // empty') && [ -n "''${mt:-}" ]; then
         ts=$(date -d "$mt" +%s)
