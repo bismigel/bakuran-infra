@@ -121,7 +121,7 @@ resource "cloudflare_zero_trust_access_application" "forgejo" {
 # plain domain would gate the wrong thing) and the pane itself. Both were found by diffing the account's Access apps
 # against this file - the same audit that found vault/tools missing from the tunnel.
 resource "cloudflare_zero_trust_access_application" "tools" {
-  account_id = var.account_id
+  account_id                 = var.account_id
   name                       = "Tools (private)"
   type                       = "self_hosted"
   session_duration           = "24h"
@@ -209,4 +209,53 @@ resource "cloudflare_zero_trust_access_policy" "operator" {
   name       = "Operator"
   decision   = "allow"
   include    = [{ email = { email = var.operator_email } }]
+}
+
+# EasyShortlist: the site is public, the admin view is not. Cloudflare matches the most specific path, so
+# `easyshortlist.ciceley.cc/admin` is gated and the rest of the host is untouched - the same shape as
+# `tools.ciceley.cc/lab`. `operator`, not `household`: the admin view is the estate owner's.
+#
+# After apply, the application's AUD tag goes into Bitwarden as `easyshortlist-cf-access-aud` and the team domain
+# as `easyshortlist-cf-access-team`; the app verifies `Cf-Access-Jwt-Assertion` itself, so a request that reaches
+# it around the edge still gets 403 on /admin.
+resource "cloudflare_zero_trust_access_application" "easyshortlist_admin" {
+  account_id                 = var.account_id
+  name                       = "EasyShortlist admin"
+  type                       = "self_hosted"
+  session_duration           = "8h"
+  self_hosted_domains        = ["easyshortlist.ciceley.cc/admin"]
+  auto_redirect_to_identity  = false
+  enable_binding_cookie      = false
+  options_preflight_bypass   = false
+  http_only_cookie_attribute = true
+  policies                   = [{ id = cloudflare_zero_trust_access_policy.operator.id, precedence = 1 }]
+}
+
+# Artifact Server as a Cloudflare Access *SaaS* OIDC application (added 2026-11-25). This is the opposite of the
+# `self_hosted` apps above: it declares no domain, because it is not a gate. It makes Cloudflare the OpenID Connect
+# identity provider that Artifact Server redirects browsers to, which is the only shape that coexists with the `/mcp`
+# Bearer-authenticated path on the same hostname - a `self_hosted` application would 302 those clients to SSO.
+#
+# So the hostname stays reachable (tunnel.tf routes it, no Access wall in front), and the app authenticates itself:
+# browsers through this OIDC flow, machines through API keys. Only the redirect URI is fixed - it is the callback this
+# deployment serves at `https://artifact.bismigel.dev/auth/callback`.
+#
+# Fields deliberately omitted for a `saas` application (they belong to `self_hosted` and the provider rejects them here):
+# `self_hosted_domains`, `auto_redirect_to_identity`, `http_only_cookie_attribute`.
+#
+# The operator policy is app-scoped and shared: the same single address that is allowed on ArgoCD, Longhorn and the agent
+# controls who may log in and mint artifacts, so it is the same policy resource rather than a second copy of the list.
+resource "cloudflare_zero_trust_access_application" "artifact_server" {
+  account_id       = var.account_id
+  name             = "Artifact Server"
+  type             = "saas"
+  session_duration = "24h"
+  policies         = [{ id = cloudflare_zero_trust_access_policy.operator.id, precedence = 1 }]
+
+  saas_app = {
+    auth_type     = "oidc"
+    grant_types   = ["authorization_code"]
+    redirect_uris = ["https://artifact.bismigel.dev/auth/callback"]
+    scopes        = ["openid", "email", "profile"]
+  }
 }

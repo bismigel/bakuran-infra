@@ -242,3 +242,18 @@ resource "cloudflare_dns_record" "r_vault" {
   ttl     = 1
   comment = null
 }
+
+# Artifact Server's own hostname: the Control API, the browser UI and the OIDC callback all live here, on the single
+# public ingress. It is deliberately NOT behind a `self_hosted` Access application - see the note in tunnel.tf - because
+# the same hostname serves `/mcp` to Bearer-authenticated clients, and an SSO wall would answer them with a 302 they
+# cannot follow. The browser path is authenticated by the Access *SaaS OIDC* app in access_apps.tf instead, which is a
+# login provider, not a gate in front of the host.
+resource "cloudflare_dns_record" "artifact_bismigel" {
+  zone_id = var.zone_id
+  name    = "artifact.bismigel.dev"
+  type    = "CNAME"
+  content = "8dcc83bd-eb95-4c0d-8f71-b92a27d37649.cfargotunnel.com"
+  proxied = true
+  ttl     = 1
+  comment = "Artifact Server application origin"
+}

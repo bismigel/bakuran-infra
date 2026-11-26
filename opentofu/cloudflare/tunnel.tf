@@ -21,6 +21,22 @@ resource "cloudflare_zero_trust_tunnel_cloudflared_config" "main" {
       { hostname = "www.bismigel.dev", service = var.public_target },
       { hostname = "miguelarbis.dev", service = var.public_target },
       { hostname = "www.miguelarbis.dev", service = var.public_target },
+      # Artifact Server, added 2026-11-25. Both hostnames point at the SAME target on purpose, and neither gets a
+      # `self_hosted` Access application in front of it:
+      #
+      #   - the browser UI and the Control API authenticate through the Access *SaaS OIDC* app (`artifact_server` in
+      #     access_apps.tf), where Cloudflare is the identity provider the application redirects to. That is a login
+      #     flow the app initiates, so it works whether or not Cloudflare also gates the hostname;
+      #   - `/mcp` authenticates machine clients with a Bearer API key. A `self_hosted` wall on this hostname would
+      #     answer an unauthenticated request with a 302 to the SSO login and the key would never be seen - the same
+      #     constraint that keeps the vault public (waf_custom.tf) and the forgejo registry on a bypass policy.
+      #
+      # `*.miguelarbis.dev` is the isolated content origin: the same tunnel and the same public ingress, a different
+      # registrable domain from the panel, which is what makes the two-origin split a security boundary rather than a
+      # naming convention. It sits HERE - after `miguelarbis.dev` and `www.miguelarbis.dev` - because cloudflared takes
+      # the first matching rule and a wildcard placed earlier would swallow those two exact hostnames.
+      { hostname = "artifact.bismigel.dev", service = var.public_target },
+      { hostname = "*.miguelarbis.dev", service = var.public_target },
       { hostname = "status.bismigel.dev", service = var.public_target },
       { hostname = "jellyfin.bismigel.dev", service = var.public_target },
       { hostname = "immich.bismigel.dev", service = var.public_target },
@@ -46,6 +62,9 @@ resource "cloudflare_zero_trust_tunnel_cloudflared_config" "main" {
       # configuration against the file that was supposed to describe it.
       { hostname = "vault.bismigel.dev", service = var.public_target },
       { hostname = "tools.ciceley.cc", service = var.public_target },
+      # EasyShortlist is PUBLIC: only its /admin path is gated (the Access application below), not the ingress.
+      # Same target as the other public hosts; routing it to admin_target would put the whole site behind Access.
+      { hostname = "easyshortlist.ciceley.cc", service = var.public_target },
       { hostname = "runbook.bismigel.dev", service = var.admin_target },
       { service = "http_status:404" },
     ]

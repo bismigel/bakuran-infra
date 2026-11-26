@@ -52,14 +52,14 @@ resource "cloudflare_ruleset" "vault_ratelimit" {
       enabled     = true
       expression  = "(http.host eq \"vault.bismigel.dev\") and (http.request.uri.path contains \"/identity/connect/token\" or http.request.uri.path contains \"/identity/accounts/register\" or http.request.uri.path contains \"/admin\")"
       ratelimit = {
-        characteristics     = ["ip.src", "cf.colo.id"]
+        characteristics = ["ip.src", "cf.colo.id"]
         # The Free plan allows a 10-second window only (`not entitled to use the period 60, can only use a period among
         # [10]`, measured by the dry run). Five attempts in ten seconds is far above a human unlocking a password
         # manager - the login POST, a couple of retries - and far below a credential list being tried.
         period              = 10
         requests_per_period = 5
         # The Free plan also fixes the mitigation window: `not entitled to use a mitigation timeout different from 10`.
-        mitigation_timeout  = 10
+        mitigation_timeout = 10
       }
     },
   ]
