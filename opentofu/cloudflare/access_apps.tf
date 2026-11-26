@@ -249,7 +249,7 @@ resource "cloudflare_zero_trust_access_application" "artifact_server" {
   account_id       = var.account_id
   name             = "Artifact Server"
   type             = "saas"
-  session_duration = "24h"
+  session_duration = "168h"
   policies         = [{ id = cloudflare_zero_trust_access_policy.operator.id, precedence = 1 }]
 
   saas_app = {
