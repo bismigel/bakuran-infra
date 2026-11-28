@@ -72,8 +72,31 @@ resource "cloudflare_dns_record" "jiffley_dmarc" {
   ttl     = 1
 }
 
-# DKIM for jiffley.com is NOT declared yet, deliberately. Proton's DKIM targets are per-domain (see mail_bismigel.tf),
-# and the DKIM tab is still locked because Proton has not activated jiffley.com, so the three target values cannot be read.
-# What was here first used miguelarbis.dev's targets on the wrong assumption that they were account-scoped; publishing
-# CNAMEs that point at another domain's keys is worse than declaring nothing, because receiving servers would fail every
-# signature. Add the three records from Proton's DKIM tab when the domain activates.
+# DKIM for jiffley.com, read off its own DKIM tab once Proton activated the domain (2026-11-28). Per-domain targets, as
+# the bismigel.dev correction established: this is jiffley's own key material, not another domain's.
+resource "cloudflare_dns_record" "jiffley_dkim1" {
+  zone_id = data.cloudflare_zone.jiffley.zone_id
+  name    = "protonmail._domainkey.jiffley.com"
+  type    = "CNAME"
+  content = "protonmail.domainkey.dv5e6v7766uxk5p6uhxdskdyvvo2ovb7lwkjewq623akcfbx7iu5a.domains.proton.ch"
+  proxied = false
+  ttl     = 1
+}
+
+resource "cloudflare_dns_record" "jiffley_dkim2" {
+  zone_id = data.cloudflare_zone.jiffley.zone_id
+  name    = "protonmail2._domainkey.jiffley.com"
+  type    = "CNAME"
+  content = "protonmail2.domainkey.dv5e6v7766uxk5p6uhxdskdyvvo2ovb7lwkjewq623akcfbx7iu5a.domains.proton.ch"
+  proxied = false
+  ttl     = 1
+}
+
+resource "cloudflare_dns_record" "jiffley_dkim3" {
+  zone_id = data.cloudflare_zone.jiffley.zone_id
+  name    = "protonmail3._domainkey.jiffley.com"
+  type    = "CNAME"
+  content = "protonmail3.domainkey.dv5e6v7766uxk5p6uhxdskdyvvo2ovb7lwkjewq623akcfbx7iu5a.domains.proton.ch"
+  proxied = false
+  ttl     = 1
+}
