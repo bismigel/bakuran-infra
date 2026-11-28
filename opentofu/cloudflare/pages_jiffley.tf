@@ -25,12 +25,6 @@ resource "cloudflare_pages_domain" "jiffley_apex" {
   name         = "jiffley.com"
 }
 
-resource "cloudflare_pages_domain" "jiffley_www" {
-  account_id   = var.account_id
-  project_name = cloudflare_pages_project.jiffley_site.name
-  name         = "www.jiffley.com"
-}
-
 resource "cloudflare_dns_record" "jiffley_apex" {
   zone_id = data.cloudflare_zone.jiffley.zone_id
   name    = "jiffley.com"
@@ -51,17 +45,14 @@ resource "cloudflare_dns_record" "jiffley_www" {
   comment = "www -> apex; the redirect rule below makes it canonical"
 }
 
-# One canonical hostname: www 301s to the apex. This is the first dynamic-redirect ruleset in this module (the WAF ruleset
-# in waf_custom.tf is a different phase), so it is deliberately the only rule on it.
+# One canonical hostname: www 301s to the apex, path and query preserved.
 #
-# OPEN, measured 2026-11-28 13:35Z: the ruleset and its one rule exist (entrypoint returns it, rule enabled, expression
-# matches `http.host eq "www.jiffley.com"`), but a request to www still gets a 200 from Pages instead of a 301. Tested with
-# both a dynamic (`concat(...)`) and a static target_url, so the target is not the cause. The likely reason is ordering: a
-# Pages custom domain is served by a Worker on that hostname, and the worker answers before the dynamic-redirect phase is
-# consulted. Until that is resolved, www serves duplicate content of the apex - it is NOT canonical, and the site copy must
-# not link it. Candidate fixes, each its own change: (a) drop the www Pages custom domain and answer www from a Worker that
-# 301s to the apex, (b) keep the domain and move the redirect into Pages' own `_worker.js`, (c) check with Cloudflare
-# support whether a zone-level dynamic redirect is expected to win over a Pages custom domain.
+# WHY www IS DNS-ONLY. First attempt (2026-11-28 13:31Z) gave www its own Pages custom domain and the redirect never fired -
+# a request to www got a 200 with the apex's content. A Pages custom domain is served by a Worker on that hostname, and the
+# worker answered before the dynamic-redirect phase was consulted; a static target_url behaved the same as the concat()
+# expression, so the target was never the problem. Removing the custom domain and leaving www as a proxied CNAME (nothing
+# but the zone's own edge answers for it) puts the redirect phase back in front, which is what this file now does. Measured
+# after the change: `curl -sI https://www.jiffley.com/x?y=1` -> 301, Location https://jiffley.com/x?y=1.
 resource "cloudflare_ruleset" "jiffley_www_redirect" {
   zone_id = data.cloudflare_zone.jiffley.zone_id
   name    = "jiffley.com canonical hostname"
@@ -75,9 +66,12 @@ resource "cloudflare_ruleset" "jiffley_www_redirect" {
     expression  = "(http.host eq \"www.jiffley.com\")"
     action_parameters = {
       from_value = {
-        status_code           = 301
-        preserve_query_string = true
-        target_url            = { expression = "concat(\"https://jiffley.com\", http.request.uri.path)" }
+        status_code = 301
+        # `http.request.uri` carries path AND query, so the query is not re-appended by preserve_query_string (measured:
+        # with `uri.path` plus preserve_query_string, /x?y=1 redirected to https://jiffley.com/?y=1 - the query survived and
+        # the path did not).
+        preserve_query_string = false
+        target_url            = { expression = "concat(\"https://jiffley.com\", http.request.uri)" }
       }
     }
   }]
