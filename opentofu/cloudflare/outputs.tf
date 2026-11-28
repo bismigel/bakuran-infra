@@ -19,3 +19,14 @@ output "artifact_server_oidc_client_secret" {
   value       = cloudflare_zero_trust_access_application.artifact_server.saas_app.client_secret
   sensitive   = true
 }
+
+# Turnstile for the Jiffley Shortlist host. The site key is public (it ships in the page); the secret is what the app
+# verifies with, so it is marked sensitive and read once with `tofu output -raw ...` into Bitwarden.
+output "turnstile_jiffley_shortlist_sitekey" {
+  value = cloudflare_turnstile_widget.jiffley_shortlist.sitekey
+}
+
+output "turnstile_jiffley_shortlist_secret" {
+  value     = cloudflare_turnstile_widget.jiffley_shortlist.secret
+  sensitive = true
+}
