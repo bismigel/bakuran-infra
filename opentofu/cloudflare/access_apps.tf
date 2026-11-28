@@ -231,6 +231,28 @@ resource "cloudflare_zero_trust_access_application" "easyshortlist_admin" {
   policies                   = [{ id = cloudflare_zero_trust_access_policy.operator.id, precedence = 1 }]
 }
 
+# Jiffley Shortlist (the same app, its own domain), added 2026-11-28. Identical shape and identical reason to
+# `easyshortlist_admin` above: the site is public, `/admin` is not, and Cloudflare matches the most specific path. The
+# path is the literal `/admin` - not `/admin*` - because that is the string the current application proves: Cloudflare's
+# path matcher covers the subpaths, and the app gates its whole `/admin` route group itself (JWT + AAL2 +
+# OPERATOR_EMAILS), so nothing escapes either way.
+#
+# A second application means a second AUD. It goes into Bitwarden as `easyshortlist-cf-access-aud` and must be
+# reconciled with the app's ExternalSecret **with or before** the Ingress/kratos commit, or `/admin` refuses a valid
+# Access session and the app looks broken rather than gated. The old application stays until the old host's 301 lands.
+resource "cloudflare_zero_trust_access_application" "jiffley_shortlist_admin" {
+  account_id                 = var.account_id
+  name                       = "Jiffley Shortlist admin"
+  type                       = "self_hosted"
+  session_duration           = "8h"
+  self_hosted_domains        = ["shortlist.jiffley.com/admin"]
+  auto_redirect_to_identity  = false
+  enable_binding_cookie      = false
+  options_preflight_bypass   = false
+  http_only_cookie_attribute = true
+  policies                   = [{ id = cloudflare_zero_trust_access_policy.operator.id, precedence = 1 }]
+}
+
 # Artifact Server as a Cloudflare Access *SaaS* OIDC application (added 2026-11-25). This is the opposite of the
 # `self_hosted` apps above: it declares no domain, because it is not a gate. It makes Cloudflare the OpenID Connect
 # identity provider that Artifact Server redirects browsers to, which is the only shape that coexists with the `/mcp`

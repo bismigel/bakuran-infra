@@ -65,6 +65,9 @@ resource "cloudflare_zero_trust_tunnel_cloudflared_config" "main" {
       # EasyShortlist is PUBLIC: only its /admin path is gated (the Access application below), not the ingress.
       # Same target as the other public hosts; routing it to admin_target would put the whole site behind Access.
       { hostname = "easyshortlist.ciceley.cc", service = var.public_target },
+      # Jiffley Shortlist from 2026-11-28: the product domain for the same app, public for the same reason - the
+      # Access application gates `/admin`, not the hostname. The old host stays routed until its 301 lands.
+      { hostname = "shortlist.jiffley.com", service = var.public_target },
       { hostname = "runbook.bismigel.dev", service = var.admin_target },
       { service = "http_status:404" },
     ]
