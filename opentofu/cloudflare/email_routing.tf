@@ -1,44 +1,26 @@
-# Email for the estate, because SECURITY.md now publishes an address and an address that bounces is worse than none.
+# Cloudflare Email Routing for bismigel.dev — switched OFF on 2026-11-28. This file now holds only the decision.
 #
-# Why here and not in cloudflare/sync.sh (deleted 2026-11-17): the edge has one owner - this directory - and a routing rule created
-# by a script would be the second declaration that ADR 0019 and the OpenTofu migration exist to prevent.
-
-# Turn routing on for the zone. Enabling this creates the MX, SPF and DKIM records Cloudflare needs; they are managed by the zone
-# (and appear in the DNS API) rather than by `cloudflare_dns_record` resources here, so they are deliberately not re-declared.
-resource "cloudflare_email_routing_settings" "bismigel" {
-  zone_id = var.zone_id
-}
-
-# Where mail actually lands. Cloudflare sends a verification message to this mailbox; until somebody clicks it, `verified` is false and
-# every rule that forwards to it silently fails. Nothing here can click it.
-resource "cloudflare_email_routing_address" "security" {
-  account_id = var.account_id
-  email      = var.security_mailbox
-}
-
-# security@bismigel.dev is published in SECURITY.md in three repositories. One literal matcher, one forward - deliberately not a
-# catch-all: an estate with one operator does not want every typo'd address arriving in a personal inbox.
+# History, because the reversal matters more than the resource: this file turned Email Routing on so `security@bismigel.dev`
+# (published in SECURITY.md in three repositories) had somewhere to land. It never delivered. The destination address was never
+# verified — Cloudflare mails a confirmation and nothing in this repository can click it — so the forwarding rule kept failing
+# with `400 code 2054 Destination address is not verified` long after the token permission was fixed.
 #
-# BLOCKED 2026-11-18: the token in `secrets/homelab.yaml` (read it per README.md; the host copy went away on 2026-11-19) can enable routing and create a destination address, but every
-# call to `/zones/<id>/email/routing/rules` returns `Authentication error` (10000). That is a token *permission*, not a rule problem -
-# Email Routing rules are their own scope. So this resource is declared and cannot be applied until the token is reissued with it, or
-# the rule is created once in the dashboard and imported. Plan currently reports `1 to add` for exactly this resource.
+# Meanwhile the estate needed real mailboxes on its own domain (`work@bismigel.dev`), which Email Routing cannot provide: it only
+# forwards to an address somebody else already hosts. So bismigel.dev mail moves to Proton, like miguelarbis.dev and jiffley.com;
+# `mail_bismigel.tf` owns the Proton MX/SPF/DKIM/DMARC records. The two cannot coexist — while routing is enabled the zone's MX
+# belong to Cloudflare and any MX declared here is ignored.
 #
-# Until then `security@bismigel.dev` does NOT deliver: the destination address is also **unverified**, which needs a click in that
-# mailbox. Both gaps are in story 15.10.
-resource "cloudflare_email_routing_rule" "security" {
-  zone_id = var.zone_id
-  name    = "security@bismigel.dev"
-  enabled = true
-
-  matchers = [{
-    type  = "literal"
-    field = "to"
-    value = "security@bismigel.dev"
-  }]
-
-  actions = [{
-    type  = "forward"
-    value = [cloudflare_email_routing_address.security.email]
-  }]
-}
+# WHY THIS IS A ONE-OFF AND NOT A RESOURCE. The provider marks `email_routing_settings.enabled` read-only, so "off" cannot be
+# declared the way "on" could; destroying the settings resource does not promise to disable routing either. The disable is
+# therefore a single recorded API call, made once on 2026-11-28 with the `cloudflare-apply-token` from Bitwarden:
+#
+#   POST https://api.cloudflare.com/client/v4/zones/d7786ec1130918385079b8f224f271b5/email/routing/disable
+#   -> 200, {"enabled": false, "status": "ready"}
+#
+# Effects measured immediately after: the zone's Cloudflare MX (route1/2/3.mx.cloudflare.net) and Cloudflare's SPF TXT
+# (`include:_spf.mx.cloudflare.net`) both disappeared on their own, leaving the Proton records in `mail_bismigel.tf` as the only
+# mail path. Re-enabling, if it is ever wanted, is the mirror call with `.../email/routing/dns` plus the settings resource back.
+#
+# `security@bismigel.dev` becomes a Proton address on the same domain, so the published address keeps working — it lands in a
+# mailbox instead of a forward that never worked. That address is created once Proton marks the domain active; until then mail to
+# @bismigel.dev has no MX, which is the only window this change opens (seconds, plus Proton's verification lag).
