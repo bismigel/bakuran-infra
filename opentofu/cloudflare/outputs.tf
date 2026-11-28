@@ -30,3 +30,10 @@ output "turnstile_jiffley_shortlist_secret" {
   value     = cloudflare_turnstile_widget.jiffley_shortlist.secret
   sensitive = true
 }
+
+# The access application's AUD tag, for the app that verifies `Cf-Access-Jwt-Assertion` itself. It exists only after the
+# application is created, so it is read here rather than copied out of the dashboard:
+#   tofu output -raw jiffley_shortlist_access_aud      -> Bitwarden `easyshortlist-secrets` / `easyshortlist-cf-access-aud`
+output "jiffley_shortlist_access_aud" {
+  value = cloudflare_zero_trust_access_application.jiffley_shortlist_admin.aud
+}
