@@ -35,18 +35,10 @@ resource "cloudflare_dns_record" "jiffley_apex" {
   zone_id = data.cloudflare_zone.jiffley.zone_id
   name    = "jiffley.com"
   type    = "CNAME"
-  content = "${cloudflare_pages_project.jiffley_site.name}.pages.dev"
+  content = cloudflare_pages_project.jiffley_site.subdomain
   proxied = true
   ttl     = 1
   comment = "Jiffley Labs site (Cloudflare Pages, direct upload from Forgejo CI)"
-  lifecycle {
-    # The project's subdomain is assigned by Cloudflare and is the same string as the project name; asserting it keeps a
-    # rename from silently pointing DNS at a hostname nothing serves.
-    precondition {
-      condition     = cloudflare_pages_project.jiffley_site.subdomain == cloudflare_pages_project.jiffley_site.name
-      error_message = "The Pages project's subdomain differs from its name; update the CNAME target."
-    }
-  }
 }
 
 resource "cloudflare_dns_record" "jiffley_www" {
@@ -61,6 +53,15 @@ resource "cloudflare_dns_record" "jiffley_www" {
 
 # One canonical hostname: www 301s to the apex. This is the first dynamic-redirect ruleset in this module (the WAF ruleset
 # in waf_custom.tf is a different phase), so it is deliberately the only rule on it.
+#
+# OPEN, measured 2026-11-28 13:35Z: the ruleset and its one rule exist (entrypoint returns it, rule enabled, expression
+# matches `http.host eq "www.jiffley.com"`), but a request to www still gets a 200 from Pages instead of a 301. Tested with
+# both a dynamic (`concat(...)`) and a static target_url, so the target is not the cause. The likely reason is ordering: a
+# Pages custom domain is served by a Worker on that hostname, and the worker answers before the dynamic-redirect phase is
+# consulted. Until that is resolved, www serves duplicate content of the apex - it is NOT canonical, and the site copy must
+# not link it. Candidate fixes, each its own change: (a) drop the www Pages custom domain and answer www from a Worker that
+# 301s to the apex, (b) keep the domain and move the redirect into Pages' own `_worker.js`, (c) check with Cloudflare
+# support whether a zone-level dynamic redirect is expected to win over a Pages custom domain.
 resource "cloudflare_ruleset" "jiffley_www_redirect" {
   zone_id = data.cloudflare_zone.jiffley.zone_id
   name    = "jiffley.com canonical hostname"
