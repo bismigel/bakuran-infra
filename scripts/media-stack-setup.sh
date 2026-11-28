@@ -320,26 +320,40 @@ ensure_jellyfin_scan_interval() {
   echo "  jellyfin library scan every 15m"
 }
 
-# ensure_jellyfin_remote_settings   (idempotent; cap remote bitrate + trust ingress)
-# Remote clients get 12 Mbps (4K HDR otherwise transcodes to ~31 Mbps and chokes).
-# KnownProxies lets Jellyfin see the real client IP from ingress-nginx so the
-# remote-only cap applies; LAN clients (hostPort) stay uncapped.
+# ensure_jellyfin_remote_settings   (idempotent; uncap remote bitrate + trust ingress)
+# A 2160p HEVC title cannot be transcoded by this cluster: patola-thinkcentre is an
+# i5-6500T with no HEVC Main10 hardware decode (0.109x at 4K, 0.21x at 1080p output),
+# so a bitrate cap guarantees a stall. Uncapped, the client direct-plays or gets a
+# remux (video copy); if a link cannot carry a file, the fix is a smaller file, not a
+# smaller bitrate. Evidence: docs/reference/media.md gotcha 7 and the 2026-11-28 record.
+# Both the server and every per-user cap are 0 - a per-user cap overrides the server
+# value. KnownProxies lets Jellyfin see the real client IP from ingress-nginx.
 ensure_jellyfin_remote_settings() {
   [ -n "${JELLYFIN_ADMIN_USER:-}" ] || return 0
-  local tok cfg net
+  local tok cfg net uid users policy
   tok="$(curl -sf -X POST "$JELLYFIN/Users/AuthenticateByName" -H 'Content-Type: application/json' \
     -H 'Authorization: MediaBrowser Client="setup", Device="setup", DeviceId="setup", Version="1.0.0"' \
     -d "{\"Username\":\"$JELLYFIN_ADMIN_USER\",\"Pw\":\"$JELLYFIN_ADMIN_PASS\"}" | jqr -r '.AccessToken')"
   [ -n "$tok" ] && [ "$tok" != "null" ] || { echo "  (jellyfin admin auth failed; skipping remote settings)"; return; }
   cfg="$(curl -sf "$JELLYFIN/System/Configuration" -H "Authorization: MediaBrowser Token=$tok")"
-  printf '%s' "$cfg" | jqr -c '.RemoteClientBitrateLimit=12000000' >/tmp/jfcfg.json
+  printf '%s' "$cfg" | jqr -c '.RemoteClientBitrateLimit=0' >/tmp/jfcfg.json
   curl -sf -o /dev/null -X POST "$JELLYFIN/System/Configuration" \
     -H "Authorization: MediaBrowser Token=$tok" -H 'Content-Type: application/json' --data @/tmp/jfcfg.json
   net="$(curl -sf "$JELLYFIN/System/Configuration/network" -H "Authorization: MediaBrowser Token=$tok")"
   printf '%s' "$net" | jqr -c '.KnownProxies=["127.0.0.1","10.42.0.0/16"]' >/tmp/jfnet.json
   curl -sf -o /dev/null -X POST "$JELLYFIN/System/Configuration/network" \
     -H "Authorization: MediaBrowser Token=$tok" -H 'Content-Type: application/json' --data @/tmp/jfnet.json
-  echo "  jellyfin remote cap 12 Mbps + KnownProxies set"
+  # A per-user cap overrides the server value, so uncap every user too. The POST body
+  # is the bare policy object (the value of .Policy), not the whole user object.
+  users="$(curl -sf "$JELLYFIN/Users" -H "Authorization: MediaBrowser Token=$tok" | jqr -r '.[].Id')"
+  for uid in $users; do
+    policy="$(curl -sf "$JELLYFIN/Users/$uid" -H "Authorization: MediaBrowser Token=$tok" \
+      | jqr -c '.Policy | .RemoteClientBitrateLimit=0')" || continue
+    [ -n "$policy" ] || continue
+    curl -sf -o /dev/null -X POST "$JELLYFIN/Users/$uid/Policy" \
+      -H "Authorization: MediaBrowser Token=$tok" -H 'Content-Type: application/json' --data "$policy"
+  done
+  echo "  jellyfin remote bitrate uncapped (server + per-user) + KnownProxies set"
 }
 
 log "Sonarr"
