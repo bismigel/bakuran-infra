@@ -22,14 +22,16 @@ resource "cloudflare_dns_record" "bismigel_proton_verify" {
   comment = "Proton domain ownership (re-checked: do not remove)"
 }
 
-# DKIM for bismigel.dev, same account-scoped targets as the other two domains (see records_jiffley.tf). These CNAMEs are
-# additive and harmless while Cloudflare Email Routing is still on - only MX and SPF conflict.
+# DKIM for bismigel.dev. Targets are PER DOMAIN, not per account: Proton's own DKIM tab for bismigel.dev shows
+# protonmail{,2,3}.domainkey.dv3mprhi...domains.proton.ch, which differs from miguelarbis.dev's dcjwlbcpko67... This file
+# first carried miguel's targets on the wrong assumption that they were account-scoped; Proton reported
+# `We stopped DKIM signing due to problems with your DNS configuration` and the badge went red. Corrected 2026-11-28.
 
 resource "cloudflare_dns_record" "bismigel_dkim1" {
   zone_id = var.zone_id
   name    = "protonmail._domainkey.bismigel.dev"
   type    = "CNAME"
-  content = "protonmail.domainkey.dcjwlbcpko67stqlo7ennbwxp43h3ound47p67yw2bmifvy4vdqbq.domains.proton.ch"
+  content = "protonmail.domainkey.dv3mprhinobyhmyliz5dqpouxu7favkrsjz33ouoix4na2evmkr7a.domains.proton.ch"
   proxied = false
   ttl     = 1
 }
@@ -38,7 +40,7 @@ resource "cloudflare_dns_record" "bismigel_dkim2" {
   zone_id = var.zone_id
   name    = "protonmail2._domainkey.bismigel.dev"
   type    = "CNAME"
-  content = "protonmail2.domainkey.dcjwlbcpko67stqlo7ennbwxp43h3ound47p67yw2bmifvy4vdqbq.domains.proton.ch"
+  content = "protonmail2.domainkey.dv3mprhinobyhmyliz5dqpouxu7favkrsjz33ouoix4na2evmkr7a.domains.proton.ch"
   proxied = false
   ttl     = 1
 }
@@ -47,7 +49,7 @@ resource "cloudflare_dns_record" "bismigel_dkim3" {
   zone_id = var.zone_id
   name    = "protonmail3._domainkey.bismigel.dev"
   type    = "CNAME"
-  content = "protonmail3.domainkey.dcjwlbcpko67stqlo7ennbwxp43h3ound47p67yw2bmifvy4vdqbq.domains.proton.ch"
+  content = "protonmail3.domainkey.dv3mprhinobyhmyliz5dqpouxu7favkrsjz33ouoix4na2evmkr7a.domains.proton.ch"
   proxied = false
   ttl     = 1
 }
